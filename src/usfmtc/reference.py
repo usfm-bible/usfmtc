@@ -116,8 +116,17 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
             
 
 class Ref:
-    rebook = re.compile(regexes["book"], re.X)
-    recontext = re.compile(regexes["context"], re.X)
+    product: Optional[str]
+    book: Optional[str]
+    chapter: Optional[int]
+    verse: Optional[int]
+    subverse: Optional[str]
+    word: Optional[int]
+    char: Optional[int]
+    mrkrs: Optional[List["MarkerRef"]]
+
+    _rebook = re.compile(regexes["book"], re.X)
+    _recontext = re.compile(regexes["context"], re.X)
 
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
@@ -133,7 +142,7 @@ class Ref:
 
     def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0):
         p = {}
-        if m := self.rebook.match(s, pos=start):
+        if m := self._rebook.match(s, pos=start):
             p['product'] = m.group('transid') or None
             p['book'] = m.group('book')
             p['chapter'] = int(m.group('chap')) if m.group('chap') else None
@@ -142,7 +151,7 @@ class Ref:
             p['word'] = intend(m.group('word1'))
             p['char'] = intend(m.group('char1'))
             p['mrkrs'] = asmarkers(m.group("mrk1"), m.group("mrkn1"))
-        elif not (m:= self.recontext.match(s, pos=start)):
+        elif not (m:= self._recontext.match(s, pos=start)):
             raise SyntaxError("Cannot parse {}".format(s))
         elif m.group('verse1'):       # we know we have a chapter and verse
             p['chapter'] = int(m.group('chap'))
@@ -239,7 +248,7 @@ class Ref:
         return self
 
 class RefRange:
-    def __init__(self, first: Optional[Ref] = None, last: Optional[Ref] = None):
+    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
         self.first = first
         self.last = last
 
