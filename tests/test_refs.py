@@ -1,8 +1,8 @@
 import pytest
 from pytest import fail
-from usfmtc import readFile
+from usfmtc import readFile, usx2usfm
 from usfmtc.usxmodel import findref, copy_range
-import os
+import os, io
 import xml.etree.ElementTree as et
 
 from usfmtc.reference import Ref, RefList
@@ -23,6 +23,12 @@ def check_ref(ref, product=None, book=None, chapter=None, verse=None, subverse=N
     if char != ref.char:
         return False
     return True
+
+def asusfm(root):
+    with io.StringIO() as fh:
+        usx2usfm(fh, root)
+        res = fh.getvalue()
+    return res
 
 jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
 
@@ -54,10 +60,22 @@ def test_findreftext():
     if res != "reached the":
         fail(f"{res} != 'reached the'")
 
-def test_findref():
+def test_findref1():
+    first = Ref("JON 2:8")
+    last = Ref("JON 2")
+    _do_findreftest(first, last)
+
+def test_findref2():
+    ref = RefList("JON 2:8-end")[0]
+    _do_findreftest(ref.first, ref.last)
+
+def _do_findreftest(first, last):
     root = jon_usfm.getroot()
-    start = findref(Ref("JON 2:8"), root)
-    end = findref(Ref("JON 2"), root, atend=True)
+    start = findref(first, root)
+    end = findref(last, root, atend=True)
+    print(f"{first=} {start}; {last=} {end}")
     res = copy_range(root, start, end)
+    et.dump(res)
+    print(asusfm(res))
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
-        fail(f"{et.dump(res)} But {len(res)=}, {res[-1][-1].tail=}")
+        fail(f"{len(res)=}, {res[-1][-1].tail=}")

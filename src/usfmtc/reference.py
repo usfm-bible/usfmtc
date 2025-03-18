@@ -125,17 +125,27 @@ class Ref:
     char: Optional[int]
     mrkrs: Optional[List["MarkerRef"]]
 
-    _rebook = re.compile(regexes["book"], re.X)
-    _recontext = re.compile(regexes["context"], re.X)
+    _rebook = re.compile(regexes["book"], flags=re.X)
+    _recontext = re.compile(regexes["context"], flags=re.X)
 
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
         parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
         if string is not None:
             self.parse(string, context=context, start=start)
-        elif context is not None:
+            return
+
+        if context is not None:
+            isempty = all(not v for k, v in kw.items() if k != "word")
+            rel = None
+            if isempty:
+                rel = kw["word"]
+                kw["word"] = None
+                idx = [k for k in parmlist if getattr(context, k, None)][-1]
             for a in parmlist:
                 setattr(self, a, kw.get(a, getattr(context, a, None)))
+            if rel is not None:
+                setattr(self, idx, rel)
         else:
             for a in parmlist:
                 setattr(self, a, kw.get(a, None))
@@ -195,6 +205,9 @@ class Ref:
 
     def __str__(self):
         return self.str()
+
+    def __repr__(self):
+        return "Ref("+self.str()+")"
 
     def str(self, context: Optional['Ref'] = None, force: bool = False):
         if context is None:

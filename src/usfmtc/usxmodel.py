@@ -498,7 +498,6 @@ def _findel(node, tag, attrib, limits=[]):
 def _findtext(node, limits):
     """ Iterator returning text strings until an element in limits is encountered """
     for eloc in iterusx(node, until=lambda e: e.tag in limits):
-        print(eloc)
         if eloc.head is None:
             if not isempty(eloc.parent.text):
                 yield (eloc.parent.text, eloc.parent, " text")
@@ -557,7 +556,6 @@ def _findtextref(ref, el, atend=False):
     else:
         word = ref.word - 1
         for t, el, a in _findtext(el, limits=("chapter", "verse")):
-            print(t, el, a)
             b = re.split("([\u0020\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
             l = (len(b) + 1) // 2
             if not len(b[0]):
