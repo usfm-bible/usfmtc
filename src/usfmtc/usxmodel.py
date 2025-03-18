@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from usfmtc.xmlutils import isempty
 from usfmtc.usfmparser import Grammar
 import xml.etree.ElementTree as et
+from typing import Optional
 
 # This should be read from usx.rng
 allpartypes = {
@@ -375,11 +376,11 @@ def etCmp(a, b, at=None, bt=None, verbose=False, endofpara=False):
             return False
     return True
 
+
 @dataclass(slots=True, eq=False)
 class Xmlloc:
     parent: et.Element
     head:   et.Element
-
 
 def iterusx(root, parindex=0, start=None, blocks=[], filt=[], unblocks=False, grammar=None, until=None):
     """ Iterates over root yielding an Xmlloc for each node. Once until is hit,
@@ -458,6 +459,8 @@ def copy_range(root, a, b):
             break
         elif curr is root and eloc.head is None and eloc.parent.tag not in ("para", "book", "sidebar"):
             newp = factory(eloc.parent.parent.tag, attrib=eloc.parent.parent.attrib, parent=currp)
+            if 'vid' not in eloc.parent.parent.attrib and 'vid' in eloc.parent.attrib:
+                newp.set('vid', eloc.parent.get('vid', ''))
             currp.append(newp)
             currp = newp
             curr is eloc.parent.parent
@@ -473,6 +476,10 @@ def copy_range(root, a, b):
             curr = curr.parent if curr is not None else root
         else:
             pass
+    if len(res):    # strip final empty paragraph (that probably starts with the ending verse)
+        last = res[-1]
+        if last.tag in ("para", "book", "sidebar") and not len(last) and isempty(last.text):
+            res.remove(last)
     return res
 
 
@@ -585,3 +592,4 @@ def findref(ref, root, atend=False, parindex=0):
         res = USXLoc(el, "", -1)
     # What about markers?
     return res
+

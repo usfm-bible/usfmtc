@@ -1,5 +1,6 @@
 
 import re
+from usfmtc.reference import Ref
 
 def escaped(s):
     return re.sub(r'([\\|"]|//)', r'\\\1', s)
@@ -68,6 +69,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
     emit = Emitter(outf)
     version = "3.1"
     paraelements = ("chapter", "para", "row", "sidebar", "verse")
+    cref = None
     for (ev, el) in iterels(root, ("start", "end")):
         s = el.get("style", "")
 
@@ -85,12 +87,28 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
             prespace = False
             if el.tag == "chapter":
                 proc_start_ms(el, "chapter", "c", emit, "")
+                n = int(el.get("number", 0))
+                if cref is None:
+                    cref = Ref(chapter=n)
+                else:
+                    cref.chapter = n
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ")
+                n = int(el.get("number", 0))
+                if cref is None:
+                    cref = Ref(verse=n)
+                else:
+                    cref.verse = n
             elif el.tag == "book":
                 emit("\\{0} {1}".format(s, el.get("code")))
                 prespace = True
             elif el.tag in ("row", "para"):
+                if 'vid' in el.attrib:
+                    r = Ref(el.get("vid", ""))
+                    if cref is None or (cref.chapter != r.chapter and cref.chapter != r.chapter+1) \
+                                    or (cref.verse != r.verse and cref.verse != r.verse):
+                        emit(f"\\zsetref|{r}\\*\n")
+                    cref = r 
                 if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
                     emit("\\{0}".format(s))
                 else:

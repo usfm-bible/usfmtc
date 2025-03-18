@@ -288,9 +288,9 @@ class RefList(List):
         for b in bits:
             first = Ref(b, context=context)
             nextstart = first.strend
-            if not (m := re.match(r"\s*-\s*", s[nextstart:])):
+            if not (m := re.match(r"\s*-\s*", b[nextstart:])):
                 if nextstart < len(b):
-                    raise SyntaxError("Bad range in {}".format(s[start:]))
+                    raise SyntaxError("Bad range in {} of {}".format(b[start:], s))
                 else:
                     res.append(first)
                     context = first

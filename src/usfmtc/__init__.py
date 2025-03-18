@@ -15,7 +15,7 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, messup, canonicalise
+from usfmtc.usxmodel import addesids, cleanup, messup, canonicalise, findref, copy_range
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
 from usfmtc.usfmgenerate import usx2usfm
@@ -180,7 +180,7 @@ class USX:
         if self.xml is None:
             return None
         prettyxml(self.xml)
-        self._outwrite(file, self.xml, fn=writexml)
+        return self._outwrite(file, self.xml, fn=writexml)
 
     def outUsfm(self, file=None, grammar=None, altparser=False, **kw):
         """ Output USFM from USX object. grammar is et doc. If file is None returns string """
@@ -208,6 +208,18 @@ class USX:
     def getroot(self):
         """ Returns root XML element """
         return self.xml
+
+    def getrefs(self, *refs):
+        root = self.getroot()
+        res = root.__class__(root.tag, attrib=root.attrib)
+        for r in refs:
+            start = findref(r.first, root)
+            end = findref(r.last, root, atend=True)
+            subdoc = copy_range(root, start, end)
+            if len(subdoc):
+                subdoc[0].set("vid", str(r.first))
+                res.extend(list(subdoc))
+        return self.__class__(res)
 
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):
