@@ -486,7 +486,7 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
-    def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=3.0):
+    def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=3.0, index=True, **kw):
         if factory is None:
             def makeel(tag, attrib, **extras):
                 attrib.update({" "+k:v for k, v in extras.items()})
@@ -500,6 +500,9 @@ class USFMParser:
         self.lexer = Lexer(txt, expanded=expanded, strict=strict)
         self.strict = strict
         self.version = version
+        self.doindexing = index
+        self.chapters = []
+        self.ids = {}
 
     def _setup(s, expanded=False):
         clsself = s.__class__

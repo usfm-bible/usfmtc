@@ -4,7 +4,7 @@ import xml.etree.ElementTree as et
 from dataclasses import dataclass
 
 class ParentElement(et.Element):
-    def __init__(self, tag, attrib=None, parent=None, pos=None):
+    def __init__(self, tag, attrib={}, parent=None, pos=None):
         et.Element.__init__(self, tag, attrib)
         self.parent = parent
         self.pos = pos

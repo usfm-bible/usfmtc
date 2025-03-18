@@ -55,7 +55,7 @@ def _usfmGrammar(rdoc, backend=None, start=None):
     parser = sfmproc.parseRef(start)
     return parser
 
-def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None):
+def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None, **kw):
     """ Create UsfmGrammarParser from gsrc as used by USX.fromUsfm """
     if altparser:
         rdoc = _grammarDoc(gsrc, extensions)
@@ -69,7 +69,7 @@ def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None):
 
 _filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj"}
 
-def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], altparser=False, strict=False, keepparser=False):
+def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], altparser=False, strict=False, keepparser=False, **kw):
     """ Reads a USFM file of a given type or inferred from the filename
         extension. extfiles allows for extra markers.ext files to extend the grammar"""
     if informat is None:
@@ -81,9 +81,9 @@ def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], a
         return None
 
     if intype == "usx":
-        usxdoc = USX.fromUsx(infpath)
+        usxdoc = USX.fromUsx(infpath, **kw)
     elif intype == "usj":
-        usxdoc = USX.fromUsj(infpath)
+        usxdoc = USX.fromUsj(infpath, **kw)
     elif intype.startswith("usfm"):
         if altparser and grammar is None:
             if gramfile is None:
@@ -95,14 +95,14 @@ def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], a
             fname = getattr(infpath, 'name', infpath)
             extfiles.append(os.path.join(os.path.dirname(fname), "markers.ext"))
             exts = [x for x in extfiles if os.path.exists(x)]
-            grammar = usfmGrammar(gramfile, extensions=exts, altparser=altparser)
-        usxdoc = USX.fromUsfm(infpath, grammar=grammar, altparser=altparser, strict=strict, keepparser=keepparser)
+            grammar = usfmGrammar(gramfile, extensions=exts, altparser=altparser, **kw)
+        usxdoc = USX.fromUsfm(infpath, grammar=grammar, altparser=altparser, strict=strict, keepparser=keepparser, **kw)
     return usxdoc
 
 
 class USX:
     @classmethod
-    def fromUsx(cls, src, elfactory=None):
+    def fromUsx(cls, src, elfactory=None, **kw):
         """ Loads USX and creates USX object to hold it """
         if elfactory is None:
             elfactory = ParentElement
@@ -126,7 +126,7 @@ class USX:
         return cls(res)
 
     @classmethod
-    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False):
+    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, **kw):
         """ Parses USFM using UsfmGrammarParser grammar and creates USX object.
             Raise usfmtc.parser.NoParseError on error.
             elfactory must take parent and pos named parameters not as attributes
@@ -134,12 +134,12 @@ class USX:
         data = _readsrc(src)
 
         if not altparser:
-            p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict)
+            p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, **kw)
             xml = p.parse()
         else:
         # This can raise usfmtc.parser.NoParseError
             p = None
-            result = parseusfm(data, grammar, timeout=timeout, isdata=True)
+            result = parseusfm(data, grammar, timeout=timeout, isdata=True, **kw)
             xml = result.asEt(elfactory=elfactory)
 
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
@@ -149,7 +149,7 @@ class USX:
         return res
 
     @classmethod
-    def fromUsj(cls, src, elfactory=None):
+    def fromUsj(cls, src, elfactory=None, **kw):
         data = _readsrc(src)
         djson = json.loads(data)
         xml = usjtousx(djson, elfactory=elfactory)
@@ -205,6 +205,10 @@ class USX:
             dat = json.dumps(res, indent=2, ensure_ascii=ensure_ascii)
             self._outwrite(file, dat)
 
+    def getroot(self):
+        """ Returns root XML element """
+        return self.xml
+
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):
         """ Saves the document to a file in the appropriate format, either given
@@ -233,13 +237,12 @@ class USX:
     def canonicalise(self):
         canonicalise(self.getroot())
 
-    def getroot(self):
-        """ Returns root XML element """
-        return self.xml
-
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
         addesids(self.xml)
+
+    def addindexes(self):
+        self.chapters, self.ids = addindexes(self.xml)
 
     @property
     def version(self):
