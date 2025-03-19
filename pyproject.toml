@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "usfmtc"
-version = "0.2.6"
+version = "0.3"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
 readme = "python/README.md"
 license = {file = "LICENSE.md"}
@@ -30,7 +30,7 @@ git = [
 ]
 
 [project.urls]
-Home-Page = "https://github.com/usfm-bible/tcdocs"
+Home-Page = "https://github.com/usfm-bible/usfmtc"
 
 [tool.setuptools.packages.find]
 where = ["src"]
