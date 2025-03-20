@@ -106,7 +106,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
                     if cref is None or (cref.chapter != r.chapter and cref.chapter != r.chapter+1) \
-                                    or (cref.verse != r.verse and cref.verse != r.verse):
+                                    or cref.verse != r.verse:
                         emit(f"\\zsetref|{r}\\*\n")
                     cref = r 
                 if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
