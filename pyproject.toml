@@ -7,13 +7,12 @@ name = "usfmtc"
 version = "0.3.1"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
 readme = "python/README.md"
-license = {file = "LICENSE.md"}
+license = "MIT"
 description = "USFM reference parser"
 classifiers = [
    "Environment :: Console",
    "Programming Language :: Python :: 3.8",
    "Intended Audience :: Developers",
-   "License :: OSI Approved :: MIT License",
    "Topic :: Text Processing :: Markup"
    ]
 requires-python = ">=3.8"

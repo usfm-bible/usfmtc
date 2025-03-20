@@ -94,7 +94,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
                     cref.chapter = n
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ")
-                n = int(el.get("number", 0))
+                n = el.get("number", 0)
                 if cref is None:
                     cref = Ref(verse=n)
                 else:
