@@ -2,7 +2,7 @@ import pytest
 from pytest import fail
 from usfmtc import readFile, usx2usfm
 from usfmtc.usxmodel import findref, copy_range
-from usfmtc.reference import Ref, RefList
+from usfmtc.reference import Ref, RefList, RefRange
 import os, io
 import xml.etree.ElementTree as et
 
@@ -71,7 +71,7 @@ def test_findref1():
     _do_findreftest(first, last)
 
 def test_findref2():
-    ref = RefList("JON 2:8-end")[0]
+    ref = Ref("JON 2:8-end")
     _do_findreftest(ref.first, ref.last)
 
 def test_getrefs():
@@ -93,3 +93,107 @@ def _do_findreftest(first, last):
     print(asusfm(res))
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
         fail(f"{len(res)=}, {res[-1][-1].tail=}")
+
+def r(bk, chap, verse, subv=None):
+    return Ref(book=bk, chapter=chap, verse=verse, subverse=subv)
+
+def t(s, *r):
+    res = RefList(s)
+    if len(res) != len(r):
+        fail("Failed '{}' resulted in {} references, {}, rather than {}".format(s, len(res), res, len(r)))
+    for z in zip(res, r):
+        if z[0] != z[1]:
+            fail("Reference list failed '{}', {} != {}".format(s, z[0], z[1]))
+    if str(res) != s:
+        fail("{} != canonical string of {}".format(s, str(res)))
+    print("{} = {}".format(s, str(res)))
+
+def listtest(s, a):
+    res = RefList(s)
+    res.simplify()
+    base = RefList(a)
+    if res != base:
+        fail("{} simplified to {} instead of {}".format(s, res, base))
+    print("{} -> {}".format(s, res))
+
+def o(a, b, res):
+    x = RefList(a)[0]
+    y = RefList(b)[0]
+    if (isinstance(res,tuple)):
+      restup=res
+      restupd=f"x<y {restup[0]}, y<x {restup[1]}, x in y {restup[2]}"
+    else:
+      restup=(res,res,res)
+      restupd=res
+    a = (y<x)
+    b = (x<y)
+    #print(f"y<x :{a} x<y:{b}")
+    if restup[0] != b:
+        raise fail(f"{x} should be < {y} [expect: {restupd}]")
+    if restup[1] != a:
+        raise fail(f"{y} should not be < {x} [expect: {restupd}]")
+    if (x in y) != restup[2]:
+        raise fail(f"{x} in {y} should be {res}")
+    print("{} <-> {} ({})".format(x, y,restupd))
+
+def test_gen1():
+    t("GEN 1:1", r("GEN", 1, 1))
+
+def test_jhn3():
+    t("JHN 3", r("JHN", 3, None))
+
+def test_3jn():
+    t("3JN 3", r("3JN", 1, 3))
+
+def test_1co():
+    t("1CO 6:5a", r("1CO", 6, 5, "a"))
+
+def test_mat5():
+    t("MAT 5:1-7", RefRange(r("MAT", 5, 1), r("MAT", 5, 7)))
+
+def test_mat7():
+    t("MAT 7:1,2; 8:6b-9:4", r("MAT", 7, 1), r("MAT", 7, 2), RefRange(r("MAT", 8, 6, "b"), r("MAT", 9, 4)))
+
+def test_luk3():
+    t("LUK 3:35-end", RefRange(r("LUK", 3, 35), r("LUK", 3, -1)))
+
+def test_rom1():
+    listtest("ROM 1; MAT 3:4-11; ROM 1:3-2:7", "MAT 3:4-11; ROM 1-2:7")
+
+def test_gen1_1():
+    t("GEN 1:1-3; 3:2-11; LUK 4:5", RefRange(r("GEN", 1, 1), r("GEN", 1, 3)), RefRange(r("GEN", 3, 2), r("GEN", 3, 11)), r("LUK", 4, 5))
+
+def test_jud():
+    t("JUD 1,2,4", r("JUD", 1, 1), r("JUD", 1, 2), r("JUD", 1, 4))
+
+def test_gen1_1a():
+    o("GEN 1:1", "EXO 2:3", (True,False,False))
+
+def test_exo2():
+    o("EXO 2:4", "EXO 2", (False,True,True))
+
+def test_exo2a():
+    o("EXO 2:4-5", "EXO 2", (False,True,True))
+
+def test_exo2b():
+    o("EXO 2:4-5", "EXO 3", (True,False,False))
+
+def text_exo2c():
+    o("EXO 2:1-2", "EXO 2:1-5", (False,False,True))
+
+def test_exo2d():
+    o("EXO 2:1-2", "EXO 2:2-7", (True,False,True))
+
+def test_exo2e():
+    o("EXO 2:1-2", "EXO 2:3-6", (True,False,False))
+
+def test_gen2():
+    o("GEN 2:1-2", "EXO 2:3-6", (True,False,False))
+
+def test_deu2():
+    o("DEU 2:1-2", "EXO 2:3-6", (False,True,False))
+
+def test_exo2f():
+    o("EXO 2:2-3", "EXO 2:1-5", (False,False,True))
+
+

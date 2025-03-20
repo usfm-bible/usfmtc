@@ -34,7 +34,7 @@ Home-Page = "https://github.com/usfm-bible/usfmtc"
 where = ["src"]
 
 [tool.setuptools.package-data]
-usfmtc = ["*.rng"]
+usfmtc = ["*.rng", "*.vrs"]
 
 [tool.setuptools.dynamic]
 # version = {attr = "usfmtc.version"}

@@ -2,7 +2,64 @@
 
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
-import re
+import re, json, os
+from functools import reduce
+
+_bookslist = """GEN|50 EXO|40 LEV|27 NUM|36 DEU|34 JOS|24 JDG|21 RUT|4 1SA|31
+        2SA|24 1KI|22 2KI|25 1CH|29 2CH|36 EZR|10 NEH|13 EST|10 JOB|42 PSA|150
+        PRO|31 ECC|12 SNG|8 ISA|66 JER|52 LAM|5 EZK|48 DAN|12 HOS|14 JOL|3 AMO|9
+        OBA|1 JON|4 MIC|7 NAM|3 HAB|3 ZEP|3 HAG|2 ZEC|14 MAL|4 ZZZ|0
+        MAT|28 MRK|16 LUK|24 JHN|21 ACT|28 ROM|16 1CO|16 2CO|13 GAL|6 EPH|6 PHP|4
+        COL|4 1TH|5 2TH|3 1TI|6 2TI|4 TIT|3 PHM|1 HEB|13 JAS|5 1PE|5 2PE|3 1JN|5
+        2JN|1 3JN|1 JUD|1 REV|22
+        TOB|14 JDT|16 ESG|10 WIS|19 SIR|51 BAR|6 LJE|1 S3Y|1 SUS|1 BEL|1 1MA|16
+        2MA|15 3MA|7 4MA|18 1ES|9 2ES|16 MAN|1 PS2|1
+        ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 XXA|999 XXB|999 XXC|999
+        XXD|999 XXE|999 XXF|999 XXG|999 FRT|0 BAK|999 OTH|999 XXS|0 ZZZ|0 
+        ZZZ|0 ZZZ|0 INT|999 CNC|999 GLO|999 TDX|999 NDX|999 DAG|14 ZZZ|0 ZZZ|0
+        ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 ZZZ|0 LAO|1"""
+        
+_hebOrder = ["GEN", "EXO", "LEV", "NUM", "DEU", "JOS", "JDG", "1SA", "2SA", "1KI",
+             "2KI", "ISA", "JER", "EZK", "HOS", "JOL", "AMO", "OBA", "JON", "MIC",
+             "NAM", "HAB", "ZEP", "HAG", "ZEC", "MAL", "PSA", "PRO", "JOB", "SNG",
+             "RUT", "LAM", "ECC", "EST", "DAN", "EZR", "NEH", "1CH", "2CH"]
+             
+_endBkCodes = {'XXG':'100', 'FRT':'A0', 'BAK':'A1', 'OTH':'A2', 'INT':'A7', 'CNC':'A8', 'GLO':'A9',
+               'TDX':'B0', 'NDX':'B1', 'DAG':'B2', 'LAO':'C3', 'XXS': '101'} 
+
+_allbooks = ["FRT", "INT", 
+            "GEN", "EXO", "LEV", "NUM", "DEU", "JOS", "JDG", "RUT", "1SA", "2SA", "1KI",
+            "2KI", "1CH", "2CH", "EZR", "NEH", "EST", "JOB", "PSA", "PRO", "ECC", "SNG",
+            "ISA", "JER", "LAM", "EZK", "DAN", "HOS", "JOL", "AMO", "OBA", "JON", "MIC",
+            "NAM", "HAB", "ZEP", "HAG", "ZEC", "MAL", 
+            "TOB", "JDT", "ESG", "WIS", "SIR", "BAR", "LJE", "S3Y", "SUS", "BEL", 
+            "1MA", "2MA", "3MA", "4MA", "1ES", "2ES", "MAN", "PS2", "DAG", "LAO",
+            "MAT", "MRK", "LUK", "JHN", "ACT", "ROM", "1CO", "2CO", "GAL", "EPH", "PHP",
+            "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM", "HEB", "JAS", "1PE", "2PE",
+            "1JN", "2JN", "3JN", "JUD", "REV", 
+            "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG", "XXS",
+            "GLO", "TDX", "NDX", "CNC", "OTH", "BAK"]
+
+nonScriptureBooks = ["FRT", "INT", "GLO", "TDX", "NDX", "CNC", "OTH", "BAK", "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG"]
+
+def booknum(bookcode):
+    if len(bookcode):
+        if bookcode[0] in "ABC":
+            return int(bookcode[1:]) + (ord(bookcode[0])-64) * 10 + 100
+        else:
+            return int(bookcode)
+    else:
+        return 0
+
+_allbkmap = {k: i for i, k in enumerate(_allbooks)} 
+
+allbooks = [b.split("|")[0] for b in _bookslist.split()] # if b != "ZZZ|0"]
+books = dict((b.split("|")[0], i) for i, b in enumerate(_bookslist.split()) if b[-2:] != "|0")
+bookcodes = dict((b.split("|")[0], "{:02d}".format(i+1)) for i, b in enumerate(_bookslist.split()[:99]) if b[-2:] != "|0")
+bookcodes.update(_endBkCodes)
+booknumbers = {k: booknum(v) for k, v in bookcodes.items()}
+chaps = dict(b.split("|") for b in _bookslist.split())
+oneChbooks = [b.split("|")[0] for b in _bookslist.split() if b[-2:] == "|1"]
 
 @dataclass
 class MarkerRef:
@@ -113,7 +170,33 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
         res.append(MarkerRef(mrkr, index=ind, word=word, char=charref))
         i += 1
     return res if len(res) else None
-            
+
+def readvrs(fname):
+    ''' res[book number] [0] versenum of start of book from start of Bible
+                         [1..n] number of verses from start of book to end of chapter'''
+    res = [[] for i in range(len(allbooks))]
+    with open(fname, encoding="utf-8") as inf:
+        for li in inf.readlines():
+            l = li.strip()
+            if l.startswith("#"):
+                continue
+            b = l.split()
+            if not len(b) or (len(b) == 5 and b[2] == "="):
+                continue
+            if b[0] not in books:
+                continue
+            verses = [int(x.split(':')[1]) for x in b[1:]]
+            versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
+            res[books[b[0]]] = versesums[0]
+    curr = 0
+    for b in res:
+        if len(b):
+            b[0] = curr
+            curr += b[-1] + len(b) - 1
+        else:
+            b.append(curr)
+    return res
+
 
 class Ref:
     product: Optional[str]
@@ -125,12 +208,29 @@ class Ref:
     char: Optional[int]
     mrkrs: Optional[List["MarkerRef"]]
 
+    versification: Optional[List[List[int]]] = None
     _rebook = re.compile(regexes["book"], flags=re.X)
     _recontext = re.compile(regexes["context"], flags=re.X)
+    _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
+
+    def __new__(cls, string: Optional[str] = None,
+                    context: Optional['Ref'] = None, start: int = 0, **kw):
+        if string is None or "-" not in string:
+            return super().__new__(cls)
+        bits = string.split("-", 1)
+        start = Ref(bits[0], context)
+        end = Ref(bits[1], start)
+        return RefRange(start, end)
+
+    @classmethod
+    def loadversification(cls, fname=None):
+        if fname is None:
+            fname = os.path.join(os.path.dirname(__file__), 'eng.vrs')
+        cls.versification = readvrs(fname)
+        return cls.versification
 
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
-        parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
         if string is not None:
             self.parse(string, context=context, start=start)
             return
@@ -141,16 +241,18 @@ class Ref:
             if isempty:
                 rel = kw["word"]
                 kw["word"] = None
-                idx = [k for k in parmlist if getattr(context, k, None)][-1]
-            for a in parmlist:
-                setattr(self, a, kw.get(a, getattr(context, a, None)))
+                idx = [k for k in self._parmlist if getattr(context.last, k, None)][-1]
+            for a in self._parmlist:
+                setattr(self, a, kw.get(a, getattr(context.last, a, None)))
             if rel is not None:
                 setattr(self, idx, rel)
         else:
-            for a in parmlist:
+            for a in self._parmlist:
                 setattr(self, a, kw.get(a, None))
 
     def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0):
+        if "-" in s:
+            return 
         p = {}
         if m := self._rebook.match(s, pos=start):
             p['product'] = m.group('transid') or None
@@ -201,6 +303,11 @@ class Ref:
             p['word'] = intend(m.group('word1'))
             p['char'] = intend(m.group('char1'))
         self.strend = m.end(0)
+        if p.get('mrkrs', None) == []:
+            p['mrkrs'] = None
+        if p.get('book', None) in oneChbooks and p['verse'] is None:
+            p['verse'] = p['chapter']
+            p['chapter'] = 1
         self.__init__(None, context, **p)
 
     def __str__(self):
@@ -209,9 +316,67 @@ class Ref:
     def __repr__(self):
         return "Ref("+self.str()+")"
 
+    def __eq__(self, o):
+        if not isinstance(o, Ref):
+            return False
+        res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
+        return res
+
+    def __contains__(self, o):
+        if isinstance(o, RefRange):
+            selfr = RefRange.fromRef(self)
+            return o in selfr
+        if self.book != o.book:
+            return False
+        return all(getattr(self, a) is None or getattr(self, a) == getattr(o, a) for a in self._parmlist)
+
+    def __lt__(self, o):
+        if o is None:
+            return False
+        elif not isinstance(o, Ref):
+            return not o < self or o == self
+        if self.book != o.book:
+            return books.get(self.book, 200) < books.get(o.book, 200)
+        elif self.chapter != o.chapter:
+            return (self.chapter or 0) < (o.chapter or 0)
+        elif self.verse != o.verse:
+            if self.verse == -1:
+                return False
+            elif o.verse == -1:
+                return True
+            return (self.verse or 0) < (o.verse or 0)
+        elif self.subverse != o.subverse:
+            if self.subverse is None:
+                return True
+            elif o.subverse is None:
+                return False
+            else:
+                return self.subverse < o.subverse
+        elif self.word != o.word:
+            return (self.word or 0) < (o.word or 0)
+        elif self.char != o.char:
+            return (self.char or 0) < (o.char or 0)
+        return False
+
+    def __gt__(self, o):
+        if o is None:
+            return True
+        return o < self
+
+    def __le__(self, o):
+        return not self > o
+
+    def __ge__(self, o):
+        return not self < o
+
+    def __hash__(self):
+        return hash((getattr(self, a) for a in self._parmlist))
+
     def str(self, context: Optional['Ref'] = None, force: bool = False):
         if context is None:
             context = Ref()
+        else:
+            context = context.last
         res = []
         sep = ''
         if context.product != self.product:
@@ -222,9 +387,9 @@ class Ref:
             res.append(self.book)
             res.append(' ')
             force = True
-        if force or context.chapter != self.chapter:
+        if self.book not in oneChbooks and (force or context.chapter != self.chapter):
             res.append(str(self.chapter))
-        sep = ':'
+            sep = ':'
         if self.verse is not None and (force or context.verse != self.verse):
             if len(res):
                 res.append(sep)
@@ -260,7 +425,61 @@ class Ref:
     def last(self):
         return self
 
+    def copy(self):
+        kw = {k: getattr(self, k) for k in self._parmlist}
+        return self.__class__(**kw)
+
+    def end(self):
+        res = self.copy()
+        if self.chapter is None:
+            res.chapter = -1
+        elif self.verse is None:
+            res.verse = -1
+        elif self.word is None:
+            res.word = -1
+        elif self.char is None:
+            res.char = -1
+        return res
+
+    def _getmaxvrs(self, bk, chap):
+        vrs = self.first.versification or Ref.loadversification()
+        book = books.get(bk, None)
+        if book is None or len(vrs[book]) <= chap:
+            maxvrs = 200
+        else:
+            maxvrs = vrs[book][chap] - (vrs[book][chap-1] if chap > 1 else 0)
+        return maxvrs
+
+    def nextverse(self):
+        r = self.first.copy()
+        maxvrs = self._getmaxvrs(r.book, r.chapter)
+        if r.verse is None:
+            r.verse = 1
+        else:
+            r.verse += 1
+        if r.verse > maxvrs:
+            r.chapter += 1
+            r.verse = 1
+            if r.book not in books:
+                r.book = "GEN"
+                r.chapter = 1
+            elif r.chapter >= len(self.versification[books[r.book]]):
+                newbk = books[r.book] + 1
+                while newbk < len(allbooks) and allbooks[newbk] not in books:
+                    newbk += 1
+                if newbk >= len(allbooks):
+                    return None
+                r.book = allbooks[newbk]
+                r.chapter = 1
+        return r
+
+
 class RefRange:
+
+    @classmethod
+    def fromRef(cls, r):
+        return cls(r, r.end())
+
     def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
         self.first = first
         self.last = last
@@ -274,6 +493,42 @@ class RefRange:
     def __str__(self):
         return self.str()
 
+    def __repr__(self):
+        return "RefRange({!r}-{!r})".format(self.first, self.last)
+
+    def __eq__(self, other):
+        if not isinstance(other, RefRange):
+            return False
+        return self.first == other.first and self.last == other.last
+
+    def __lt__(self, o):
+        return self.last <= o.first
+
+    def __le__(self, o):
+        return self.last <= o.last
+
+    def __gt__(self, o):
+        return self.first >= o.last
+
+    def __ge__(self, o):
+        return self.first >= o.first
+
+    def __hash__(self):
+        return hash((self.first, self.last))
+
+    def __contains__(self, r):
+        return self.first <= r.last and r.first <= self.last
+
+    @property
+    def strend(self):
+        return self.last.strend
+
+    def allverses(self):
+        r = self.first
+        while r is not None and r <= self.last:
+            yield r
+            r = r.nextverse()
+
 
 class RefList(List):
     def __init__(self, content: str | List[Ref | RefRange], context: Optional[Ref] = None, start: int = 0):
@@ -286,30 +541,71 @@ class RefList(List):
         bits = re.split(r"\s*[,;]\s*", s[start:])
         res = []
         for b in bits:
-            first = Ref(b, context=context)
-            nextstart = first.strend
-            if not (m := re.match(r"\s*-\s*", b[nextstart:])):
-                if nextstart < len(b):
-                    raise SyntaxError("Bad range in {} of {}".format(b[start:], s))
-                else:
-                    res.append(first)
-                    context = first
-            else:
-                nextstart += m.end()
-                last = Ref(b, context=first, start=nextstart)
-                res.append(RefRange(first, last))
-                context = last
+            r = Ref(b, context=context)
+            res.append(r)
+            context = r
         self.__init__(res)
 
     def __str__(self):
-        return "; ".join(str(s) for s in self)
+        return self.str()
 
     def str(self, context: Optional[Ref] = None, force: bool = False):
         res = []
         for r in self:
+            if context is not None:
+                if context.last.book == r.first.book and context.last.chapter == r.first.chapter:
+                    res.append(",")
+                else:
+                    res.append("; ")
             res.append(r.str(context, force=force))
             context = r.last
-        return "; ".join(res)
+        return "".join(res)
+
+    def simplify(self, sort=True):
+        res = []
+        lastref = Ref()
+        temp = []
+        count = 0
+        if sort:
+            self.sort()
+        for i,r in enumerate(self):
+            t, u = (r.first, r.last)
+            if r.first == r.last and r.first.verse is None:
+                if isinstance(r, RefRange):
+                    r.last = Ref(book=r.first.book, chapter=r.first.chapter, verse=-1)
+                else:
+                    r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter, verse=-1))
+            n = lastref.last.nextverse()
+            if lastref.first < t <= lastref.last:
+                t = n
+            if t > u:
+                # print("{} inside {}".format(r, lastref))
+                continue
+            if t == n and lastref.last.book is not None:
+                temp = []
+                if isinstance(res[-1], RefRange):
+                    res[-1].last = u
+                else:
+                    res[-1] = RefRange(lastref, u)
+            else:
+                if len(temp):
+                    res.extend(temp)
+                    temp = []
+                count = 0
+                res.append(r)
+            lastref = r
+        self[:] = res
+        return self
+
+
+
+class RefJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (Reference, RefRange, RefList)):
+            return str(obj)
+        elif isinstance(obj, set):
+            return sorted(obj)
+        return super()(obj)
 
 
 def main():
