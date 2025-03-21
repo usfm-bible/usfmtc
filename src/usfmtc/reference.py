@@ -113,9 +113,9 @@ _regexes = {
     "wordref2": r"""(?:(?: \!(?P<word2>[0-9]|end)(?:[+](?P<char2>{charref}))?
                           |(?P<mrk2>{mrkref}))
                        (?P<mrkn2>{mrkref}*))""",
-    "verse1": r"(?P<verse1>[0-9]+)(?P<subv1>[a-z]?|end)",
-    "verse2": r"(?P<verse2>[0-9]+)(?P<subv2>[a-z]?|end)",
-    "chapter": r"(?:(?P<chap>[0-9]+))",
+    "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",
+    "verse2": r"(?P<verse2>[0-9]+|end)(?P<subv2>[a-z]?)",
+    "chapter": r"(?:(?P<chap>[0-9]+|end))",
     "chap": r"{chapter}(?:[:.]{verse1})?{wordref1}?",
     "context": r"""(?:{chap}
                     | {verse2}{wordref2}? | {wordrefonly}(?P<mrkn3>{mrkref}*)
@@ -232,20 +232,18 @@ class Ref:
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
         if string is not None:
-            self.parse(string, context=context, start=start)
+            self.parse(string, context=(context.last if context is not None else None), start=start)
             return
 
         if context is not None:
-            isempty = all(not v for k, v in kw.items() if k != "word")
-            rel = None
-            if isempty:
-                rel = kw["word"]
-                kw["word"] = None
-                idx = [k for k in self._parmlist if getattr(context.last, k, None)][-1]
+            hitlimit = False
             for a in self._parmlist:
-                setattr(self, a, kw.get(a, getattr(context.last, a, None)))
-            if rel is not None:
-                setattr(self, idx, rel)
+                v = kw.get(a, None)
+                if v is not None:
+                    hitlimit = True
+                elif not hitlimit:
+                    v = getattr(context.last, a, None)
+                setattr(self, a, v)
         else:
             for a in self._parmlist:
                 setattr(self, a, kw.get(a, None))
@@ -254,54 +252,31 @@ class Ref:
         if "-" in s:
             return 
         p = {}
+        s = s.strip()
         if m := self._rebook.match(s, pos=start):
             p['product'] = m.group('transid') or None
             p['book'] = m.group('book')
-            p['chapter'] = int(m.group('chap')) if m.group('chap') else None
-            p['verse'] = intend(m.group('verse1'))
-            p['subverse'] = m.group('subv1') or None
-            p['word'] = intend(m.group('word1'))
-            p['char'] = intend(m.group('char1'))
-            p['mrkrs'] = asmarkers(m.group("mrk1"), m.group("mrkn1"))
         elif not (m:= self._recontext.match(s, pos=start)):
             raise SyntaxError("Cannot parse {}".format(s))
-        elif m.group('verse1'):       # we know we have a chapter and verse
-            p['chapter'] = int(m.group('chap'))
-            p['verse'] = intend(m.group('verse1'))
-            p['subverse'] = m.group('subv1') or None
-            p['word'] = intend(m.group('word1'))
-            p['char'] = intend(m.group('char1'))
-            p['mrkrs'] = asmarkers(m.group("mrk1"), m.group("mrkn1"))
-        elif m.group('subv2'):
-            p['verse'] = intend(m.group('verse2'))
-            p['subverse'] = m.group('subv2') or None
-            p['word'] = intend(m.group('word2'))
-            p['char'] = intend(m.group('char2'))
-            p['mrkrs'] = asmarkers(m.group("mrk2"), m.group("mrkn2"))
-        elif m.group('word'):
-            p['word'] = intend(m.group('word'))
-            p['char'] = intend(m.group('char'))
-            p['mrkrs'] = asmarkers("", m.group('mrkn3'))
-        elif m.group('char3'):
-            p['char'] = intend(m.group('char3'))
-            p['mrkrs'] = asmarkers("", m.group('mrkn4'))
-        elif not m.group('chap') and m.group('word1'):
-            p['word'] = intend(m.group('word1'))
-            p['char'] = intend(m.group('char1'))
-            p['mrkrs'] = asmarkers(m.group('mrk1'), m.group('mrkn1'))
-        elif context is not None and context.char:
-            p['char'] = intend(m.group('chap'))
-        elif context is not None and context.word:
-            p['word'] = intend(m.group('chap'))
-            p['char'] = intend(m.group('char1'))
-        elif context is not None and context.verse:
-            p['verse'] = intend(m.group('chap'))
-            p['word'] = intend(m.group('word1'))
-            p['char'] = intend(m.group('char1'))
-        else:
-            p['chapter'] = int(m.group('chap'))
-            p['word'] = intend(m.group('word1'))
-            p['char'] = intend(m.group('char1'))
+        gs = m.groupdict()
+        p['chapter'] = intend(gs.get('chap', None))
+        p['verse'] = intend(gs.get('verse1', gs.get('verse2', None)))
+        p['subverse'] = gs.get('subv1', gs.get('subv2', None)) or None
+        p['word'] = intend(gs.get('word1', gs.get('word2', gs.get('word', None))))
+        p['char'] = intend(gs.get('char', gs.get('char1', gs.get('char2', None))))
+        mnum = "2" if 'mrk2' in gs else "1"
+        p['mrkrs'] = asmarkers(gs.get('mrk'+mnum, None), gs.get('mrkn'+mnum, None))
+        if 'book' not in p and context is not None and p['chapter'] is not None and p['verse'] is None and p['word'] is None:
+            rep = None
+            if context.char is not None:
+                rep = 'char'
+            elif context.word is not None:
+                rep = 'word'
+            elif context.verse is not None:
+                rep = 'verse'
+            if rep is not None:
+                p[rep] = p['chapter']
+                p['chapter'] = None 
         self.strend = m.end(0)
         if p.get('mrkrs', None) == []:
             p['mrkrs'] = None

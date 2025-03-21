@@ -41,7 +41,7 @@ def test_basic():
     if not check_ref(r, None, "JHN", 3, 16):
         fail(f"{r} is not JHN 3:16")
     if not check_ref(rr, None, "JHN", 3, 12):
-        fail(f"{r} is not JHN 3:12")
+        fail(f"{rr} is not JHN 3:12")
 
 def test_range():
     r = RefList("JHN 3:16-18")
@@ -208,3 +208,42 @@ def test_exo2f():
     _o("EXO 2:2-3", "EXO 2:1-5", (False,False,True))
 
 
+# ChatGPT tests:
+def test_invalid_ref():
+    try:
+        r = Ref("INVALID 1:1")
+        fail("Invalid reference did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_cross_book_range():
+    r = Ref("JON 3:10 - MIC 1:2")
+    if not check_ref(r.first, None, "JON", 3, 10):
+        fail(f"{r.first} is not JON 3:10")
+    if not check_ref(r.last, None, "MIC", 1, 2):
+        fail(f"{r.last} is not MIC 1:2")
+
+def test_partial_chapter():
+    r = Ref("JON 2")
+    if not check_ref(r.first, None, "JON", 2, None):
+        fail(f"{r.first} is not JON 2")
+
+def test_textref_boundary():
+    r = Ref("JON 3:10!1-2")
+    root = jon_usfm.getroot()
+    start = findref(r.first, root)
+    end = findref(r.last, root, atend=True)
+    res = copy_text(root, start, end)
+
+    print(res)
+    if res != "When God":
+        fail(f"Unexpected result: {res}")
+
+def test_multiple_ranges():
+    refs = RefList("JON 1:1-3; 2:4; 3:8-end")
+    res = jon_usfm.getrefs(*refs)
+    root = res.getroot()
+    et.dump(root)
+
+    if len(root) != 11 or root[0].get("vid", "") != "JON 1:1":
+        fail(f"Incorrect range extraction: {len(root)=}")
