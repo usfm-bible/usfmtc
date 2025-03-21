@@ -442,6 +442,8 @@ def iterusx(root, parindex=0, start=None, blocks=[], filt=[], unblocks=False, gr
     yield from runiter(root, parindex=parindex, started=start is None)
 
 def copy_range(root, a, b):
+    ''' Returns a usx document containing paragraphs containing the content
+        between a and b '''
     factory = root.__class__
     if a.el not in root:
         p = a.el.parent
@@ -482,6 +484,40 @@ def copy_range(root, a, b):
             res.remove(last)
     return res
 
+def copy_text(root, a, b):
+    ''' Returns a text string of all the main text between a and b '''
+    res = []
+    if a.el not in root:
+        p = a.el.parent
+        while p not in root:
+            p = p.parent
+    else:
+        p = a.el
+    i = list(root).index(p)
+    for eloc in iterusx(root, parindex=i, start=a.el, until=b.el):
+        if eloc.head is None:
+            if eloc.parent == a.el:
+                if a.attrib == " text":
+                    res.append(eloc.parent.text[a.char:])
+            elif eloc.parent == b.el:
+                if b.attrib == " text":
+                    res.append(eloc.parent.text[:b.char])
+            elif not isempty(eloc.parent.text):
+                res.append(eloc.parent.text)
+        elif eloc.head == a.el and a.attrib == " tail":
+            res.append(eloc.head.tail[a.char:])
+        elif eloc.head == b.el and b.attrib == " text":
+            pass
+        elif not isempty(eloc.head.tail):
+            res.append(eloc.head.tail)
+    if not len(res) and a.attrib == " tail":
+        start = a.char
+    else:
+        start = 0
+    if b.attrib == " tail":
+        res.append(b.el.tail[start:b.char])
+    return "".join(res)
+    
 
 @dataclass
 class USXLoc:

@@ -1,7 +1,7 @@
 import pytest
 from pytest import fail
 from usfmtc import readFile, usx2usfm
-from usfmtc.usxmodel import findref, copy_range
+from usfmtc.usxmodel import findref, copy_range, copy_text
 from usfmtc.reference import Ref, RefList, RefRange
 import os, io
 import xml.etree.ElementTree as et
@@ -94,10 +94,21 @@ def _do_findreftest(first, last):
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
         fail(f"{len(res)=}, {res[-1][-1].tail=}")
 
-def r(bk, chap, verse, subv=None):
+def test_textref1():
+    r = Ref("JON 2:8!2-4")
+    root = jon_usfm.getroot()
+    start = findref(r.first, root)
+    end = findref(r.last, root, atend=True)
+    print(start, end)
+    res = copy_text(jon_usfm.getroot(), start, end)
+    print(res)
+    if res != "who cling to":
+        fail(f"{res}")
+
+def _r(bk, chap, verse, subv=None):
     return Ref(book=bk, chapter=chap, verse=verse, subverse=subv)
 
-def t(s, *r):
+def _t(s, *r):
     res = RefList(s)
     if len(res) != len(r):
         fail("Failed '{}' resulted in {} references, {}, rather than {}".format(s, len(res), res, len(r)))
@@ -108,7 +119,7 @@ def t(s, *r):
         fail("{} != canonical string of {}".format(s, str(res)))
     print("{} = {}".format(s, str(res)))
 
-def listtest(s, a):
+def _listtest(s, a):
     res = RefList(s)
     res.simplify()
     base = RefList(a)
@@ -116,7 +127,7 @@ def listtest(s, a):
         fail("{} simplified to {} instead of {}".format(s, res, base))
     print("{} -> {}".format(s, res))
 
-def o(a, b, res):
+def _o(a, b, res):
     x = RefList(a)[0]
     y = RefList(b)[0]
     if (isinstance(res,tuple)):
@@ -137,63 +148,63 @@ def o(a, b, res):
     print("{} <-> {} ({})".format(x, y,restupd))
 
 def test_gen1():
-    t("GEN 1:1", r("GEN", 1, 1))
+    _t("GEN 1:1", _r("GEN", 1, 1))
 
 def test_jhn3():
-    t("JHN 3", r("JHN", 3, None))
+    _t("JHN 3", _r("JHN", 3, None))
 
 def test_3jn():
-    t("3JN 3", r("3JN", 1, 3))
+    _t("3JN 3", _r("3JN", 1, 3))
 
 def test_1co():
-    t("1CO 6:5a", r("1CO", 6, 5, "a"))
+    _t("1CO 6:5a", _r("1CO", 6, 5, "a"))
 
 def test_mat5():
-    t("MAT 5:1-7", RefRange(r("MAT", 5, 1), r("MAT", 5, 7)))
+    _t("MAT 5:1-7", RefRange(_r("MAT", 5, 1), _r("MAT", 5, 7)))
 
 def test_mat7():
-    t("MAT 7:1,2; 8:6b-9:4", r("MAT", 7, 1), r("MAT", 7, 2), RefRange(r("MAT", 8, 6, "b"), r("MAT", 9, 4)))
+    _t("MAT 7:1,2; 8:6b-9:4", _r("MAT", 7, 1), _r("MAT", 7, 2), RefRange(_r("MAT", 8, 6, "b"), _r("MAT", 9, 4)))
 
 def test_luk3():
-    t("LUK 3:35-end", RefRange(r("LUK", 3, 35), r("LUK", 3, -1)))
+    _t("LUK 3:35-end", RefRange(_r("LUK", 3, 35), _r("LUK", 3, -1)))
 
 def test_rom1():
-    listtest("ROM 1; MAT 3:4-11; ROM 1:3-2:7", "MAT 3:4-11; ROM 1-2:7")
+    _listtest("ROM 1; MAT 3:4-11; ROM 1:3-2:7", "MAT 3:4-11; ROM 1-2:7")
 
 def test_gen1_1():
-    t("GEN 1:1-3; 3:2-11; LUK 4:5", RefRange(r("GEN", 1, 1), r("GEN", 1, 3)), RefRange(r("GEN", 3, 2), r("GEN", 3, 11)), r("LUK", 4, 5))
+    _t("GEN 1:1-3; 3:2-11; LUK 4:5", RefRange(_r("GEN", 1, 1), _r("GEN", 1, 3)), RefRange(_r("GEN", 3, 2), _r("GEN", 3, 11)), _r("LUK", 4, 5))
 
 def test_jud():
-    t("JUD 1,2,4", r("JUD", 1, 1), r("JUD", 1, 2), r("JUD", 1, 4))
+    _t("JUD 1,2,4", _r("JUD", 1, 1), _r("JUD", 1, 2), _r("JUD", 1, 4))
 
 def test_gen1_1a():
-    o("GEN 1:1", "EXO 2:3", (True,False,False))
+    _o("GEN 1:1", "EXO 2:3", (True,False,False))
 
 def test_exo2():
-    o("EXO 2:4", "EXO 2", (False,True,True))
+    _o("EXO 2:4", "EXO 2", (False,True,True))
 
 def test_exo2a():
-    o("EXO 2:4-5", "EXO 2", (False,True,True))
+    _o("EXO 2:4-5", "EXO 2", (False,True,True))
 
 def test_exo2b():
-    o("EXO 2:4-5", "EXO 3", (True,False,False))
+    _o("EXO 2:4-5", "EXO 3", (True,False,False))
 
 def text_exo2c():
-    o("EXO 2:1-2", "EXO 2:1-5", (False,False,True))
+    _o("EXO 2:1-2", "EXO 2:1-5", (False,False,True))
 
 def test_exo2d():
-    o("EXO 2:1-2", "EXO 2:2-7", (True,False,True))
+    _o("EXO 2:1-2", "EXO 2:2-7", (True,False,True))
 
 def test_exo2e():
-    o("EXO 2:1-2", "EXO 2:3-6", (True,False,False))
+    _o("EXO 2:1-2", "EXO 2:3-6", (True,False,False))
 
 def test_gen2():
-    o("GEN 2:1-2", "EXO 2:3-6", (True,False,False))
+    _o("GEN 2:1-2", "EXO 2:3-6", (True,False,False))
 
 def test_deu2():
-    o("DEU 2:1-2", "EXO 2:3-6", (False,True,False))
+    _o("DEU 2:1-2", "EXO 2:3-6", (False,True,False))
 
 def test_exo2f():
-    o("EXO 2:2-3", "EXO 2:1-5", (False,False,True))
+    _o("EXO 2:2-3", "EXO 2:1-5", (False,False,True))
 
 
