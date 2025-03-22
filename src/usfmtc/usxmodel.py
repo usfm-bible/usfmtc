@@ -259,11 +259,11 @@ def strnormal(s, t, mode=0):
     '''
     if s is None:
         return ""
-    res = re.sub("[\n\\s]+", " ", s) if t in ('para', 'char') else s
+    res = re.sub("[\n\t\r ]+", " ", s) if t in ('para', 'char') else s
     if mode & 1 == 1:
-        res = res.lstrip()
+        res = res.lstrip(" \t\n\r")
     if mode & 2 == 2:
-        res = res.rstrip()
+        res = res.rstrip(" \t\n\r")
     res = re.sub(r"[ \n]*\n[ ]*", "\n", res)
     for k, v in unescapes.items():
         if k in res:

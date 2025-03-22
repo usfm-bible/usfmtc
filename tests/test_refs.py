@@ -10,21 +10,9 @@ import xml.etree.ElementTree as et
 
 def check_ref(ref, product=None, book=None, chapter=None, verse=None, subverse=None,
                    word=None, char=None, mrkrs=None):
-    if product != ref.product:
-        return False
-    if book != ref.book:
-        return False
-    if chapter != ref.chapter:
-        return False
-    if verse != ref.verse:
-        return False
-    if subverse != ref.subverse:
-        return False
-    if word != ref.word:
-        return False
-    if char != ref.char:
-        return False
-    return True
+    r = Ref(product=product, book=book, chapter=chapter, verse=verse, subverse=subverse,
+                    word=word, char=char, mrkrs=mrkrs)
+    return r == ref
 
 def asusfm(root):
     with io.StringIO() as fh:
@@ -247,3 +235,114 @@ def test_multiple_ranges():
 
     if len(root) != 11 or root[0].get("vid", "") != "JON 1:1":
         fail(f"Incorrect range extraction: {len(root)=}")
+
+def test_chapter_only_range():
+    r = Ref("JON 3").expand()
+    if not check_ref(r.first, None, "JON", 3, 1):
+        fail(f"{r.first} is not JON 3:1")
+
+def test_single_verse():
+    r = Ref("JON 1:1")
+    if not check_ref(r.first, None, "JON", 1, 1):
+        fail(f"{r.first} is not JON 1:1")
+
+def test_multi_book_list():
+    refs = RefList("JON 1:1; MIC 2:3; NAH 1:7")
+    if len(refs) != 3:
+        fail("Expected three references")
+
+def test_edge_case_verse():
+    r = Ref("JON 4:11")
+    if not check_ref(r.first, None, "JON", 4, 11):
+        fail(f"{r.first} is not JON 4:11")
+
+def test_reverse_range():
+    try:
+        r = RefList("JON 3:5 - JON 2:1")
+        fail("Reverse range did not raise an error")
+    except ValueError:
+        pass
+
+def test_reference_with_suffix():
+    r = Ref("JON 3:10a")
+    if not check_ref(r.first, None, "JON", 3, 10):
+        fail(f"{r.first} is not JON 3:10a")
+    if not check_ref(r.first, None, "JON", 3, 10, "a"):
+        fail(f"{r.first} is not JON 3:10")
+
+def test_overlapping_ranges():
+    refs = RefList("JON 1:3-5; 1:4-6")
+    if len(refs) != 2:
+        fail("Expected two overlapping references")
+
+def test_whitespace_in_ref():
+    try:
+        r = Ref("  JON   2 :  3 ")
+        fail(f"{r.first} has whitespace in it and should fail")
+    except SyntaxError:
+        pass
+
+def test_missing_chapter():
+    try:
+        r = Ref("JON :5")
+        fail("Missing chapter did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_long_reference():
+    r = RefList("JON 1:1-4:11")
+    if not (check_ref(r[0].first, None, "JON", 1, 1) and check_ref(r[0].last, None, "JON", 4, 11)):
+        fail("Long reference not parsed correctly")
+
+def test_empty_reference():
+    try:
+        r = Ref("")
+        fail("Empty reference did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_invalid_book_code():
+    r = Ref("XYZ 1:1")
+    if r.isvalid():
+        fail("Invalid book code did not raise an error")
+
+def test_multiple_chapters():
+    refs = RefList("JON 2:1-3:5")
+    if not (check_ref(refs[0].first, None, "JON", 2, 1) and check_ref(refs[0].last, None, "JON", 3, 5)):
+        fail("Multiple chapters not handled correctly")
+
+def test_partial_verse():
+    r = Ref("JON 3:10!1-4")
+    root = jon_usfm.getroot()
+    start = findref(r.first, root)
+    end = findref(r.last, root, atend=True)
+    res = copy_text(root, start, end)
+
+    if "God" not in res:
+        fail("Partial verse not extracted correctly")
+
+def test_ref_with_extra_text():
+    try:
+        r = Ref("JON 3:10abc")
+        fail("Reference with extra text did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_range_with_negative_chapter():
+    try:
+        r = Ref("JON -1:5")
+        fail("Negative chapter did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_incomplete_reference():
+    try:
+        r = Ref("JON")
+        fail("Incomplete reference did not raise an error")
+    except SyntaxError:
+        pass
+
+def test_large_chapter_number():
+    r = Ref("JON 999:1")
+    if r.isvalid():
+        fail("Large chapter number did not raise an error")

@@ -97,35 +97,6 @@ class MarkerRef:
             res.append(str(self.char))
         return "".join(res)
 
-
-_regexes = {
-    "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
-                    (?P<book>(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9])))
-                    \s*{chap}""",
-    "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
-    "charref": r"(?:(?:[0-9]|end)[+]?)",
-    "wordrefanon": r"",
-    "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9|end)(?:[+]{charref})?)?)",
-    "wordrefonly": r"(?P<word>[0-9]|end)(?P<char>[+]{charref})?",
-    "wordref1": r"""(?:(?: \!(?P<word1>[0-9]|end)(?:[+](?P<char1>{charref}))?
-                          |(?P<mrk1>{mrkref}))
-                       (?P<mrkn1>{mrkref}*))""",
-    "wordref2": r"""(?:(?: \!(?P<word2>[0-9]|end)(?:[+](?P<char2>{charref}))?
-                          |(?P<mrk2>{mrkref}))
-                       (?P<mrkn2>{mrkref}*))""",
-    "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",
-    "verse2": r"(?P<verse2>[0-9]+|end)(?P<subv2>[a-z]?)",
-    "chapter": r"(?:(?P<chap>[0-9]+|end))",
-    "chap": r"{chapter}(?:[:.]{verse1})?{wordref1}?",
-    "context": r"""(?:{chap}
-                    | {verse2}{wordref2}? | {wordrefonly}(?P<mrkn3>{mrkref}*)
-                    | (?P<char3>{charref})(?P<mrkn4>{mrkref}*))(?=[-;,\s]|$)"""
-    }
-
-regexes = _regexes
-for i in range(3):
-    regexes = {k: v.format(**regexes) for k, v in regexes.items()}
-
 def intend(s: str) -> Optional[int]:
     if not s:
         return None
@@ -198,6 +169,35 @@ def readvrs(fname):
     return res
 
 
+_regexes = {
+    "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
+                    (?P<book>(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9])))
+                    \s*{chap}""",
+    "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
+    "charref": r"(?:(?:[0-9]|end)[+]?)",
+    "wordrefanon": r"",
+    "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9|end)(?:[+]{charref})?)?)",
+    "wordrefonly": r"(?P<word>[0-9]|end)(?P<char>[+]{charref})?",
+    "wordref1": r"""(?:(?: \!(?P<word1>[0-9]|end)(?:[+](?P<char1>{charref}))?
+                          |(?P<mrk1>{mrkref}))
+                       (?P<mrkn1>{mrkref}*))""",
+    "wordref2": r"""(?:(?: \!(?P<word2>[0-9]|end)(?:[+](?P<char2>{charref}))?
+                          |(?P<mrk2>{mrkref}))
+                       (?P<mrkn2>{mrkref}*))""",
+    "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",
+    "verse2": r"(?P<verse2>[0-9]+|end)(?P<subv2>[a-z]?)",
+    "chapter": r"(?:(?P<chap>[0-9]+|end))",
+    "chap": r"{chapter}(?:[:.]{verse1})?{wordref1}?",
+    "context": r"""(?:{chap}
+                    | {verse2}{wordref2}? | {wordrefonly}(?P<mrkn3>{mrkref}*)
+                    | (?P<char3>{charref})(?P<mrkn4>{mrkref}*))(?=[-;,\s]|$)"""
+    }
+
+regexes = _regexes
+for i in range(3):
+    regexes = {k: v.format(**regexes) for k, v in regexes.items()}
+
+
 class Ref:
     product: Optional[str]
     book: Optional[str]
@@ -232,7 +232,10 @@ class Ref:
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
         if string is not None:
-            self.parse(string, context=(context.last if context is not None else None), start=start)
+            s = string.strip()
+            self.parse(s, context=(context.last if context is not None else None), start=start)
+            if self.strend < len(s):
+                raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
             return
 
         if context is not None:
@@ -294,7 +297,7 @@ class Ref:
     def __eq__(self, o):
         if not isinstance(o, Ref):
             return False
-        res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
+        res = all(getattr(self, a) is None or getattr(o, a) is None or getattr(self, a) == getattr(o, a) for a in self._parmlist)
         return res
 
     def __contains__(self, o):
@@ -404,26 +407,56 @@ class Ref:
         kw = {k: getattr(self, k) for k in self._parmlist}
         return self.__class__(**kw)
 
-    def end(self):
+    def _setall(self, val):
         res = self.copy()
-        if self.chapter is None:
-            res.chapter = -1
-        elif self.verse is None:
-            res.verse = -1
-        elif self.word is None:
-            res.word = -1
-        elif self.char is None:
-            res.char = -1
+        for a in ('chapter', 'verse', 'word', 'char'):
+            if getattr(self, a, None) is None:
+                setattr(res, a, val)
         return res
+
+    def end(self):
+        if self.last != self:
+            self.last = end(self.last)
+            return self.last
+        res = self._setall(-1)
+        if res.chapter == -1:
+            vrs = self.versification or Ref.loadversification()
+            book = books.get(self.book, None)
+            if book is not None:
+                res.chapter = len(vrs[book])
+        if res.verse == -1:
+            res.verse = self._getmaxvrs(self.book, self.chapter)
+        return res
+
+    def start(self):
+        if self.first != self:
+            self.first = start(self.first)
+            return self.first
+        return self._setall(1)
+
+    def expand(self):
+        return RefRange(self.start(), self.end())
 
     def _getmaxvrs(self, bk, chap):
         vrs = self.first.versification or Ref.loadversification()
         book = books.get(bk, None)
         if book is None or len(vrs[book]) <= chap:
-            maxvrs = 200
+            maxvrs = -1
         else:
             maxvrs = vrs[book][chap] - (vrs[book][chap-1] if chap > 1 else 0)
         return maxvrs
+
+    def isvalid(self):
+        vrs = self.first.versification or Ref.loadversification()
+        if self.book not in books:
+            return False
+        book = vrs[books.get(self.book)]
+        if len(book) < self.chapter:
+            return False
+        if book[self.chapter] < self.verse:
+            return False
+        # checking subverse, word and char involves having access to the document
+        return True
 
     def nextverse(self):
         r = self.first.copy()
@@ -433,7 +466,7 @@ class Ref:
         else:
             r.verse += 1
         if r.verse > maxvrs:
-            r.chapter += 1
+            r.chapter = (r.chapter + 1) if r.chapter is not None else 1
             r.verse = 1
             if r.book not in books:
                 r.book = "GEN"
@@ -458,6 +491,8 @@ class RefRange:
     def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
         self.first = first
         self.last = last
+        if self.last < self.first:
+            raise ValueError(f"{first=} is after {last=}")
 
     def str(self, context: Optional[Ref] = None, force: bool = False):
         res = [self.first.str(context, force=force)]
@@ -497,6 +532,14 @@ class RefRange:
     @property
     def strend(self):
         return self.last.strend
+
+    def expand(self):
+        self.first = self.first.start()
+        self.last = self.last.end()
+        return self
+
+    def isvalid(self):
+        return self.first.isvalid() and self.last.isvalid()
 
     def allverses(self):
         r = self.first
