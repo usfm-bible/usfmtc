@@ -346,3 +346,25 @@ def test_large_chapter_number():
     r = Ref("JON 999:1")
     if r.isvalid():
         fail("Large chapter number did not raise an error")
+
+### Markers
+
+def test_parsemarker():
+    r = Ref("JON 1:4!s1!2")
+    root = jon_usfm.getroot()
+    start = findref(r, root)
+    end = findref(r, root, atend=True)
+    res = copy_text(root, start, end)
+    if res != "Great":
+        fail(f"{r}: [{start}, {end}] {res}")
+
+def test_footnote():
+    r = Ref("JON 1:13!f!5")
+    root = jon_usfm.getroot()
+    start = findref(r, root)
+    end = findref(r, root, atend=True)
+    res = copy_text(root, start, end)
+    if res != "dug":
+        fail(f"{r}: [{start}, {end}] {res}")
+
+

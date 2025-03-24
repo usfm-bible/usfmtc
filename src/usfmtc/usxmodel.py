@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 from usfmtc.xmlutils import isempty
 from usfmtc.usfmparser import Grammar
+from usfmtc.reference import Ref
 import xml.etree.ElementTree as et
 from typing import Optional
 
@@ -496,14 +497,15 @@ def copy_text(root, a, b):
     i = list(root).index(p)
     for eloc in iterusx(root, parindex=i, start=a.el, until=b.el):
         if eloc.head is None:
-            if eloc.parent == a.el:
-                if a.attrib == " text":
-                    res.append(eloc.parent.text[a.char:])
-            elif eloc.parent == b.el:
-                if b.attrib == " text":
-                    res.append(eloc.parent.text[:b.char])
-            elif not isempty(eloc.parent.text):
-                res.append(eloc.parent.text)
+            if not isempty(eloc.parent.text):
+                start = 0; end = len(eloc.parent.text)
+                if eloc.parent == a.el:
+                    if a.attrib == " text":
+                        start = a.char
+                if eloc.parent == b.el:
+                    if b.attrib == " text":
+                        end = b.char
+                res.append(eloc.parent.text[start:end])
         elif eloc.head == a.el and a.attrib == " tail":
             res.append(eloc.head.tail[a.char:])
         elif eloc.head == b.el and b.attrib == " text":
@@ -518,6 +520,17 @@ def copy_text(root, a, b):
         res.append(b.el.tail[start:b.char])
     return "".join(res)
     
+
+def vnumin(s, v, base):
+    b = base.copy()
+    b.verse = None
+    b.subverse = None
+    b.word = None
+    b.char = None
+    b.mrkrs = None
+    r = Ref(str(b)+":"+s)
+    if v >= r.first.verse and v <= r.last.verse:
+        return True
 
 @dataclass
 class USXLoc:
@@ -540,6 +553,8 @@ def _findel(node, tag, attrib, limits=[]):
 
 def _findtext(node, limits):
     """ Iterator returning text strings until an element in limits is encountered """
+    if not isempty(node.text):
+        yield(node.text, node, " text")
     for eloc in iterusx(node, until=lambda e: e.tag in limits):
         if eloc.head is None:
             if not isempty(eloc.parent.text):
@@ -549,7 +564,7 @@ def _findtext(node, limits):
     if not isempty(node.tail):  # but what if we hit the limits?
         yield(node.tail, node, " tail")
 
-def _findcvel(ref, root, atend=False, parindex=0):
+def _findcvel(ref, root, grammar, atend=False, parindex=0):
     if ref.book:
         bkel = root.find("./book")
         bk = bkel.get("code", "")
@@ -575,31 +590,74 @@ def _findcvel(ref, root, atend=False, parindex=0):
     v = ref.verse
     if v is not None and v > 0:
         if atend:
-            parindex = startparindex
-        if parindex < len(root) - 1:
-            for n in root[parindex+1:]:
-                el = _findel(n,  "verse", {"number": str(ref.verse + (1 if atend and not ref.word else 0))}, limits=("chapter",))
-                if el is not None:
-                    break
+            parindex = startparindex + 1
+            if not ref.mrkrs and not ref.word and not ref.char:
+                v += 1
+        else:
+            parindex += 1
+        while parindex < len(root):
+            n = root[parindex]
+            el = _findel(n,  "verse", {"number": str(v)}, limits=("chapter",))
+            if el is not None:
+                break
+            parindex += 1
+        else:
+            raise ValueError("Reference verse {} out of range".format(ref))
+    if ref.mrkrs:
+        if not ref.word and not ref.char:
+            oparindex = parindex
+            t = ref.mrkrs[0].mrkr   # look forward or backwards for a para
+            if grammar.marker_categories.get(t, "") in ("sectionpara",):
+                while parindex > 0:
+                    p = root[parindex]
+                    if p.get("style", "") == t:
+                        if ref.mrkrs[0].index is None or ref.mrkrs[0].index - 1 == count:
+                            foundme = True
+                            break
+                    parindex -= 1
+                    endme = False
+                    for e in root[parindex]:
+                        if e.tag == "verse" and not vnumin(e.get("number", ""), v, ref.last if atend else ref.first):
+                            endme = True
+                            break
+                    if endme:
+                        parindex = oparindex
+                        raise SyntaxError("Cannot find preceding section paragraph {t} in {ref}")
+                    else:
+                        el = root[parindex]
             else:
-                raise ValueError("Reference verse {} out of range".format(ref))
+                for eloc in iterusx(root, parindex=parindex, start=lambda e:e.tag == "verse" and vnumin(e.get("number", ""), v, ref.last if atend else ref.first), until=lambda e:e.tag == "verse" and not vnumin(e.get("number", ""), v, ref.last if atend else ref.first)):
+                    if eloc.head is not None:
+                        continue
+                    if eloc.parent.get("style", "") == t:
+                        el = eloc.parent
+                        break
     return el
 
-def _findtextref(ref, el, atend=False):
+def _findtextref(ref, el, atend=False, mrkri=0):
+    if mrkri > 0:
+        r = ref.mrkrs[mrkri-1]
+    else:
+        r = ref
     a = ""
     w = -1
     c = -1
     clen = -1
     t = ""
-    if ref.word is None or ref.word == 0:
+    if r.word is None or r.word == 0:
         t = el.get('number', "")
         a = "number"
         c = 0
         clen = len(t)
     else:
-        word = ref.word - 1
+        word = r.word - 1
         for t, el, a in _findtext(el, limits=("chapter", "verse")):
             b = re.split("([\u0020\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
+            if not len(b[-1]):
+                b.pop()
+            if not len(b[0]):
+                b.pop(0)
+                b.pop(0)
             l = (len(b) + 1) // 2
             if not len(b[0]):
                 l -= 1
@@ -608,24 +666,38 @@ def _findtextref(ref, el, atend=False):
                 continue
             c = sum(len(s) for s in b[:word*2])
             clen = len(b[word*2])
+            if ref.mrkrs and len(ref.mrkrs) > mrkri and c + clen == len(t.rstrip()):
+                en = el.getnext()
+                while en is not None:
+                    if en.get("style", "") == ref.mrkrs[mrkri].mrkr:
+                        break
+                else:
+                    raise SyntaxError(f"Can't find {ref.mrkrs[mrkri+1].mrkr}")
+                return _findtext(ref, en, atend=atend, mrkri=mrkri+1)
             break
         else:
             raise ValueError("Reference word {} out of range".format(ref))
-    if ref.char is not None:
-        if ref.char > clen:
+    if r.char is not None:
+        if r.char > clen:
             raise ValueError("Reference char {} out of range for word length {}".format(ref, clen))
-        c += ref.char
+        c += r.char
     elif atend:
         c += clen
     return USXLoc(el, a, c)
 
-def findref(ref, root, atend=False, parindex=0):
+def findref(ref, root, atend=False, parindex=0, grammar=None):
     """ From a reference, return a USXLoc (element, attribute and char index) """
-    el = _findcvel(ref, root, atend=atend, parindex=parindex)
+    if grammar is None:
+        grammar = Grammar()
+    el = _findcvel(ref, root, grammar, atend=atend, parindex=parindex)
     if ref.word is not None or ref.char is not None:
         res = _findtextref(ref, el, atend=atend)
+    elif ref.mrkrs:
+        res = _findtextref(ref, el, atend=atend, mrkri=1)
+    elif atend and len(el):
+        res = USXLoc(el[-1], " tail", -1)
     else:
-        res = USXLoc(el, "", -1)
+        res = USXLoc(el, " text", -1 if atend else 0)
     # What about markers?
     return res
 

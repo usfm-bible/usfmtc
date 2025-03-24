@@ -176,7 +176,7 @@ _regexes = {
     "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
     "wordrefanon": r"",
-    "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9|end)(?:[+]{charref})?)?)",
+    "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9]|end)(?:[+]{charref})?)?)",
     "wordrefonly": r"(?P<word>[0-9]|end)(?P<char>[+]{charref})?",
     "wordref1": r"""(?:(?: \!(?P<word1>[0-9]|end)(?:[+](?P<char1>{charref}))?
                           |(?P<mrk1>{mrkref}))
@@ -387,7 +387,7 @@ class Ref:
         if self.mrkrs is not None and len(self.mrkrs):
             forcemkr = False
             for i, m in enumerate(self.mrkrs):
-                if not forcemkr and context is not None and i < len(context.mrkrs):
+                if not forcemkr and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
                     if context.mrkrs[i] != m:
                         res.append(m.str(context=contex.mrkrs[i], force=force or len(res)))
                         forcemkr = True
