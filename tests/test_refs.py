@@ -22,6 +22,68 @@ def asusfm(root):
 
 jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
 
+def _get_textref(s):
+    r = Ref(s)
+    root = jon_usfm.getroot()
+    start = findref(r.first, root)
+    end = findref(r.last, root, atend=True)
+    res = copy_text(root, start, end)
+    return res
+
+def _r(bk, chap, verse, subv=None):
+    return Ref(book=bk, chapter=chap, verse=verse, subverse=subv)
+
+def _t(s, *r):
+    res = RefList(s)
+    if len(res) != len(r):
+        fail("Failed '{}' resulted in {} references, {}, rather than {}".format(s, len(res), res, len(r)))
+    for z in zip(res, r):
+        if z[0] != z[1]:
+            fail("Reference list failed '{}', {} != {}".format(s, z[0], z[1]))
+    if str(res) != s:
+        fail("{} != canonical string of {}".format(s, str(res)))
+    print("{} = {}".format(s, str(res)))
+
+def _listtest(s, a):
+    res = RefList(s)
+    res.simplify()
+    base = RefList(a)
+    if res != base:
+        fail("{} simplified to {} instead of {}".format(s, res, base))
+    print("{} -> {}".format(s, res))
+
+def _o(a, b, res):
+    x = RefList(a)[0]
+    y = RefList(b)[0]
+    if (isinstance(res,tuple)):
+      restup=res
+      restupd=f"x<y {restup[0]}, y<x {restup[1]}, x in y {restup[2]}"
+    else:
+      restup=(res,res,res)
+      restupd=res
+    a = (y<x)
+    b = (x<y)
+    #print(f"y<x :{a} x<y:{b}")
+    if restup[0] != b:
+        raise fail(f"{x} should be < {y} [expect: {restupd}]")
+    if restup[1] != a:
+        raise fail(f"{y} should not be < {x} [expect: {restupd}]")
+    if (x in y) != restup[2]:
+        raise fail(f"{x} in {y} should be {res}")
+    print("{} <-> {} ({})".format(x, y,restupd))
+
+def _do_findreftest(first, last):
+    root = jon_usfm.getroot()
+    start = findref(first, root)
+    end = findref(last, root, atend=True)
+    res = copy_range(root, start, end)
+
+    print(f"{first=} {start}; {last=} {end}")
+    et.dump(res)
+    print(asusfm(res))
+    if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
+        fail(f"{len(res)=}, {res[-1][-1].tail=}")
+
 def test_basic():
     r = Ref("JHN 3:16")
     rr = Ref("12", context=r)
@@ -70,18 +132,6 @@ def test_getrefs():
     if len(root) != 14 or root[0].get("vid", "") != "JON 1:3":
         fail(f"{len(root)=}")
 
-def _do_findreftest(first, last):
-    root = jon_usfm.getroot()
-    start = findref(first, root)
-    end = findref(last, root, atend=True)
-    res = copy_range(root, start, end)
-
-    print(f"{first=} {start}; {last=} {end}")
-    et.dump(res)
-    print(asusfm(res))
-    if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
-        fail(f"{len(res)=}, {res[-1][-1].tail=}")
-
 def test_textref1():
     r = Ref("JON 2:8!2-4")
     root = jon_usfm.getroot()
@@ -92,48 +142,6 @@ def test_textref1():
     print(res)
     if res != "who cling to":
         fail(f"{res}")
-
-def _r(bk, chap, verse, subv=None):
-    return Ref(book=bk, chapter=chap, verse=verse, subverse=subv)
-
-def _t(s, *r):
-    res = RefList(s)
-    if len(res) != len(r):
-        fail("Failed '{}' resulted in {} references, {}, rather than {}".format(s, len(res), res, len(r)))
-    for z in zip(res, r):
-        if z[0] != z[1]:
-            fail("Reference list failed '{}', {} != {}".format(s, z[0], z[1]))
-    if str(res) != s:
-        fail("{} != canonical string of {}".format(s, str(res)))
-    print("{} = {}".format(s, str(res)))
-
-def _listtest(s, a):
-    res = RefList(s)
-    res.simplify()
-    base = RefList(a)
-    if res != base:
-        fail("{} simplified to {} instead of {}".format(s, res, base))
-    print("{} -> {}".format(s, res))
-
-def _o(a, b, res):
-    x = RefList(a)[0]
-    y = RefList(b)[0]
-    if (isinstance(res,tuple)):
-      restup=res
-      restupd=f"x<y {restup[0]}, y<x {restup[1]}, x in y {restup[2]}"
-    else:
-      restup=(res,res,res)
-      restupd=res
-    a = (y<x)
-    b = (x<y)
-    #print(f"y<x :{a} x<y:{b}")
-    if restup[0] != b:
-        raise fail(f"{x} should be < {y} [expect: {restupd}]")
-    if restup[1] != a:
-        raise fail(f"{y} should not be < {x} [expect: {restupd}]")
-    if (x in y) != restup[2]:
-        raise fail(f"{x} in {y} should be {res}")
-    print("{} <-> {} ({})".format(x, y,restupd))
 
 def test_gen1():
     _t("GEN 1:1", _r("GEN", 1, 1))
@@ -217,12 +225,7 @@ def test_partial_chapter():
         fail(f"{r.first} is not JON 2")
 
 def test_textref_boundary():
-    r = Ref("JON 3:10!1-2")
-    root = jon_usfm.getroot()
-    start = findref(r.first, root)
-    end = findref(r.last, root, atend=True)
-    res = copy_text(root, start, end)
-
+    res = _get_textref("JON 3:10!1-2")
     print(res)
     if res != "When God":
         fail(f"Unexpected result: {res}")
@@ -350,20 +353,12 @@ def test_large_chapter_number():
 ### Markers
 
 def test_parsemarker():
-    r = Ref("JON 1:4!s1!2")
-    root = jon_usfm.getroot()
-    start = findref(r, root)
-    end = findref(r, root, atend=True)
-    res = copy_text(root, start, end)
+    res = _get_textref("JON 1:4!s1!2")
     if res != "Great":
         fail(f"{r}: [{start}, {end}] {res}")
 
 def test_footnote():
-    r = Ref("JON 1:13!f!5")
-    root = jon_usfm.getroot()
-    start = findref(r, root)
-    end = findref(r, root, atend=True)
-    res = copy_text(root, start, end)
+    res = _get_textref("JON 1:13!f!5")
     if res != "dug":
         fail(f"{r}: [{start}, {end}] {res}")
 
