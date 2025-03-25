@@ -15,7 +15,7 @@ def proc_start_ms(el, tag, pref, emit, ws):
     if "altnumber" in el.attrib:
         extra += " \\{0}a {1}\\{0}a*".format(pref, el.get("altnumber"))
     if "pubnumber" in el.attrib:
-        extra += " \\{0}p {1}".format(pref, escaped(el.get("pubnumber")))
+        extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber")), "\n" if pref == "c" else "\\"+pref+"p*")
     emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
 
 def append_attribs(el, emit, attribmap={}, tag=None, nows=False):
