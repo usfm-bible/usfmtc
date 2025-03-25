@@ -486,6 +486,8 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
+    _tagre = regex.compile(r"(.)[_^].*$")
+
     def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=3.0, index=True, **kw):
         if factory is None:
             def makeel(tag, attrib, **extras):
@@ -538,10 +540,11 @@ class USFMParser:
 
         for t in self.lexer:
             if isinstance(t, Tag):
-                if hasattr(self, "_"+t.basestr()):
-                    tagtype = "_" + t.basestr()
+                tag = self.parsetag(t)
+                if hasattr(self, "_"+tag):
+                    tagtype = "_" + tag
                 else:
-                    tagtype = self.grammar.marker_categories.get(t.basestr(), 'internal')
+                    tagtype = self.grammar.marker_categories.get(tag, 'internal')
                     if t.basestr() == "":
                         tagtype = "milestone"
                 fn = getattr(self, tagtype, self.unknown)
@@ -558,6 +561,9 @@ class USFMParser:
             elif isinstance(t, String):
                 self.parent.appendText(t)
         return self.stack[0].element
+
+    def parsetag(self, t):
+        return self._tagre.sub(r"\1", t.basestr())
 
     def removeParser(self, n):
         if n in self.stack:
