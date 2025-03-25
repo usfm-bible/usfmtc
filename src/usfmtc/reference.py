@@ -616,7 +616,6 @@ class RefList(List):
         return self
 
 
-
 class RefJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, (Reference, RefRange, RefList)):

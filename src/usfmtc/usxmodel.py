@@ -276,6 +276,7 @@ notechars = [
     "xt xop xo xta xk xq xot xnt xdc".split()]
 
 def canonicalise(node, endofpara=False, factory=et):
+    # whitespace and recursion
     if node.text is not None:
         mode = 1 # if len(node) else 3
         node.text = strnormal(node.text, node.tag, mode)
@@ -291,6 +292,7 @@ def canonicalise(node, endofpara=False, factory=et):
             mode = 2 if eop or c.tag in ("para", "sidebar") else 0
             c.tail = strnormal(c.tail, c.tag, mode)
     if node.tag == "note":
+        # ensure text directly in a note ends up in an ft or xt
         style = node.get("style", "")
         replace = "xt" if style in ("x", "ex") else "ft"
         if node.text is not None:
