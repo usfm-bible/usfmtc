@@ -159,7 +159,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
 
         elif ev == "end":
             if lastel is not None and lastel.tail is not None:
-                if el.tag in ("para", "row", "sidebar"):
+                if el.tag in ("para", "row", "sidebar", "book"):
                     emit(lastel.tail.rstrip(), text=True)
                 else:
                     emit(lastel.tail, text=True)
@@ -173,7 +173,9 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
             elif el.tag == "ref" and el.get('gen', 'false').lower() != 'true':
                 append_attribs(el, emit, attribmap=attribmap, nows=True)
                 emit("\\ref*")
-            elif el.tag == "book" and float(version) >= 3.1:
-                emit("\n\\usfm {}".format(version))
+            elif el.tag == "book":
+                emit("\n")
+                if float(version) >= 3.1:
+                    emit("\\usfm {}".format(version))
             lastel = el
     return lastel
