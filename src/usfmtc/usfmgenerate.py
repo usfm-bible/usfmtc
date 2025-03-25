@@ -2,8 +2,11 @@
 import re
 from usfmtc.reference import Ref
 
-def escaped(s):
+def attribescaped(s):
     return re.sub(r'([\\|"]|//)', r'\\\1', s)
+
+def escaped(s):
+    return re.sub(r'([\\|]|//)', r'\\\1', s)
 
 def proc_start_ms(el, tag, pref, emit, ws):
     if "style" not in el.attrib:
@@ -30,9 +33,9 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False):
     if not len(l):
         return
     if len(l) == 1 and l[0][0] == attribmap.get(s, ''):
-        emit("|"+escaped(l[0][1]))
+        emit("|"+attribescaped(l[0][1]))
     else:
-        attribs = ['{0}="{1}"'.format(k, escaped(v)) for k,v in l]
+        attribs = ['{0}="{1}"'.format(k, attribescaped(v)) for k,v in l]
         if len(attribs):
             emit("|"+" ".join(attribs))
 
