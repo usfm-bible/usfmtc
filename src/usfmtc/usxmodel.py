@@ -385,9 +385,10 @@ class Xmlloc:
     parent: et.Element
     head:   et.Element
 
-def iterusx(root, parindex=0, start=None, blocks=[], filt=[], unblocks=False, grammar=None, until=None):
+def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[], unblocks=False, filt=[], grammar=None):
     """ Iterates over root yielding an Xmlloc for each node. Once until is hit,
-        iteration stops (after yielding the until). blocks prunes any node whose
+        iteration stops. The node matching until is entered if untilafter is True
+        otherwise it is not yielded.  blocks prunes any node whose
         style has a category listed in blocks. The test is inverted if unblocks is True.
         filt is a list of functions that all must pass for the value to be yielded.
         until may be a function that tests a node for it being the last node. """
@@ -414,39 +415,37 @@ def iterusx(root, parindex=0, start=None, blocks=[], filt=[], unblocks=False, gr
     untilfn = makefn(until)
     startfn = makefn(start)
 
-    _catre = re.compile(r"[_^].*$")
     def category(s):
-        s = _catre.sub("", s)
+        s = grammar.parsetag(s)
         return grammar.marker_categories.get(s, "")
 
     def runiter(root, parindex=None, started=True):
         if parindex is None:
-            this = Xmlloc(root, None)
             if not started and startfn(root):
                 started = True
-            if started and test(this):
-                yield this
-            if untilfn(root):
-                return (started, True)
+            if started:
+                this = Xmlloc(root, None)
+                if not untilafter and untilfn(root):
+                    return (started, True)
+                elif test(this):
+                    yield this
         roots = list(root) if parindex is None else root[parindex:]
         finished = False
         for c in roots:
             if not len(blocks) or ((category(c.get('style', '')) in blocks) ^ (not unblocks)):
                 started, finished = yield from runiter(c, started=started)
-            if finished:
+            if finished or (untilafter and untilfn(c)):
                 return (started, True)
             this = Xmlloc(root, c)
             if started and test(this):
                 yield this
-            if untilfn(c):
-                return (started, True)
         return (started, False)
 
     yield from runiter(root, parindex=parindex, started=start is None)
 
 def copy_range(root, a, b):
     ''' Returns a usx document containing paragraphs containing the content
-        between a and b '''
+        include a through not including b '''
     factory = root.__class__
     if a.el not in root:
         p = a.el.parent
@@ -459,7 +458,7 @@ def copy_range(root, a, b):
     res = factory(root.tag, attrib=root.attrib)
     currp = res
     curr = root
-    for eloc in iterusx(root, parindex=i, start=a.el, until=b.el):
+    for eloc in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
         if eloc.head is None and eloc.parent == b.el:
             break
         elif curr is root and eloc.head is None and eloc.parent.tag not in ("para", "book", "sidebar"):
@@ -497,7 +496,7 @@ def copy_text(root, a, b):
     else:
         p = a.el
     i = list(root).index(p)
-    for eloc in iterusx(root, parindex=i, start=a.el, until=b.el):
+    for eloc in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
         if eloc.head is None:
             if not isempty(eloc.parent.text):
                 start = 0; end = len(eloc.parent.text)
@@ -510,7 +509,7 @@ def copy_text(root, a, b):
                 res.append(eloc.parent.text[start:end])
         elif eloc.head == a.el and a.attrib == " tail":
             res.append(eloc.head.tail[a.char:])
-        elif eloc.head == b.el and b.attrib == " text":
+        elif eloc.head == b.el and b.attrib == " tail":
             pass
         elif not isempty(eloc.head.tail):
             res.append(eloc.head.tail)
@@ -538,7 +537,8 @@ def vnumin(s, v, base):
 class USXLoc:
     el: et.Element
     attrib: str     # " text", " tail". Where the .char indexes into
-    char: int       
+    char: int
+    pindex: Optional[int] = None
 
 def _findel(node, tag, attrib, limits=[]):
     """ Search for an element with the given tag and attrib matching forwards from

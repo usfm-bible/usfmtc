@@ -137,7 +137,7 @@ class USX:
             p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, **kw)
             xml = p.parse()
         else:
-        # This can raise usfmtc.parser.NoParseError
+            # This can raise usfmtc.parser.NoParseError
             p = None
             result = parseusfm(data, grammar, timeout=timeout, isdata=True, **kw)
             xml = result.asEt(elfactory=elfactory)

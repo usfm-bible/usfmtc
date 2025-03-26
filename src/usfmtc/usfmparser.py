@@ -41,12 +41,14 @@ class Tag(str):
         return "Tag("+str(self)+")"
 
     def __str__(self):
-        res = "+" if self.isplus else ""
+        res = ""
+        res += "+" if self.isplus else ""
         res += super().__str__()
         res += "*" if self.isend else ""
         return res
 
     def basestr(self):
+        """ Returns marker with no final *, etc. """
         return super().__str__()
 
     def setpos(self, pos):
@@ -284,6 +286,8 @@ class Grammar:
     attribtags = { 'cp': 'pubnumber', 'ca': 'altnumber', 'vp': 'pubnumber',
         'va': 'altnumber', 'cat': 'category', 'usfm': 'version'}
 
+    tagre = regex.compile(r"(.)[_^].*$")
+
     def __init__(self):
         self.marker_categories = self.marker_categories.copy()
         self.attribmap = self.attribmap.copy()
@@ -296,6 +300,10 @@ class Grammar:
                 self.marker_categories[k] = b.lower()
             if 'defattrib' in v:
                 self.attribmap[k] = v['defattrib']
+
+    def parsetag(self, t):
+        return self.tagre.sub(r"\1", str(t))
+
 
 def isfirstText(e):
     if e.text is not None and len(e.text):
@@ -486,8 +494,6 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
-    _tagre = regex.compile(r"(.)[_^].*$")
-
     def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=3.0, index=True, **kw):
         if factory is None:
             def makeel(tag, attrib, **extras):
@@ -540,7 +546,7 @@ class USFMParser:
 
         for t in self.lexer:
             if isinstance(t, Tag):
-                tag = self.parsetag(t)
+                tag = self.grammar.parsetag(t.basestr())
                 if hasattr(self, "_"+tag):
                     tagtype = "_" + tag
                 else:
@@ -561,9 +567,6 @@ class USFMParser:
             elif isinstance(t, String):
                 self.parent.appendText(t)
         return self.stack[0].element
-
-    def parsetag(self, t):
-        return self._tagre.sub(r"\1", t.basestr())
 
     def removeParser(self, n):
         if n in self.stack:

@@ -27,8 +27,9 @@ def _get_textref(s):
     root = jon_usfm.getroot()
     start = findref(r.first, root)
     end = findref(r.last, root, atend=True)
+    print(start, end)
     res = copy_text(root, start, end)
-    return res
+    return r, res
 
 def _r(bk, chap, verse, subv=None):
     return Ref(book=bk, chapter=chap, verse=verse, subverse=subv)
@@ -225,10 +226,10 @@ def test_partial_chapter():
         fail(f"{r.first} is not JON 2")
 
 def test_textref_boundary():
-    res = _get_textref("JON 3:10!1-2")
+    r, res = _get_textref("JON 3:10!1-2")
     print(res)
     if res != "When God":
-        fail(f"Unexpected result: {res}")
+        fail(f"{r}: Unexpected result: {res}")
 
 def test_multiple_ranges():
     refs = RefList("JON 1:1-3; 2:4; 3:8-end")
@@ -353,13 +354,13 @@ def test_large_chapter_number():
 ### Markers
 
 def test_parsemarker():
-    res = _get_textref("JON 1:4!s1!2")
+    r, res = _get_textref("JON 1:4!s1!2")
     if res != "Great":
-        fail(f"{r}: [{start}, {end}] {res}")
+        fail(f"{r}: {res}")
 
 def test_footnote():
-    res = _get_textref("JON 1:13!f!5")
+    r, res = _get_textref("JON 1:13!f!5")
     if res != "dug":
-        fail(f"{r}: [{start}, {end}] {res}")
+        fail(f"{r}: {res}")
 
 
