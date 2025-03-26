@@ -192,7 +192,7 @@ def cleanup(node, parent=None):
     elif node.tag == "char":
         if node.get('style', '') == "xt" and ('href' in node.attrib or 'link-href' in node.attrib) \
                 and (len(node) != 1 or node.text is not None or node[0].tag != 'ref'):
-            refnode = et.Element('ref', loc=node.get('href', node.get('link-href', '')), gen="true")
+            refnode = node.__class__('ref', attrib=dict(loc=node.get('href', node.get('link-href', '')), gen="true"))
             refnode.text = node.text
             refnode[:] = node[:]
             node[:] = [refnode]
@@ -214,10 +214,11 @@ def protect(txt, noquote=False):
 def messup(node, parent=None):
     ''' Opposite of cleanup, to prepare a USX XML structure for USFM generation.
         Returns a copy of the structure so as not to polute the core data. '''
-    if parent is None:
-        newnode = et.Element(node.tag, attrib=node.attrib)
-    else:
-        newnode = et.SubElement(parent, node.tag, attrib=node.attrib)
+    newnode = node.__class__(node.tag, attrib=node.attrib)
+    if parent is not None:
+        if hasattr(newnode, 'parent'):
+            newnode.parent = parent
+        parent.append(newnode)
     newnode.text = node.text
     newnode.tail = node.tail
 
