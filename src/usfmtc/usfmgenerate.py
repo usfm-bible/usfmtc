@@ -81,7 +81,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
             if el.tag in paraelements and s != "":
                 if lastel is not None and lastel.tail is not None:
                     emit(lastel.tail.rstrip(), text=True)
-                emit("\n")
+                # emit("\n")
             elif el.tag == "table":
                 if lastel is not None and lastel.tail is not None:
                     emit(lastel.tail.rstrip(), text=True)
@@ -114,7 +114,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
                         emit(f"\\zsetref|{r}\\*\n")
                     cref = r 
                 if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
-                    emit("\\{0}".format(s))
+                    emit("\\{0}\n".format(s))
                 else:
                     emit("\\{0} ".format(s))
             elif el.tag in ("link", "char"):
@@ -160,11 +160,12 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
             lastopen = el
 
         elif ev == "end":
-            if lastel is not None and lastel.tail is not None:
-                if el.tag in ("para", "row", "sidebar", "book"):
+            if el.tag in ("para", "row", "sidebar", "book", "chapter"):
+                if lastel is not None and lastel.tail is not None:
                     emit(lastel.tail.rstrip(), text=True)
-                else:
-                    emit(lastel.tail, text=True)
+                emit("\n")
+            elif lastel is not None and lastel.tail is not None:
+                emit(lastel.tail, text=True)
             if el.tag == "note":
                 emit("\\{}*".format(s))
                 innote = False

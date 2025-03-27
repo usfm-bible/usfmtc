@@ -681,7 +681,8 @@ class USFMParser:
         return self.addNode(Node(self, 'row', 'tr', pos=tag.pos))
 
     def _v(self, tag):
-        self.removeTag('v', absentok=True)
+        if len(self.stack) and self.stack[-1].tag == "v":
+            self.removeTag('v', absentok=True)
         if len(self.stack) and self.stack[-1].tag == "c":
             self.removeTag('c')
             self.addNode(Node(self, 'para', 'p', pos=tag.pos))
