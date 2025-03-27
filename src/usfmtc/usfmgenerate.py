@@ -71,7 +71,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
         mcats = grammar.marker_categories
     emit = Emitter(outf)
     version = "3.1"
-    paraelements = ("chapter", "para", "row", "sidebar", "verse")
+    paraelements = ("chapter", "para", "row", "sidebar")
     cref = None
     innote = False
     for (ev, el) in iterels(root, ("start", "end")):
