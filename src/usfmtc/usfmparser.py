@@ -579,7 +579,7 @@ class USFMParser:
         return node
 
     def removeTag(self, tag, absentok=False):
-        tag = str(tag).rstrip('*').lstrip('+')
+        tag = str(tag).rstrip('*').lstrip('+')      # do what basestr() does
         oldstack = self.stack[:]
         while len(self.stack):
             curr = self.stack.pop()
@@ -702,6 +702,8 @@ class USFMParser:
             res = self.removeType('crossreferencechar')
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag.basestr(), pos=tag.pos))
+        else:
+            self.removeTag(tag.basestr())
         return res
 
     def attrib(self, tag):
@@ -775,7 +777,7 @@ class USFMParser:
         return res
 
     def _usfm_(self, val):
-        v = re.sub(r"(\d+(?:\.\d+)).*$", r"\1", val)
+        v = regex.sub(r"(\d+(?:\.\d+)).*$", r"\1", val)
         try:
             version = float(v)
         except ValueError:
