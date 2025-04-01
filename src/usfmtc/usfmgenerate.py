@@ -137,8 +137,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None):
                 emit("//")
             elif el.tag == "ms":
                 emit("\\{}".format(s))
-                isbare = el.get("_bare", "").lower() in ("1", "true")
-                el.attrib.pop("_bare", None)
+                isbare = mcats.get(s, "") == "standalone"
                 append_attribs(el, emit, attribmap=attribmap)
                 emit("\\*" if not isbare else " ")
             elif el.tag == "ref":

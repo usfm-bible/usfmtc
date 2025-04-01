@@ -249,7 +249,7 @@ class Lexer:
 
 class Grammar:
     category_markers = {
-        "attrib": "cp vp usfm ca va cat",
+        "attribute": "cp vp usfm ca va cat",
         "cell": "th1 th2 th3 th4 th5 th6 th7 th8 th9 th10 th11 th12 tc1 tc2 tc3 tc4 tc5 tc6 tc7 tc8 tc9 tc10 tc11 tc12 tcr1 tcr2 tcr3 tcr4 tcr5 tcr6 tcr7 tcr8 tcr9 tcc1 tcc2 tcc3 tcc4 tcc5 tcc6 tcc7 tcc8 tcc9 tcc10 tcc11 tcc12 thc1 thc2 thc3 thc4 thc5 thc6 thc7 thc8 thc9 thc10 thc11 tch12 thr1 thr2 thr3 thr4 thr5 thr6 thr7 thr8 thr9 thr10 thr11 thr12",
         "char": "qac qs add addpn bk dc efm fm fv k nd ndx ord png pn pro qt rq sig sls tl wg wh wa wj jmp no it bdit bd em sc sup w rb",
         "crossreference": "ex x",
@@ -257,9 +257,7 @@ class Grammar:
         "footnote": "fe f efe ef",
         "footnotechar": "fr ft fk fqa fq fl fw fdc fp",
         "header": "ide h1 h2 h3 h toc1 toc2 toc3 toca1 toca2 toca3",
-        "ident": "id",
-        "internal": "periph v fig esb esbe ref tr rem",
-        "chapter": "c",
+        "internal": "id c periph v fig esb esbe ref tr rem",
         "introchar": "ior iqt",
         "introduction": "imt1 imt2 imt3 imt4 imte1 imte2 imte imt ib ie iex ili1 ili2 ili imi imq im io1 io2 io3 io4 iot io ipi ipq ipr ip iq1 iq2 iq3 iq is1 is2 is",
         "list": "lh li1 li2 li3 li4 lim1 lim2 lim3 lim4 lim li lf",
@@ -269,11 +267,13 @@ class Grammar:
         "sectionpara": "restore ms1 ms2 ms3 ms mr mte1 mte2 mte r s1 s2 s3 s4 sr sp sd1 sd2 sd3 sd4 sd s cl cd",
         "title": "mt1 mt2 mt3 mt4 mt",
         "versepara": "cls nb pc pi1 pi2 pi3 pi po pr pmo pmc pmr pm ph1 ph2 ph3 ph p q1 q2 q3 q4 qc qr qm1 qm2 qm3 qm qd q b d mi1 mi2 mi3 mi4 mi m",
+        "standalone": "",
     }
     category_tags = {
         "char": ("char", "crossreferencechar", "footnotechar", "introchar", "listchar"),
         "para": ("header", "introduction", "list", "otherpara", "sectionpara", "title", "versepara"),
-        "ms": ("milestone", )
+        "ms": ("milestone", ),
+        "note": ("footnote", "crossreference")
     }
 
     marker_categories = {t:k for k, v in category_markers.items() for t in v.split()}
@@ -341,7 +341,7 @@ class Node:
     def appendText(self, txt):
         if len(self.element):
             if self.element[-1].tail is None or self.element[-1].tail == "":
-                txt.addToNode(self.element[-1], 'tail', lstrip = self.ispara and isfirstText(self.element))
+                txt.addToNode(self.element[-1], 'tail', lstrip = (self.ispara and isfirstText(self.element)) or self.element[-1].tag == "ms")
             elif self.parser.strict:
                 raise SyntaxError(f"Follow on tail {txt} in element {self.element[-1].tag}[{self.element[-1].get('style','')}] at {self.element[-1].pos}")
             else:
@@ -707,7 +707,7 @@ class USFMParser:
             self.removeTag(tag.basestr())
         return res
 
-    def attrib(self, tag):
+    def attribute(self, tag):
         if tag.isend:
             return self.removeTag(str(tag))
         parent = AttribNode(self, self.stack[-1], str(tag), pos=tag.pos)
@@ -753,7 +753,7 @@ class USFMParser:
             res = self.addNode(Node(self, 'char', tag.basestr(), pos=tag.pos))
         return res
 
-    def ident(self, tag):
+    def _id(self, tag):
         parent = IdNode(self, "book", str(tag), pos=tag.pos)
         self.lexer.readLine()
         return parent
@@ -763,6 +763,10 @@ class USFMParser:
             return self.removeTag(str(tag))
         return self.addNode(Node(self, 'ms', tag.basestr(), pos=tag.pos))
 
+    def standalone(self, tag):
+        res = Node(self, 'ms', tag.basestr(), pos=tag.pos, _standalone="1")
+        return self.stack[-1]
+
     def unknown(self, tag):
         if self.strict:
             if len(self.stack):
@@ -771,7 +775,7 @@ class USFMParser:
                 raise SyntaxError(f"Unknown tag {tag} at {self.lexer.currpos()}")
             return None
         if not tag.isend:
-            res = self.addNode(UnknownNode(self, 'ms', str(tag), pos=tag.pos, _bare="1"))
+            res = self.addNode(UnknownNode(self, 'ms', str(tag), pos=tag.pos))
         else:
             res = self.removeTag(str(tag))
             res.tag = "char"
