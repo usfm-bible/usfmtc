@@ -286,7 +286,7 @@ class Grammar:
     attribtags = { 'cp': 'pubnumber', 'ca': 'altnumber', 'vp': 'pubnumber',
         'va': 'altnumber', 'cat': 'category', 'usfm': 'version'}
 
-    tagre = regex.compile(r"(.)[_^].*$")
+    tagre = regex.compile(r"(.)[-_^].*$")
 
     def __init__(self):
         self.marker_categories = self.marker_categories.copy()
@@ -764,7 +764,7 @@ class USFMParser:
         return self.addNode(Node(self, 'ms', tag.basestr(), pos=tag.pos))
 
     def standalone(self, tag):
-        res = Node(self, 'ms', tag.basestr(), pos=tag.pos, _standalone="1")
+        res = Node(self, 'ms', tag.basestr(), pos=tag.pos)
         return self.stack[-1]
 
     def unknown(self, tag):
