@@ -286,7 +286,7 @@ class Grammar:
     attribtags = { 'cp': 'pubnumber', 'ca': 'altnumber', 'vp': 'pubnumber',
         'va': 'altnumber', 'cat': 'category', 'usfm': 'version'}
 
-    tagre = regex.compile(r"(.)[-_^].*$")
+    tagre = regex.compile(r"(^t[hc][cr]?\d+)[-_^].*|(.)[_^].*$")
 
     def __init__(self):
         self.marker_categories = self.marker_categories.copy()
@@ -302,7 +302,7 @@ class Grammar:
                 self.attribmap[k] = v['defattrib']
 
     def parsetag(self, t):
-        return self.tagre.sub(r"\1", str(t))
+        return self.tagre.sub(r"\1\2", str(t))
 
 
 def isfirstText(e):
