@@ -704,7 +704,7 @@ class USFMParser:
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag.basestr(), pos=tag.pos))
         else:
-            self.removeTag(tag.basestr())
+            res = self.removeTag(tag.basestr())
         return res
 
     def attribute(self, tag):

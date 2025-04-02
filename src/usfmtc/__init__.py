@@ -15,7 +15,7 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, messup, canonicalise, findref, copy_range
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, findref, copy_range
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
 from usfmtc.usfmgenerate import usx2usfm
@@ -184,13 +184,12 @@ class USX:
 
     def outUsfm(self, file=None, grammar=None, altparser=False, **kw):
         """ Output USFM from USX object. grammar is et doc. If file is None returns string """
-        el = messup(self.xml)
         if not altparser:
             if grammar is None:
                 grammar = Grammar()
-            return self._outwrite(file, el, fn=usx2usfm, args={'grammar': grammar})
+            return self._outwrite(file, self.xml, fn=usx2usfm, args={'grammar': grammar})
         parser = USXConverter(grammar.getroot(), **kw)
-        res = parser.parse(el)
+        res = parser.parse(self.xml)
         if res:
             dat = "".join(res.results)
             return self._outwrite(file, dat)

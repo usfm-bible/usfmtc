@@ -219,6 +219,8 @@ class Ref:
             return super().__new__(cls)
         bits = string.split("-", 1)
         start = Ref(bits[0], context)
+        if not bits[1]:
+            return start
         end = Ref(bits[1], start)
         return RefRange(start, end)
 
@@ -231,6 +233,8 @@ class Ref:
 
     def __init__(self, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
+        if hasattr(self, 'chapter'):     # We were created in __new__ so skip __init__
+            return
         if string is not None:
             s = string.strip()
             self.parse(s, context=(context.last if context is not None else None), start=start)
@@ -339,7 +343,7 @@ class Ref:
     def __gt__(self, o):
         if o is None:
             return True
-        return o < self
+        return o < self or o == self
 
     def __le__(self, o):
         return not self > o
@@ -618,7 +622,7 @@ class RefList(List):
 
 class RefJSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (Reference, RefRange, RefList)):
+        if isinstance(obj, (Ref, RefRange, RefList)):
             return str(obj)
         elif isinstance(obj, set):
             return sorted(obj)

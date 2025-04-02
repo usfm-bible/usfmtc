@@ -9,6 +9,11 @@ class ParentElement(et.Element):
         self.parent = parent
         self.pos = pos
 
+    def append(self, e):
+        super().append(e)
+        if e.parent is None:
+            e.parent = self         # capture the hiearchy when coming from et.parse
+
     def makeelement(self, tag, attrib, pos=None):
         return self.__class__(tag, attrib, parent=self, pos=pos or self.pos)
 
@@ -24,6 +29,9 @@ class ParentElement(et.Element):
         if self.parent is None:
             return -1, None
         return list(self.parent).index(self), self.parent
+
+    def index(self, o):
+        return list(self).index(o)
 
     def getprevious(self):
         ''' Returns the previous element with the same parent, if any '''

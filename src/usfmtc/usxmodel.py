@@ -52,7 +52,7 @@ def _addvids(lastp, endp, base, v, endv, atend=False):
         res.append(endv)
     return res
 
-def addesids(root):
+def addesids(root, force=False):
     lastv = None
     if root.get('version', None) is None:
         root.set('version', '3.0')
@@ -63,6 +63,7 @@ def addesids(root):
     bkel.set('code', bk)
     currchap = 0
     lastp = None
+    lastev = None
     for v in list(root.iter()):
         if v.tag == "chapter":
             currchap = v.get('number')
@@ -72,7 +73,13 @@ def addesids(root):
         elif v.tag == "para":
             lastp = v
             continue
-        elif v.tag != "verse" or v.get('eid', None) is not None:
+        elif v.tag != "verse":
+            continue
+        elif v.get('eid', None) is not None:
+            if force:
+                lastev = v
+            else:
+                lastv = None
             continue
         currverse = v.get('number')
         v.set('sid', "{} {}:{}".format(bk, currchap, currverse))
@@ -80,13 +87,17 @@ def addesids(root):
             lastv = v
             continue
         eid = lastv.get('sid', None)
-        ev = v.makeelement('verse', {'eid': eid or ""})
-        pv = v.getparent()
-        pl = lastv.getparent()
-        if id(pv) == id(pl):
-            v.addprevious(ev) 
+        if lastev is not None:
+            lastev.set('eid', eid or "")
+            lastev = None
         else:
-            endp = _addvids(pl, pv, v, eid, ev)
+            ev = v.makeelement('verse', {'eid': eid or ""})
+            pv = v.getparent()
+            pl = lastv.getparent()
+            if id(pv) == id(pl):
+                v.addprevious(ev) 
+            else:
+                endp = _addvids(pl, pv, v, eid, ev)
         lastv = v
     if lastv is not None and lastp is not None:
         eid = lastv.get('sid', None)
@@ -210,41 +221,6 @@ def protect(txt, noquote=False):
     if txt is not None:
         return (_textre if noquote else _attribre).sub(r'\\\1', txt)
     return None
-
-def messup(node, parent=None):
-    ''' Opposite of cleanup, to prepare a USX XML structure for USFM generation.
-        Returns a copy of the structure so as not to polute the core data. '''
-    newnode = node.__class__(node.tag, attrib=node.attrib)
-    if parent is not None:
-        if hasattr(newnode, 'parent'):
-            newnode.parent = parent
-        parent.append(newnode)
-    newnode.text = node.text
-    newnode.tail = node.tail
-
-    if newnode.tag == "figure":
-        src = newnode.get("file", None)
-        if src is not None:
-            del newnode.attrib['file']
-            newnode.set('src', src)
-    elif newnode.tag == "cell":
-        tag = newnode.get("style", "")
-        span = int(newnode.get("colspan", "1"))
-        if span > 1:
-            start = int(re.sub(r"^\D+", "", tag))
-            tag = tag + "-" + str(start + span - 1)
-            newnode.set("style", tag)
-    # convert \xt\ref Genesis 1:1|loc="GEN 1:1"\ref*|link-href="GEN 1:1"\xt*
-    # back to \xt Genesis 1:1|link-href="GEN 1:1"\xt*
-#    elif newnode.tag == "char" and node.get('style', '').endswith('xt') and not newnode.text and len(node) == 1:
-#        c = node[0]
-#        if c.tag == "ref" and not c.tail:
-#            newnode.text = protect(c.text)
-#            return newnode
-    for c in node:
-        messup(c, parent=newnode)
-    return newnode
-
 
 unescapes = {
     "&amp;": '&',
