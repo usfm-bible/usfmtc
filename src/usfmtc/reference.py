@@ -302,6 +302,7 @@ class Ref:
         if not isinstance(o, Ref):
             return False
         res = all(getattr(self, a) is None or getattr(o, a) is None or getattr(self, a) == getattr(o, a) for a in self._parmlist)
+        # res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
         return res
 
     def __contains__(self, o):
@@ -316,7 +317,7 @@ class Ref:
         if o is None:
             return False
         elif not isinstance(o, Ref):
-            return not o < self or o == self
+            return o > self
         if self.book != o.book:
             return books.get(self.book, 200) < books.get(o.book, 200)
         elif self.chapter != o.chapter:
@@ -343,13 +344,13 @@ class Ref:
     def __gt__(self, o):
         if o is None:
             return True
-        return o < self or o == self
+        return o < self
 
     def __le__(self, o):
-        return not self > o
+        return self < o or self in o
 
     def __ge__(self, o):
-        return not self < o
+        return self > o or self in o
 
     def __hash__(self):
         return hash((getattr(self, a) for a in self._parmlist))
@@ -511,27 +512,33 @@ class RefRange:
         return "RefRange({!r}-{!r})".format(self.first, self.last)
 
     def __eq__(self, other):
+        """ The ranges are identical """
         if not isinstance(other, RefRange):
             return False
         return self.first == other.first and self.last == other.last
 
     def __lt__(self, o):
-        return self.last <= o.first
+        """ We are entirely before the start of the other """
+        return self.last < o.first
 
     def __le__(self, o):
-        return self.last <= o.last
+        """ None of us is after the other """
+        return not self.last > o.last
 
     def __gt__(self, o):
-        return self.first >= o.last
+        """ We are entirely after the last of the other """
+        return self.first > o.last
 
     def __ge__(self, o):
-        return self.first >= o.first
+        """ None of us is before the start of the other """
+        return not self.last < o.first
 
     def __hash__(self):
         return hash((self.first, self.last))
 
     def __contains__(self, r):
-        return self.first <= r.last and r.first <= self.last
+        """ Tests for entire containment of r inside self """
+        return r.first >= self.first and r.last <= self.last
 
     @property
     def strend(self):

@@ -190,7 +190,7 @@ def text_exo2c():
     _o("EXO 2:1-2", "EXO 2:1-5", (False,False,True))
 
 def test_exo2d():
-    _o("EXO 2:1-2", "EXO 2:2-7", (True,False,True))
+    _o("EXO 2:1-2", "EXO 2:2-7", (False,False,False))
 
 def test_exo2e():
     _o("EXO 2:1-2", "EXO 2:3-6", (True,False,False))
