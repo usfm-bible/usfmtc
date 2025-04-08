@@ -129,10 +129,11 @@ class Lexer:
     ''', regex.X)
     afterattribs = regex.compile(r'\s*\\')
 
-    def __init__(self, txt, expanded=False, strict=False):
+    def __init__(self, txt, expanded=False, strict=False, version=[3, 1]):
         self.txt = txt
         self.expanded = expanded
         self.strict = strict
+        self.version = version
 
     def __iter__(self):
         self.nexts = []
@@ -165,6 +166,13 @@ class Lexer:
                 self.lpos = m.end(2)
                 continue
             elif n == "\\":
+                if self.version >= [3, 2]:
+                    u = self.usv.match(self.txt[m.end():])
+                    if u:
+                        c = chr(int((m.group(1) or m.group(2)), 16))
+                        s += c
+                        curri += u.end()
+                        continue
                 t = self.tagre.match(self.txt[m.end():])
                 if not t or not t.end():
                     if m.end() < len(self.txt) - 1:
@@ -494,7 +502,7 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
-    def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=3.0, index=True, **kw):
+    def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, **kw):
         if factory is None:
             def makeel(tag, attrib, **extras):
                 attrib.update({" "+k:v for k, v in extras.items()})
@@ -505,7 +513,7 @@ class USFMParser:
         self.factory = factory
         self.grammar = grammar
         self._setup(expanded=expanded)
-        self.lexer = Lexer(txt, expanded=expanded, strict=strict)
+        self.lexer = Lexer(txt, expanded=expanded, strict=strict, version=version)
         self.strict = strict
         self.version = version
         self.doindexing = index

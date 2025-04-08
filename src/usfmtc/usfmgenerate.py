@@ -2,11 +2,23 @@
 import re
 from usfmtc.reference import Ref
 
-def attribescaped(s):
-    return re.sub(r'([\\|"]|//)', r'\\\1', s)
+def usvout(m):
+    u = ord(m.group(1))
+    if u > 0xFFFF:
+        return "\\U{:08X}".format(u)
+    else:
+        return "\\u{:04X}".format(u)
 
-def escaped(s):
-    return re.sub(r'([\\|]|//)', r'\\\1', s)
+_reesc = re.compile(r'([\\|]|//)')
+_reatt = re.compile(r'([\\|"]|//)')
+def attribescaped(s, escapes):
+    return escaped(s, escapes, reg=_reatt)
+
+def escaped(s, escapes, reg=None):
+    res = (reg or _reesc).sub(r'\\\1', s)
+    if escapes:
+        res = re.sub(r'([{}])'.format(escapes), usvout, res)
+    return res
 
 def proc_start_ms(el, tag, pref, emit, ws):
     if "style" not in el.attrib:
@@ -18,7 +30,7 @@ def proc_start_ms(el, tag, pref, emit, ws):
         extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber")), "\n" if pref == "c" else "\\"+pref+"p*")
     emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
 
-def append_attribs(el, emit, attribmap={}, tag=None, nows=False):
+def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes=""):
     s = el.get('style', el.tag)
     if tag is not None and type(tag) != tuple:
         tag = (tag, tag)
@@ -35,7 +47,7 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False):
     if len(l) == 1 and l[0][0] == attribmap.get(s, ''):
         emit("|"+attribescaped(l[0][1]))
     else:
-        attribs = ['{0}="{1}"'.format(k, attribescaped(v)) for k,v in l]
+        attribs = ['{0}="{1}"'.format(k, attribescaped(v, escapes)) for k,v in l]
         if len(attribs):
             emit("|"+" ".join(attribs))
 
@@ -43,15 +55,16 @@ def get(el, k):
     return el.get(k, "")
 
 class Emitter:
-    def __init__(self, outf):
+    def __init__(self, outf, escapes):
         self.outf = outf
+        self.escapes = escapes
 
     def __call__(self, s, text=False):
         if s is None:
             return
         s = re.sub(r"\s*\n\s*", "\n", s)
         if text:
-            s = escaped(s)
+            s = escaped(s, self.escapes)
         self.outf.write(s)
 
 def iterels(el, events):
@@ -62,14 +75,16 @@ def iterels(el, events):
     if 'end' in events:
         yield ('end', el)
 
-def usx2usfm(outf, root, grammar=None, lastel=None):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
     if grammar is None:
         attribmap = {}
         mcats = {}
     else:
         attribmap = grammar.attribmap
         mcats = grammar.marker_categories
-    emit = Emitter(outf)
+    if version < [3, 2]:
+        escapes = ""
+    emit = Emitter(outf, escapes)
     version = "3.1"
     paraelements = ("chapter", "para", "row", "sidebar")
     cref = None

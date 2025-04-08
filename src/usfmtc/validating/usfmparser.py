@@ -81,6 +81,7 @@ class String(usfmp.Parser):
             return (m.group(1) if self.keep else None, s.extend(m.end()-s.pos))
         super().__init__(text, **kw)
         reg = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m:chr(int(m.group(1), 16)), reg)
+        reg = re.sub(r"\\U([0-9a-fA-F]{8})", lambda m:chr(int(m.group(1), 16)), reg)
         self.re = reg if dump else "(" + reg + ")"
         self.name = "/" + reg + "/"
 
