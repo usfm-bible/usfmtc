@@ -45,7 +45,7 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes=""):
     if not len(l):
         return
     if len(l) == 1 and l[0][0] == attribmap.get(s, ''):
-        emit("|"+attribescaped(l[0][1]))
+        emit("|"+attribescaped(l[0][1], escapes))
     else:
         attribs = ['{0}="{1}"'.format(k, attribescaped(v, escapes)) for k,v in l]
         if len(attribs):
