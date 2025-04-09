@@ -19,6 +19,7 @@ from usfmtc.usxmodel import addesids, cleanup, canonicalise, findref, copy_range
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
 from usfmtc.usfmgenerate import usx2usfm
+from usfmtc.reference import RefList
 import xml.etree.ElementTree as et
 
 def _readsrc(src):
@@ -263,6 +264,13 @@ class USX:
     def version(self, version):
         self.getroot().set('version', str(version))
 
+    @property
+    def book(self):
+        bke = self.getroot().find(".//book")
+        if bke is not None:
+            return bke.get("code", None)
+        return None
+
 def main(hookcli=None, hookusx=None):
 
     import argparse, logging, sys
@@ -273,12 +281,13 @@ def main(hookcli=None, hookusx=None):
     parser.add_argument("-o", "--outfile",help="Output file, with inferred format")
     parser.add_argument("-F","--outformat",help="Output format [usfm, usx, usj, usfm3.0]")
     parser.add_argument("-I","--informat",help="Input format [usfm, usx, usj]")
+    parser.add_argument("-x","--extfiles",action="append",default=[],help="markers.ext files to include")
     parser.add_argument("-g","--grammar",help="Grammar file to use, if needed")
+    parser.add_argument("-R","--refs",action="append",default=[],help="Extract a reference list (repeatable)")
     parser.add_argument("-e","--esids",action="store_true",
                         help="Add esids, vids, sids, etc. to USX output")
     parser.add_argument("-S","--strict",action="store_true",default=False,help="Be strict in parsing")
     parser.add_argument("-v","--version",default=None,help="Set USFM version [3.1]")
-    parser.add_argument("-x","--extfiles",action="append",default=[],help="markers.ext files to include")
     parser.add_argument("-V","--validate",action="store_true",default=False,help="Use validating parser for USFM")
     parser.add_argument("-C","--canonical",action="store_true",help="Do not canonicalise")
     parser.add_argument("-A","--ascii",action="store_true",help="Output as ASCII only in json")
@@ -348,6 +357,10 @@ def main(hookcli=None, hookusx=None):
         if args.outformat and args.outformat.startswith("usfm"):
             outgrammar = _grammarDoc(args.grammar)
 
+    reflist = None
+    if len(args.refs):
+        reflist = sum((RefList(r) for r in args.refs), [])
+
     for infile in infiles:
         outfile = None
         if args.outfile is None:
@@ -379,6 +392,11 @@ def main(hookcli=None, hookusx=None):
         if len(infiles) == 1 and usxdoc is None:
             doerror(f"Unable to read in {args.infile}")
 
+        if reflist is not None:
+            book = usxdoc.book
+            bkrefs = [r for r in reflist if r.first.book == book]
+            usxdoc = usxdoc.getrefs(*bkrefs)
+            
         if hookusx is not None:
             hookusx(usxdoc, args)
 

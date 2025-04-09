@@ -128,6 +128,7 @@ class Lexer:
         (?: [^\\\n] | \\[^a-zA-Z_*+] )*     # nonmagic or escaped single char
     ''', regex.X)
     afterattribs = regex.compile(r'\s*\\')
+    usvre = regex.compile(r'(?:\\u([0-9a-fA-F]{4})|\\U([0-9a-fA-F]{8}))')
 
     def __init__(self, txt, expanded=False, strict=False, version=[3, 1]):
         self.txt = txt
@@ -167,7 +168,7 @@ class Lexer:
                 continue
             elif n == "\\":
                 if self.version >= [3, 2]:
-                    u = self.usv.match(self.txt[m.end():])
+                    u = self.usvre.match(self.txt[m.end():])
                     if u:
                         c = chr(int((m.group(1) or m.group(2)), 16))
                         s += c
