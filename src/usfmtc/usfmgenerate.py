@@ -20,14 +20,14 @@ def escaped(s, escapes, reg=None):
         res = re.sub(r'([{}])'.format(escapes), usvout, res)
     return res
 
-def proc_start_ms(el, tag, pref, emit, ws):
+def proc_start_ms(el, tag, pref, emit, ws, escapes):
     if "style" not in el.attrib:
         return
     extra = ""
     if "altnumber" in el.attrib:
         extra += " \\{0}a {1}\\{0}a*".format(pref, el.get("altnumber"))
     if "pubnumber" in el.attrib:
-        extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber")), "\n" if pref == "c" else "\\"+pref+"p*")
+        extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber"), escapes), "\n" if pref == "c" else "\\"+pref+"p*")
     emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
 
 def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes=""):
@@ -105,14 +105,14 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             lastel = None
             prespace = False
             if el.tag == "chapter":
-                proc_start_ms(el, "chapter", "c", emit, "")
+                proc_start_ms(el, "chapter", "c", emit, "", escapes)
                 n = int(el.get("number", 0))
                 if cref is None:
                     cref = Ref(chapter=n)
                 else:
                     cref.chapter = n
             elif el.tag == "verse":
-                proc_start_ms(el, "verse", "v", emit, " ")
+                proc_start_ms(el, "verse", "v", emit, " ", escapes)
                 n = el.get("number", 0)
                 if cref is None:
                     cref = Ref(verse=n)
