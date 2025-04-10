@@ -672,7 +672,7 @@ class USFMParser:
         return self.addNode(Node(self, 'ref', tag.basestr(), notag=True, pos=tag.pos))
 
     def _rem(self, tag):
-        if self.version < 3.2:
+        if self.version < [3, 2]:
             return self.otherpara(tag)
         if tag.isend:
             return self.removeTag(str(tag))
