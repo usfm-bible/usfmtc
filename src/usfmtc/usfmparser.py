@@ -783,12 +783,14 @@ class USFMParser:
             else:
                 raise SyntaxError(f"Unknown tag {tag} at {self.lexer.currpos()}")
             return None
-        if not tag.isend:
-            res = self.addNode(UnknownNode(self, 'ms', str(tag), pos=tag.pos))
         else:
-            res = self.removeTag(str(tag))
-            res.tag = "char"
-        return res
+            return self.standalone(tag)
+        #if not tag.isend:
+        #    res = self.addNode(UnknownNode(self, 'ms', str(tag), pos=tag.pos))
+        #else:
+        #    res = self.removeTag(str(tag))
+        #    res.tag = "char"
+        #return res
 
     def _usfm_(self, val):
         v = regex.sub(r"(\d+(?:\.\d+)).*$", r"\1", val)
