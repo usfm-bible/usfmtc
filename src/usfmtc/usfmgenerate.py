@@ -194,6 +194,6 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag == "book":
                 emit("\n")
                 if float(version) >= 3.1:
-                    emit("\\usfm {}".format(version))
+                    emit("\\usfm {}\n".format(version))
             lastel = el
     return lastel

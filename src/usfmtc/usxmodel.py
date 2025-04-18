@@ -420,7 +420,7 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
 
     yield from runiter(root, parindex=parindex, started=start is None)
 
-def copy_range(root, a, b):
+def copy_range(root, a, b, addintro=False):
     ''' Returns a usx document containing paragraphs containing the content
         include a through not including b '''
     factory = root.__class__
@@ -435,9 +435,25 @@ def copy_range(root, a, b):
     res = factory(root.tag, attrib=root.attrib)
     currp = res
     curr = root
+    if addintro:
+        for eloc in iterusx(root, until=lambda e:e.tag=="chapter"):
+            if eloc.head is None:
+                newp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
+                newp.text = eloc.parent.text
+                currp.append(newp)
+                currp = newp
+                curr = eloc.parent
+            elif eloc.head == curr:
+                currp.tail = eloc.head.tail
+                currp = currp.parent
+                curr = curr.parent if curr is not None else root
+        curr = root
+        currp = res
+
     for eloc in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
         if eloc.head is None and eloc.parent == b.el:
             break
+        # Got the first verse element
         elif curr is root and eloc.head is None and eloc.parent.tag not in ("para", "book", "sidebar"):
             newp = factory(eloc.parent.parent.tag, attrib=eloc.parent.parent.attrib, parent=currp)
             if 'vid' not in eloc.parent.parent.attrib and 'vid' in eloc.parent.attrib:
@@ -445,12 +461,15 @@ def copy_range(root, a, b):
             currp.append(newp)
             currp = newp
             curr is eloc.parent.parent
+
+        # copy the tree
         if eloc.head is None:
             newp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
             newp.text = eloc.parent.text
             currp.append(newp)
             currp = newp
             curr = eloc.parent
+        # after the element so grab the tail and go up in the hierarchy
         elif eloc.head == curr:
             currp.tail = eloc.head.tail
             currp = currp.parent

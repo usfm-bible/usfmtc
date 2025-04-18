@@ -209,13 +209,13 @@ class USX:
         """ Returns root XML element """
         return self.xml
 
-    def getrefs(self, *refs):
+    def getrefs(self, *refs, addintro=False):
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
-        for r in refs:
+        for i, r in enumerate(refs):
             start = findref(r.first, root)
             end = findref(r.last, root, atend=True)
-            subdoc = copy_range(root, start, end)
+            subdoc = copy_range(root, start, end, addintro=(addintro and not i))
             if len(subdoc):
                 subdoc[0].set("vid", str(r.first))
                 res.extend(list(subdoc))
@@ -277,13 +277,14 @@ def main(hookcli=None, hookusx=None):
     from glob import glob
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("infile",nargs="+",help="Input file")
-    parser.add_argument("-o", "--outfile",help="Output file, with inferred format")
-    parser.add_argument("-F","--outformat",help="Output format [usfm, usx, usj, usfm3.0]")
-    parser.add_argument("-I","--informat",help="Input format [usfm, usx, usj]")
-    parser.add_argument("-x","--extfiles",action="append",default=[],help="markers.ext files to include")
+    parser.add_argument("infile",nargs="+",help="Input file(s) supports wildcards")
+    parser.add_argument("-o", "--outfile",help="Output file or directory, with inferred format")
+    parser.add_argument("-F","--outformat",help="Output format [usfm, usx, usj, usfm3.0] if not inferrable")
+    parser.add_argument("-I","--informat",help="Input format [usfm, usx, usj] if not inferrable")
+    parser.add_argument("-x","--extfiles",action="append",default=[],help="markers.ext files to include (repeatable)")
     parser.add_argument("-g","--grammar",help="Grammar file to use, if needed")
     parser.add_argument("-R","--refs",action="append",default=[],help="Extract a reference list (repeatable)")
+    parser.add_argument("--intro",action="store_true",default=False,help="Include intro material before references output")
     parser.add_argument("-e","--esids",action="store_true",
                         help="Add esids, vids, sids, etc. to USX output")
     parser.add_argument("-S","--strict",action="store_true",default=False,help="Be strict in parsing")
@@ -395,7 +396,7 @@ def main(hookcli=None, hookusx=None):
         if reflist is not None:
             book = usxdoc.book
             bkrefs = [r for r in reflist if r.first.book == book]
-            usxdoc = usxdoc.getrefs(*bkrefs)
+            usxdoc = usxdoc.getrefs(*bkrefs, addintro=args.intro)
             
         if hookusx is not None:
             hookusx(usxdoc, args)

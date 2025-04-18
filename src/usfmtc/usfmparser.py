@@ -793,11 +793,11 @@ class USFMParser:
         #return res
 
     def _usfm_(self, val):
-        v = regex.sub(r"(\d+(?:\.\d+)).*$", r"\1", val)
+        v = regex.sub(r"(\d+(?:\.\d+)*).*$", r"\1", val)
         try:
-            version = float(v)
+            version = [int(x) for x in v.split(".")]
         except ValueError:
-            return
+            version = None
         self.version = version
 
 def main():
