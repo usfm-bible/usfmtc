@@ -88,7 +88,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
     version = "3.1"
     paraelements = ("chapter", "para", "row", "sidebar")
     cref = None
-    innote = False
+    innote = None
     for (ev, el) in iterels(root, ("start", "end")):
         s = el.get("style", "")
 
@@ -138,7 +138,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\\{0} {1} ".format(s, el.get("caller")))
                 if "category" in el.attrib:
                     emit("\\cat {0}\\cat*".format(el.get("category")))
-                innote = el.tag == "note"
+                innote = mcats.get(s, "") if el.tag == "note" else None
             elif el.tag == "unmatched":
                 emit("\\" + el.get("style", " "))
             elif el.tag == "figure":
@@ -156,7 +156,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 append_attribs(el, emit, attribmap=attribmap)
                 emit("\\*" if not isbare else " ")
             elif el.tag == "ref":
-                emit("\\ref ")
+                if el.get('gen', 'false').lower() != 'true':
+                    emit("\\ref ")
             elif el.tag == "usx":
                 version = el.get("version", "3.1")
             elif el.tag in ("table", ):
@@ -182,8 +183,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit(lastel.tail, text=True)
             if el.tag == "note":
                 emit("\\{}*".format(s))
-                innote = False
-            elif el.tag in ("char", "link", "figure") and (not innote or mcats.get(s, "") not in ('footnotechar', 'crossreferencechar')):
+                innote = None
+            elif el.tag in ("char", "link", "figure") and (not innote or mcats.get(s, "") != innote + "char"):
                 append_attribs(el, emit, attribmap=attribmap)
                 emit("\\{}*".format(s))
             elif el.tag == "sidebar":
