@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from usfmtc.xmlutils import isempty
 from usfmtc.usfmparser import Grammar
-from usfmtc.reference import Ref
+from usfmtc.reference import Ref, RefRange, MarkerRef
 import xml.etree.ElementTree as et
 from typing import Optional
 
@@ -699,3 +699,86 @@ def findref(ref, root, atend=False, parindex=0, grammar=None):
     # What about markers?
     return res
 
+def _wlen(t, w, c):
+    w = w or 0
+    c = c or 0
+    b = re.split("([\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]+)", t)
+    if len(b[-1]):
+        if len(b) == 1:
+            c += len(b[-1])
+            return w, c
+        else:
+            c = len(b[-1])
+    else:
+        c = 0
+        w += 1
+        b.pop()
+        b.pop()
+    if not len(b[0]):
+        b.pop(0)
+        b.pop(0)
+    w += (len(b) + 1) // 2      # number of words
+    return (w, c)
+
+def _extendlen(curr, txt):
+    if txt is not None and len(txt):
+        if curr.mrkrs is not None and len(curr.mrkrs):
+            w, c = _wlen(txt, curr.mrkrs[-1].word, curr.mrkrs[-1].char)
+            curr.mrkrs[-1].word = w
+            curr.mrkrs[-1].char = c
+        else:
+            w, c = _wlen(txt, curr.word, curr.char)
+            curr.word = w
+            curr.char = c
+
+def getoblinkages(root, bk=None):
+    res = {}
+    pcounts = {}
+    curr = Ref(book=bk, chapter=0, verse=0)
+    for eloc in iterusx(root):
+        if eloc.head is None:
+            if eloc.parent.parent is root:
+                s = eloc.parent.get("style", "")
+                pcounts[s] = pcounts.get(s, 0) + 1
+                curr.mrkrs = [MarkerRef(s, pcounts[s])]
+            if eloc.parent.tag in ("chapter", "verse"):
+                if eloc.parent.tag == "chapter":
+                    curr.chapter = eloc.parent.get("number")
+                else:
+                    curr.verse = eloc.parent.get("number")
+                curr.mrkrs = None
+                pcounts = {}
+            _extendlen(curr, eloc.parent.text)
+            continue
+        s = eloc.head.get("style", "")
+        if eloc.head.tag == "ms" and s.startswith("za"):
+            i = eloc.parent.index(eloc.head)
+            if s == "za-s" and curr.char == 0:
+                curr.char = None
+            elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in "\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000"):
+                curr.char = None
+            addoblink(res, curr, eloc.head.get("id", ""), eloc.head.get("type", ""))
+            if i == 0:
+                eloc.parent.text += eloc.head.tail
+            else:
+                eloc.parent[i-1].tail += eloc.head.tail
+            eloc.parent.remove(eloc.head)
+            # a removed element immediately preceding a non space means no word bump but the word will bump for a new string
+            if curr.word and curr.word > 0 and curr.char and curr.char > 0 and eloc.head.tail and eloc.head.tail[0] not in  "\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000":
+                curr.word -= 1
+        _extendlen(curr, eloc.head.tail)
+    return res
+
+def addoblink(res, cref, tid, ttype):
+    k = (tid, ttype)
+    r = cref.copy()
+    if k in res:
+        oldr = res[k]
+        if oldr.first != oldr.last:
+            oldr.last = r
+        elif oldr.last == r:
+            pass
+        else:
+            res[k] = RefRange(oldr.first, r)
+    else:
+        res[k] = r

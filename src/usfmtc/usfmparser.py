@@ -220,7 +220,7 @@ class Lexer:
         while (m := self.attribsre.match(self.txt[curri:])):
             if self.strict and "\r" in m.group(2) or "\n" in m.group(2):
                 raise SyntaxError(f"Newlines not allowed in attributes: {m.group(0)} at {self.currpos()}")
-            res[m.group(1)] = m.group(2)    # tests say not to strip()
+            res[m.group(1)] = self.usvre.sub(lambda x:chr(int(x.group(1) or x.group(2), 16)), m.group(2))    # tests say not to strip()
             if m.end() == 0:
                 break
             curri += m.end()
@@ -350,7 +350,7 @@ class Node:
     def appendText(self, txt):
         if len(self.element):
             if self.element[-1].tail is None or self.element[-1].tail == "":
-                txt.addToNode(self.element[-1], 'tail', lstrip = (self.ispara and isfirstText(self.element)) or self.element[-1].tag == "ms")
+                txt.addToNode(self.element[-1], 'tail', lstrip=self.ispara and isfirstText(self.element))
             elif self.parser.strict:
                 raise SyntaxError(f"Follow on tail {txt} in element {self.element[-1].tag}[{self.element[-1].get('style','')}] at {self.element[-1].pos}")
             else:
@@ -493,6 +493,12 @@ class PeriphNode(Node):
         t = t.strip()
         if t:
             self.element.set('alt', str(t).strip())
+
+class MsNode(Node):
+    def appendText(self, t):
+        self.parser.removeTag(self.tag)
+        self.parser.parent = self.parser.stack[-1]
+        self.parser.parent.appendText(t)
 
 class UnknownNode(Node):
     pass
@@ -770,7 +776,7 @@ class USFMParser:
     def milestone(self, tag):
         if tag.isend:
             return self.removeTag(str(tag))
-        return self.addNode(Node(self, 'ms', tag.basestr(), pos=tag.pos))
+        return self.addNode(MsNode(self, 'ms', tag.basestr(), pos=tag.pos))
 
     def standalone(self, tag):
         res = Node(self, 'ms', tag.basestr(), pos=tag.pos)

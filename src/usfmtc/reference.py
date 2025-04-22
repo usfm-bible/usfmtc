@@ -378,16 +378,23 @@ class Ref:
                 res.append(sep)
             res.append(strend(self.verse))
             res.append(self.subverse or "")
+            force = True
         sep = "!"
         if self.word is not None and (force or context.word != self.word):
             if len(res):
                 res.append(sep)
             res.append(strend(self.word))
+            force = True
+        else:
+            force = False
         sep = "+"
         if self.char is not None and (force or context.char != self.char):
             if len(res):
                 res.append(sep)
             res.append(strend(self.char))
+            force = True
+        else:
+            force = False
         sep = "!"
         if self.mrkrs is not None and len(self.mrkrs):
             forcemkr = False
@@ -557,6 +564,9 @@ class RefRange:
         while r is not None and r <= self.last:
             yield r
             r = r.nextverse()
+
+    def copy(self):
+        return self.__class__(self.first, self.last)
 
 
 class RefList(List):
