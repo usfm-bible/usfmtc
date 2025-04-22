@@ -420,6 +420,87 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
 
     yield from runiter(root, parindex=parindex, started=start is None)
 
+def _wlen(t, w, c, atfirst=False):
+    w = w or 0
+    c = c or 0
+    b = re.split("([\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]+)", t)
+    trim = 0
+    if len(b[-1]):
+        if len(b) == 1:
+            c += len(b[-1])
+            return w, c
+        else:
+            c = len(b[-1])
+    else:
+        c = 0
+        w += 1
+        b.pop()
+        b.pop()
+    # if initial ws count the word, if initial word, remove it since part of the last text
+    if not atfirst or not len(b[0]):
+        b.pop(0)
+        b.pop(0)
+    w += (len(b) + 1) // 2      # number of words
+    return (w, c)
+
+def _extendlen(curr, txt, atfirst=False):
+    if txt is not None and len(txt):
+        if curr.mrkrs is not None and len(curr.mrkrs):
+            w, c = _wlen(txt, curr.mrkrs[-1].word, curr.mrkrs[-1].char, atfirst=atfirst)
+            curr.mrkrs[-1].word = w
+            curr.mrkrs[-1].char = c
+        else:
+            w, c = _wlen(txt, curr.word, curr.char, atfirst=atfirst)
+            curr.word = w
+            curr.char = c
+
+def iterusxref(root, startref=None, book=None, **kw):
+    """ Iterates root as per iterusx yielding a RefRange that expresses the start
+        and end of the text (text or tail) for the eloc. Yields eloc, ref """ 
+    if startref is None:
+        startref = Ref(book=book)
+        prev = root.getprevious_sibling()
+        while prev is not None:
+            if prev.tag == "verse" and startref.verse is None:
+                startref.verse = prev.get("number", "")
+                prev = prev.parent  # go up to the paragraph
+            elif prev.tag == "chapter":
+                startref.chapter = c.get("number", "")
+                break
+            prev = prev.getprevious_sibling()
+    lastref = startref
+    atfirst = True
+    for eloc in iterusx(root, **kw):
+        if eloc.head is None:
+            if eloc.parent.tag in ("verse", "chapter"):
+                curr = lastref.last.copy()
+                setattr(curr, eloc.parent.tag, int(eloc.parent.get("number", 0)))
+                curr.word = 0
+                curr.char = 0
+            else:
+                curr = None
+            if eloc.parent.tag in ("para", ):
+                atfirst = True
+            if not isempty(eloc.parent.text):
+                if curr is None:
+                    curr = lastref.last.copy()
+                _extendlen(curr, eloc.parent.text, atfirst=atfirst)
+                atfirst = False
+                cref = RefRange(lastref.last, curr)
+            elif curr is not None:
+                cref = RefRange(lastref.last, curr)
+            else:
+                cref = lastref
+        elif not isempty(eloc.head.tail):
+            curr = lastref.last.copy()
+            _extendlen(curr, eloc.head.tail, atfirst=atfirst)
+            atfirst = False
+            cref = RefRange(lastref.last, curr)
+        else:
+            cref = lastref
+        yield (eloc, cref)
+        lastref = cref
+
 def copy_range(root, a, b, addintro=False):
     ''' Returns a usx document containing paragraphs containing the content
         include a through not including b '''
@@ -563,6 +644,7 @@ def _findtext(node, limits):
         yield(node.tail, node, " tail")
 
 def _findcvel(ref, root, grammar, atend=False, parindex=0):
+    ''' Returns a USXloc to the reference in root '''
     if ref.book:
         bkel = root.find("./book")
         bk = bkel.get("code", "")
@@ -633,6 +715,7 @@ def _findcvel(ref, root, grammar, atend=False, parindex=0):
     return el
 
 def _findtextref(ref, el, atend=False, mrkri=0):
+    ''' Given a verse element, searches within it for the word and char parts of a reference '''
     if mrkri > 0:
         r = ref.mrkrs[mrkri-1]
     else:
@@ -650,7 +733,7 @@ def _findtextref(ref, el, atend=False, mrkri=0):
     else:
         word = r.word - 1
         for t, el, a in _findtext(el, limits=("chapter", "verse")):
-            b = re.split("([\u0020\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
+            b = re.split("([\u0020\n\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
             if not len(b[-1]):
                 b.pop()
             if not len(b[0]):
@@ -699,74 +782,24 @@ def findref(ref, root, atend=False, parindex=0, grammar=None):
     # What about markers?
     return res
 
-def _wlen(t, w, c):
-    w = w or 0
-    c = c or 0
-    b = re.split("([\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]+)", t)
-    if len(b[-1]):
-        if len(b) == 1:
-            c += len(b[-1])
-            return w, c
-        else:
-            c = len(b[-1])
-    else:
-        c = 0
-        w += 1
-        b.pop()
-        b.pop()
-    if not len(b[0]):
-        b.pop(0)
-        b.pop(0)
-    w += (len(b) + 1) // 2      # number of words
-    return (w, c)
-
-def _extendlen(curr, txt):
-    if txt is not None and len(txt):
-        if curr.mrkrs is not None and len(curr.mrkrs):
-            w, c = _wlen(txt, curr.mrkrs[-1].word, curr.mrkrs[-1].char)
-            curr.mrkrs[-1].word = w
-            curr.mrkrs[-1].char = c
-        else:
-            w, c = _wlen(txt, curr.word, curr.char)
-            curr.word = w
-            curr.char = c
-
 def getoblinkages(root, bk=None):
     res = {}
-    pcounts = {}
-    curr = Ref(book=bk, chapter=0, verse=0)
-    for eloc in iterusx(root):
-        if eloc.head is None:
-            if eloc.parent.parent is root:
-                s = eloc.parent.get("style", "")
-                pcounts[s] = pcounts.get(s, 0) + 1
-                curr.mrkrs = [MarkerRef(s, pcounts[s])]
-            if eloc.parent.tag in ("chapter", "verse"):
-                if eloc.parent.tag == "chapter":
-                    curr.chapter = eloc.parent.get("number")
+    for eloc, cref in iterusxref(root, book=bk):
+        if eloc.head is not None:
+            s = eloc.head.get("style", "")
+            if eloc.head.tag == "ms" and s.startswith("za"):
+                i = eloc.parent.index(eloc.head)
+                # spot word spans
+                if s == "za-s" and cref.first.char == 0:
+                    cref.first.char = None
+                elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in "\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000"):
+                    cref.first.char = None
+                addoblink(res, cref.first, eloc.head.get("id", ""), eloc.head.get("type", ""))
+                if i == 0:
+                    eloc.parent.text += eloc.head.tail
                 else:
-                    curr.verse = eloc.parent.get("number")
-                curr.mrkrs = None
-                pcounts = {}
-            _extendlen(curr, eloc.parent.text)
-            continue
-        s = eloc.head.get("style", "")
-        if eloc.head.tag == "ms" and s.startswith("za"):
-            i = eloc.parent.index(eloc.head)
-            if s == "za-s" and curr.char == 0:
-                curr.char = None
-            elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in "\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000"):
-                curr.char = None
-            addoblink(res, curr, eloc.head.get("id", ""), eloc.head.get("type", ""))
-            if i == 0:
-                eloc.parent.text += eloc.head.tail
-            else:
-                eloc.parent[i-1].tail += eloc.head.tail
-            eloc.parent.remove(eloc.head)
-            # a removed element immediately preceding a non space means no word bump but the word will bump for a new string
-            if curr.word and curr.word > 0 and curr.char and curr.char > 0 and eloc.head.tail and eloc.head.tail[0] not in  "\u0020\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000":
-                curr.word -= 1
-        _extendlen(curr, eloc.head.tail)
+                    eloc.parent[i-1].tail += eloc.head.tail
+                eloc.parent.remove(eloc.head)
     return res
 
 def addoblink(res, cref, tid, ttype):

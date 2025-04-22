@@ -28,6 +28,8 @@ def test_link_simple():
     usfm = r"""\id JHN A test of John
 \c 3
 \p
-\v 7 This is \za-s|id="a001" type="comment"\*the\za-e|id="a001" type="comment"\* bo\za-s|id="a002" type="comment"\*ok to re\za-e|id="a002" type="comment"\*ad"""
-    _dotest(usfm, {("a001", "comment"): "JHN 3:7!3", ("a002", "comment"): "JHN 3:7!4+2-6+2"})
+\v 7 This is \za-s|id="a001" type="comment"\*the\za-e|id="a001" type="comment"\*
+     bo\za-s|id="a002" type="comment"\*ok to re\za-e|id="a002" type="comment"\*ad"""
+    _dotest(usfm, { ("a001", "comment"): "JHN 3:7!3",
+                    ("a002", "comment"): "JHN 3:7!4+2-6+2"})
 
