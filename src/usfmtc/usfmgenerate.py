@@ -137,6 +137,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag in ("note", "sidebar"):
                 if el.tag != "sidebar":
                     emit("\\{0} {1} ".format(s, el.get("caller")))
+                else:
+                    emit("\\{0}\n".format(s))
                 if "category" in el.attrib:
                     emit("\\cat {0}\\cat*".format(el.get("category")))
                 innote = mcats.get(s, "") if el.tag == "note" else None
