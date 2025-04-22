@@ -135,7 +135,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag in ("link", "char"):
                 emit("\\{0} ".format(s))
             elif el.tag in ("note", "sidebar"):
-                emit("\\{0} {1} ".format(s, el.get("caller")))
+                if el.tag != "sidebar":
+                    emit("\\{0} {1} ".format(s, el.get("caller")))
                 if "category" in el.attrib:
                     emit("\\cat {0}\\cat*".format(el.get("category")))
                 innote = mcats.get(s, "") if el.tag == "note" else None
@@ -154,7 +155,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\\{}".format(s))
                 isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 1
                 append_attribs(el, emit, attribmap=attribmap)
-                emit("\\*" if not isbare else " ")
+                emit("\\*" if not isbare else ("" if el.tail and el.tail[0] in " \n" else " ")) # protective space
             elif el.tag == "ref":
                 if el.get('gen', 'false').lower() != 'true':
                     emit("\\ref ")
