@@ -97,6 +97,22 @@ class MarkerRef:
             res.append(str(self.char))
         return "".join(res)
 
+    def copy(self):
+        return self.__class__(self.mrkr, self.index, self.word, self.char)
+
+    def getword(self):
+        return self.word or 0
+
+    def setword(self, val):
+        self.word = val
+
+    def getchar(self):
+        return self.char or 0
+
+    def setchar(self, val):
+        self.char = val
+
+
 def intend(s: str) -> Optional[int]:
     if not s:
         return None
@@ -417,6 +433,8 @@ class Ref:
 
     def copy(self):
         kw = {k: getattr(self, k) for k in self._parmlist}
+        if kw.get('mrkrs', None) is not None:
+            kw['mrkrs'] = [m.copy() for m in kw['mrkrs']]
         return self.__class__(**kw)
 
     def _setall(self, val):
@@ -492,6 +510,30 @@ class Ref:
                 r.book = allbooks[newbk]
                 r.chapter = 1
         return r
+
+    def getword(self):
+        if self.mrkrs is not None and len(self.mrkrs):
+            return self.mrkrs[-1].word or 0
+        else:
+            return self.word or 0
+
+    def setword(self, val):
+        if self.mrkrs is not None and len(self.mrkrs):
+            self.mrkrs[-1].word = val
+        else:
+            self.word = val
+
+    def getchar(self):
+        if self.mrkrs is not None and len(self.mrkrs):
+            return self.mrkrs[-1].char or 0
+        else:
+            return self.char or 0
+
+    def setchar(self, val):
+        if self.mrkrs is not None and len(self.mrkrs):
+            self.mrkrs[-1].char = val
+        else:
+            self.char = val
 
 
 class RefRange:

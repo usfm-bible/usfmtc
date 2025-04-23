@@ -62,7 +62,7 @@ class ParentElement(et.Element):
         if i > 0:
             return parent[i-1]
         while parent is not None and i == 0:
-            i, parent = parent.get_index()
+            i, parent = parent._getindex()
         while parent and isempty(parent.tail) and len(parent):
             parent = parent[-1]
         return parent
