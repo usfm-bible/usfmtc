@@ -100,14 +100,14 @@ class MarkerRef:
     def copy(self):
         return self.__class__(self.mrkr, self.index, self.word, self.char)
 
-    def getword(self):
-        return self.word or 0
+    def getword(self, default=0):
+        return self.word or default
 
     def setword(self, val):
         self.word = val
 
-    def getchar(self):
-        return self.char or 0
+    def getchar(self, default=0):
+        return self.char or default
 
     def setchar(self, val):
         self.char = val
@@ -511,11 +511,11 @@ class Ref:
                 r.chapter = 1
         return r
 
-    def getword(self):
+    def getword(self, default=0):
         if self.mrkrs is not None and len(self.mrkrs):
-            return self.mrkrs[-1].word or 0
+            return self.mrkrs[-1].word or default
         else:
-            return self.word or 0
+            return self.word or default
 
     def setword(self, val):
         if self.mrkrs is not None and len(self.mrkrs):
@@ -523,11 +523,11 @@ class Ref:
         else:
             self.word = val
 
-    def getchar(self):
+    def getchar(self, default=0):
         if self.mrkrs is not None and len(self.mrkrs):
-            return self.mrkrs[-1].char or 0
+            return self.mrkrs[-1].char or default
         else:
-            return self.char or 0
+            return self.char or default
 
     def setchar(self, val):
         if self.mrkrs is not None and len(self.mrkrs):
