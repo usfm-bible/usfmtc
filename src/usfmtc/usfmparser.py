@@ -500,6 +500,11 @@ class MsNode(Node):
         self.parser.parent = self.parser.stack[-1]
         self.parser.parent.appendText(t)
 
+    def appendElement(self, e):
+        self.parser.removeTag(self.tag)
+        self.parser.parent = self.parser.stack[-1]
+        self.parser.parent.appendElement(e)
+
 class UnknownNode(Node):
     pass
 

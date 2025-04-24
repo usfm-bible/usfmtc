@@ -484,23 +484,35 @@ def iterusxref(root, startref=None, book=None, **kw):
                 curr = None
             if eloc.parent.tag in ("para", ):
                 atfirst = True
-            if not isempty(eloc.parent.text):
+                if lastref.last.getchar() > 0:
+                    lastref = RefRange(lastref.first, lastref.last.copy())
+                    lastref.last.setword(lastref.last.getword() + 1)
+                    lastref.last.setchar(0)
+            if eloc.parent.text is not None and len(eloc.parent.text):
                 if curr is None:
                     curr = lastref.last.copy()
+                if atfirst and curr.getchar() > 0:
+                    curr.setchar(0)
+                    w = curr.getword()
+                    if w > 1:
+                        curr.setword(w + 1)
                 _extendlen(curr, eloc.parent.text, atfirst=atfirst)
                 atfirst = False
                 cref = RefRange(lastref.last, curr)
             elif curr is not None:
                 cref = RefRange(lastref.last, curr)
             else:
-                cref = lastref
-        elif not isempty(eloc.head.tail):
-            curr = lastref.last.copy()
-            _extendlen(curr, eloc.head.tail, atfirst=atfirst)
-            atfirst = False
-            cref = RefRange(lastref.last, curr)
+                cref = lastref.last
         else:
-            cref = lastref
+            if eloc.head.tag == "note":
+                curr.mrkrs.pop()
+            if eloc.head.tail is not None and len(eloc.head.tail):
+                curr = lastref.last.copy()
+                _extendlen(curr, eloc.head.tail, atfirst=atfirst)
+                atfirst = False
+                cref = RefRange(lastref.last, curr)
+            else:
+                cref = lastref.last
         yield (eloc, cref)
         lastref = cref
 
@@ -704,45 +716,41 @@ def _findcvel(ref, root, grammar, atend=False, parindex=0):
 def _findtextref(ref, el, atend=False, mrkri=0, startref=None):
     ''' Given a verse element, searches within it for the word and char parts of
         a reference. ref can be a list of ref if mrkri==0. '''
-    if isinstance(ref, (list, tuple)):
-        rs = ref
-    elif mrkri > 0:
-        rs = [ref.mrkrs[mrkri-1]]
+    if mrkri > 0:
+        r = ref.mrkrs[mrkri-1]
     else:
-        rs = [ref]
-    results = [None] * len(rs)
+        r = ref
     p = el.parent
     if p.parent is None:
         p = el
     pi = p.parent.index(p)
     for (eloc, cref) in iterusxref(p.parent, startref=startref, parindex=pi, start=el,
                                    until=lambda t:t != el and t.tag in ("chapter", "verse")):
-        for i, r in enumerate(rs):
-            if r is None:
-                continue
-            if cref.first.getword() > r.getword() or cref.last.getword() < r.getword():
-                continue
-            if cref.first.getchar() > r.getchar() or cref.last.getchar() < r.getchar():
-                continue
-            if eloc.head is None:
-                a = " text"
-                t = eloc.parent.text
-                e = eloc.parent
-            else:
-                a = " tail"
-                t = eloc.head.tail
-                e = eloc.head
-            if t is None:
-                continue
-            b = re.split("([\u0020\n\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
-            windex = r.getword() + 1 if not len(b[0]) else r.getword()
-            w = sum(len(s) for s in b[:2*(windex - cref.first.getword()) + (1 if atend and r.getchar() == 0 else 0)])     # why - 1?
-            c = r.getchar() - (cref.first.getchar() if r.getword() == cref.first.getword() else 0)
-            # print(f"{cref.first=}, {cref.last=}, {r=} {windex=}, {w=}, {c=}")
-            results[i] = USXLoc(e, a, w+c)
-            if all(x is not None for x in results):
-                return results
-    return results
+        if r is None:
+            continue
+        if cref.first.getword() > r.getword() or cref.last.getword() < r.getword():
+            continue
+        if (cref.first.getword() == r.getword() and cref.first.getchar() > r.getchar()) \
+                or (cref.last.getword() == r.getword() and cref.last.getchar() < r.getchar()):
+            continue
+        if r.getchar(None) is None and cref.last.getword() == r.getword() and cref.last.getchar() == 0:
+            continue 
+        if eloc.head is None:
+            a = " text"
+            t = eloc.parent.text
+            e = eloc.parent
+        else:
+            a = " tail"
+            t = eloc.head.tail
+            e = eloc.head
+        if t is None:
+            continue
+        b = re.split("([\u0020\n\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
+        windex = r.getword() + 1 if not len(b[0]) and cref.first.getchar() == 0 else r.getword()
+        w = sum(len(s) for s in b[:2*(windex - cref.first.getword()) + (1 if atend and r.getchar() == 0 else 0)])     # why - 1?
+        c = r.getchar() - (cref.first.getchar() if r.getword() == cref.first.getword() else 0)
+        # print(f"{cref.first=}, {cref.last=}, {r=} {windex=}, {w=}, {c=}")
+        return USXLoc(e, a, w+c)
 
 def findref(ref, root, atend=False, parindex=0, grammar=None):
     """ From a reference, return a USXLoc (element, attribute and char index) """
@@ -750,9 +758,9 @@ def findref(ref, root, atend=False, parindex=0, grammar=None):
         grammar = Grammar()
     el = _findcvel(ref, root, grammar, atend=atend, parindex=parindex)
     if ref.word is not None or ref.char is not None:
-        res = _findtextref(ref, el, atend=atend)[0]
+        res = _findtextref(ref, el, atend=atend)
     elif ref.mrkrs:
-        res = _findtextref(ref, el, atend=atend, mrkri=1)[0]
+        res = _findtextref(ref, el, atend=atend, mrkri=1)
     elif atend and len(el):
         res = USXLoc(el[-1], " tail", -1)
     else:
@@ -768,9 +776,14 @@ def _addoblink(res, cref, tid, ttype):
         if oldr.first != oldr.last:
             oldr.last = r
         elif oldr.last == r:
-            pass
+            if r.char is not None and oldr.first.getchar(None) is None:
+                oldr.first.setchar(1)
+                res[k] = RefRange(oldr.first, r)
         else:
-            res[k] = RefRange(oldr.first, r)
+            try:
+                res[k] = RefRange(oldr.first, r)
+            except ValueError:
+                pass
     else:
         res[k] = r
 
@@ -781,51 +794,39 @@ def getoblinkages(root, bk=None):
             s = eloc.head.get("style", "")
             if eloc.head.tag == "ms" and s.startswith("za"):
                 i = eloc.parent.index(eloc.head)
+                lref = cref.first.copy()
+                key = (eloc.head.get("aid", ""), eloc.head.get("type", "unk"))
                 # spot word spans
                 if s == "za-s" and cref.first.char == 0:
-                    cref.first.char = None
-                elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in "\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000"):
-                    cref.first.char = None
-                _addoblink(res, cref.first, eloc.head.get("id", ""), eloc.head.get("type", ""))
+                    lref.char = None
+                elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in \
+                            "\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000") \
+                        and (key not in res or res[key].getchar(None) is None):
+                    lref.char = None
+                _addoblink(res, lref, *key)
                 if i == 0:
-                    eloc.parent.text += eloc.head.tail
-                else:
+                    if eloc.parent.text is None:
+                        eloc.parent.text = eloc.head.tail
+                    elif eloc.head.tail is not None:
+                        eloc.parent.text += eloc.head.tail
+                elif eloc.parent[i-1].tail is None:
+                    eloc.parent[i-1].tail = eloc.head.tail
+                elif eloc.head.tail is not None:
                     eloc.parent[i-1].tail += eloc.head.tail
                 eloc.parent.remove(eloc.head)
     return res
 
-def insertoblinkages(root, links, bk=None, grammar=None):
-    ''' links[chap][verse] = [(refstart, refend, id, type)] '''
-    for c, cd in links.items():
-        for v, words in cd.items():
-            num = len(words)
-            cvref = Ref(book=bk, chapter=c, verse=v)
-            el = _findcvel(cvref, root, grammar)
-            startrefs = [Ref(x[0], context=cvref) if x[0] else None for x in words]
-            endrefs = [Ref(x[1], context=cvref) if x[1] else None for x in words]
-            for i, e in enumerate(endrefs):
-                if e is None:
-                    if startrefs[i].getword(None) is None or startrefs[i].getchar(None) is None:
-                        endrefs[i] = startrefs[i]
-            lposstarts = _findtextref(startrefs, el, startref=cvref)
-            lposends = _findtextref(endrefs, el, startref=cvref, atend=True)
-            indices = reversed(sorted(range(2*num), key=lambda i:startrefs[i] or cvref if i < num else endrefs[i-num] or cvref))
-            for k, i in enumerate(indices):
-                if i < num:
-                    loc = lposstarts[i]
-                    tag = "za-s" if endrefs[i] is not None else "za"
-                else:
-                    loc = lposends[i-num]
-                    tag = "za-e"
-                if loc is None:
-                    continue
-                insertoblink(loc, tag, words[i if i < num else i - num])
+def insertlinkages(root, links, bk=None, grammar=None):
+    ''' links = [(ref, mrkr, atend, id, type)] '''
+    for l in links:
+        loc = findref(l[0], root, atend=l[2], grammar=grammar)
+        insertoblink(loc, l[1], l)
 
 def insertoblink(linkloc, tag, linfo):
     el = linkloc.el
-    newel = el.makeelement("ms", {"style": tag, "id": linfo[2], "type": linfo[3]})
-    # breakpoint()
-    # print(f"Adding {linkloc} as {tag} for {linfo}")
+    newel = el.makeelement("ms", {"style": tag, "aid": linfo[3]})
+    if linfo[4] != "unk":
+        newel.set("type", linfo[4])
     if linkloc.attrib == " text":
         newel.tail = el.text[linkloc.char:]
         el.text = el.text[:linkloc.char]

@@ -417,7 +417,7 @@ class Ref:
             for i, m in enumerate(self.mrkrs):
                 if not forcemkr and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
                     if context.mrkrs[i] != m:
-                        res.append(m.str(context=contex.mrkrs[i], force=force or len(res)))
+                        res.append(m.str(context=context.mrkrs[i], force=force or len(res)))
                         forcemkr = True
                 elif force or forcemkr:
                     res.append(m.str(force=True))
