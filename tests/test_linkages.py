@@ -62,8 +62,14 @@ def test_link_romani():
     usfm = r"""\id JHN John test
 \c 2
 \p
-\v 24 \za|6ffadcab\*\za|1762aaba\*\za|77934015\*Atunći von phende \za-s|b596c2a4\*maśkar penθe\za-e|b596c2a4\*: <<Te na \za-s|ee26b6ce\*ćhinas\za-e|ee26b6ce\* les! Te \za|ede7da9b\*\za|5579cb82\*\za|c27de536\*\za-s|3d2b3153\*dikhas\za-e|3d2b3153\* kasqe \za|ce0acfa6\*perel\za|29692144\*!>> \za-s|cc7d236e\*Kadja vi sas,\za-e|cc7d236e\* kaś te kerel pes so sas \za|8ad89bbc\*xramosardo \za-s|8be39bed\*and-o\za-e|8be39bed\* Lil le Devlesqo, \za-s|e6a77bca\*savo phenel\za-e|e6a77bca\*:
-\q1 \qt {\za-s|85a815f7\*Mirre\za-e|85a815f7\* \za-s|38c4ff42\*sumagǎ\za-e|38c4ff42\*// maśkar \za-s|90fbe824\*penθe\za-e|90fbe824\* xulavde,\za|8206cdd4\*\qt*
+\v 24 \za|6ffadcab\*\za|1762aaba\*\za|77934015\*Atunći von phende \za-s|b596c2a4\*maśkar
+      penθe\za-e|b596c2a4\*: <<Te na \za-s|ee26b6ce\*ćhinas\za-e|ee26b6ce\* les!
+      Te \za|ede7da9b\*\za|5579cb82\*\za|c27de536\*\za-s|3d2b3153\*dikhas\za-e|3d2b3153\* kasqe
+      \za|ce0acfa6\*perel\za|29692144\*!>> \za-s|cc7d236e\*Kadja vi sas,\za-e|cc7d236e\*
+      kaś te kerel pes so sas \za|8ad89bbc\*xramosardo \za-s|8be39bed\*and-o\za-e|8be39bed\*
+      Lil le Devlesqo, \za-s|e6a77bca\*savo phenel\za-e|e6a77bca\*:
+\q1 \qt {\za-s|85a815f7\*Mirre\za-e|85a815f7\* \za-s|38c4ff42\*sumagǎ\za-e|38c4ff42\*//
+      maśkar \za-s|90fbe824\*penθe\za-e|90fbe824\* xulavde,\za|8206cdd4\*\qt*
 \q2 \qt \za-s|afcccf77\*haj\za-e|afcccf77\*Mirro gad// kasqe perel, von dikhle.}\qt*\x + \xo 19:24 \xt Psa 22:18.\xt*\x*
 \m \za-s|9deaa4bd\*Kadja\za-e|9deaa4bd\* vi kerde ol soldaturǎ."""
     _dotest(usfm, {
