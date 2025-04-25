@@ -30,7 +30,7 @@ def _dotest(txt, links, skipsfmequal=False):
     et.dump(r)
     passed = True
     for k, v in tlinks.items():
-        print(f"{k[1]}[{k[0]}] = {v} | {links.get(k,'')}")
+        print(f"{k[1]}[{k[0]}] = {v.str(force=1)} | {links.get(k,'')}")
         if k not in links or v.str(force=1) != links[k]:
             print(f"{v.str(force=1)} != {links[k]}")
             passed = False
@@ -38,7 +38,7 @@ def _dotest(txt, links, skipsfmequal=False):
         fail(f"Linkages: {tlinks} are not the same as the expected {links}")
     mlinks = []
     for k, v in tlinks.items():
-        if v.first != v.last or v.word is None or v.char is None:
+        if v.first != v.last or v.getword(None) is None or v.getchar(None) is None:
             mlinks.append((v.first, "za-s", False, k[0], k[1]))
             mlinks.append((v.last, "za-e", True, k[0], k[1]))
         else:
@@ -100,10 +100,11 @@ def test_link_romani():
 def test_link_note():
     usfm = r"""\id JHN notes
 \c 17
+\s1 The Great \za-s|1235\*High Priestly\f + \fr 17:6 \ft Not the greatest of names\za|1236\*\f*\za-e|1235\* Prayer
 \p
 \v 6 This is some text\f + \fr 17:6 \ft Which is \za-s|1234\*clearly\za-e|1234\* not the actual text\f* to test with."""
     _dotest(usfm, {
-                ('1234', 'unk'): "JHN 17:6!f!4"
-                  })
-
-
+                ('1234', 'unk'): "JHN 17:6!f!4",
+                ('1235', 'unk'): "JHN 17:6!s1!3-4",
+                ('1236', 'unk'): "JHN 17:6!s1!4+8!f!6+5"
+                  }, skipsfmequal=True)

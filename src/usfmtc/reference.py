@@ -426,14 +426,12 @@ class Ref:
             force = iniforce
         sep = "!"
         if self.mrkrs is not None and len(self.mrkrs):
-            forcemkr = iniforce
             for i, m in enumerate(self.mrkrs):
-                if not forcemkr and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
+                if force < 2 and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
                     if context.mrkrs[i] != m:
-                        res.append(m.str(context=context.mrkrs[i], force=force or len(res)))
-                        forcemkr = 1
-                elif force or forcemkr:
-                    res.append(m.str(force=iniforce))
+                        res.append(m.str(context=context.mrkrs[i], force=force or (len(res) != 0)))
+                elif force:
+                    res.append(m.str(force=force))
         return "".join(res)
 
     @property
