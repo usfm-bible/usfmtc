@@ -181,7 +181,7 @@ def test_exo2():
     _o("EXO 2:4", "EXO 2", (False,True,True))
 
 def test_exo2a():
-    _o("EXO 2:4-5", "EXO 2", (False,True,True))
+    _o("EXO 2:4-5", "EXO 2", (False,False,True))
 
 def test_exo2b():
     _o("EXO 2:4-5", "EXO 3", (True,False,False))

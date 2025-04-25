@@ -2,7 +2,7 @@ import pytest
 from pytest import fail
 import io
 from usfmtc import readFile, usx2usfm
-from usfmtc.usxmodel import getoblinkages, insertlinkages
+from usfmtc.usxmodel import getlinkages, insertlinkages
 from usfmtc.usfmparser import Grammar
 from usfmtc.reference import Ref
 import xml.etree.ElementTree as et
@@ -26,12 +26,13 @@ def _dotest(txt, links, skipsfmequal=False):
     r = doc.getroot()
     tinit = asusfm(r, grammar)
     et.dump(r)
-    tlinks = getoblinkages(r, doc.book)
+    tlinks = getlinkages(r, doc.book)
     et.dump(r)
     passed = True
     for k, v in tlinks.items():
         print(f"{k[1]}[{k[0]}] = {v} | {links.get(k,'')}")
-        if k not in links or str(v) != links[k]:
+        if k not in links or v.str(force=1) != links[k]:
+            print(f"{v.str(force=1)} != {links[k]}")
             passed = False
     if not passed or len(tlinks) != len(links):
         fail(f"Linkages: {tlinks} are not the same as the expected {links}")
@@ -95,4 +96,14 @@ def test_link_romani():
                 ("afcccf77", "unk"): "JHN 2:24!35+1-3",
                 ("9deaa4bd", "unk"): "JHN 2:24!41",
                   }, skipsfmequal=True)
+
+def test_link_note():
+    usfm = r"""\id JHN notes
+\c 17
+\p
+\v 6 This is some text\f + \fr 17:6 \ft Which is \za-s|1234\*clearly\za-e|1234\* not the actual text\f* to test with."""
+    _dotest(usfm, {
+                ('1234', 'unk'): "JHN 17:6!f!4"
+                  })
+
 

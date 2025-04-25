@@ -425,7 +425,7 @@ def _wlen(t, w, c, atfirst=False):
     c = c or 0
     b = re.split("([\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]+)", t)
     trim = 0
-    if w == 1 and c == 0:
+    if atfirst and w == 1 and c == 0:
         w = 0
     if len(b[-1]):
         if len(b) == 1:
@@ -435,9 +435,6 @@ def _wlen(t, w, c, atfirst=False):
             c = len(b[-1])
     else:
         c = 0
-        # w += 1
-        #b.pop()
-        #b.pop()
     # if initial ws count the word, if initial word, remove it since part of the last text
     if not atfirst or not len(b[0]):
         b.pop(0)
@@ -456,7 +453,7 @@ def iterusxref(root, startref=None, book=None, **kw):
     """ Iterates root as per iterusx yielding a RefRange that expresses the start
         and end of the text (text or tail) for the eloc. Yields eloc, ref """ 
     if startref is None:
-        startref = Ref(book=book, word=1)
+        startref = Ref(book=book, chapter=0, verse=0, word=0, char=0)
         prev = root.getprevious_sibling()
         while prev is not None:
             if prev.tag == "verse" and startref.verse is None:
@@ -468,6 +465,7 @@ def iterusxref(root, startref=None, book=None, **kw):
             prev = prev.getprevious_sibling()
     lastref = startref
     atfirst = True
+    notestack = []
     for eloc in iterusx(root, **kw):
         if eloc.head is None:
             if eloc.parent.tag in ("verse", "chapter"):
@@ -476,10 +474,13 @@ def iterusxref(root, startref=None, book=None, **kw):
                 curr.word = 1
                 curr.char = 0
             elif eloc.parent.tag == "note":
+                notestack.append(lastref.last)
                 curr = lastref.last.copy()
                 if curr.mrkrs is None:
                     curr.mrkrs = []
                 curr.mrkrs.append(MarkerRef(eloc.parent.get("style", ""), 0, 1))
+                curr.word = None
+                curr.char = None
             else:
                 curr = None
             if eloc.parent.tag in ("para", ):
@@ -505,7 +506,7 @@ def iterusxref(root, startref=None, book=None, **kw):
                 cref = lastref.last
         else:
             if eloc.head.tag == "note":
-                curr.mrkrs.pop()
+                lastref = notestack.pop()
             if eloc.head.tail is not None and len(eloc.head.tail):
                 curr = lastref.last.copy()
                 _extendlen(curr, eloc.head.tail, atfirst=atfirst)
@@ -728,10 +729,10 @@ def _findtextref(ref, el, atend=False, mrkri=0, startref=None):
                                    until=lambda t:t != el and t.tag in ("chapter", "verse")):
         if r is None:
             continue
-        if cref.first.getword() > r.getword() or cref.last.getword() < r.getword():
+        if cref.first.getword() > r.getword() or cref.last.getword(r.getword()) < r.getword():
             continue
         if (cref.first.getword() == r.getword() and cref.first.getchar() > r.getchar()) \
-                or (cref.last.getword() == r.getword() and cref.last.getchar() < r.getchar()):
+                or (cref.last.getword(r.getword()) == r.getword() and cref.last.getchar() < r.getchar()):
             continue
         if r.getchar(None) is None and cref.last.getword() == r.getword() and cref.last.getchar() == 0:
             continue 
@@ -747,7 +748,7 @@ def _findtextref(ref, el, atend=False, mrkri=0, startref=None):
             continue
         b = re.split("([\u0020\n\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]+)", t)
         windex = r.getword() + 1 if not len(b[0]) and cref.first.getchar() == 0 else r.getword()
-        w = sum(len(s) for s in b[:2*(windex - cref.first.getword()) + (1 if atend and r.getchar() == 0 else 0)])     # why - 1?
+        w = sum(len(s) for s in b[:2*(windex - cref.first.getword(1)) + (1 if atend and r.getchar() == 0 else 0)])     # why - 1?
         c = r.getchar() - (cref.first.getchar() if r.getword() == cref.first.getword() else 0)
         # print(f"{cref.first=}, {cref.last=}, {r=} {windex=}, {w=}, {c=}")
         return USXLoc(e, a, w+c)
@@ -757,10 +758,13 @@ def findref(ref, root, atend=False, parindex=0, grammar=None):
     if grammar is None:
         grammar = Grammar()
     el = _findcvel(ref, root, grammar, atend=atend, parindex=parindex)
+    elref = ref.copy()
+    elref.setword(None)
+    elref.setchar(None)
     if ref.word is not None or ref.char is not None:
-        res = _findtextref(ref, el, atend=atend)
+        res = _findtextref(ref, el, atend=atend, startref=elref)
     elif ref.mrkrs:
-        res = _findtextref(ref, el, atend=atend, mrkri=1)
+        res = _findtextref(ref, el, atend=atend, startref=elref, mrkri=1)
     elif atend and len(el):
         res = USXLoc(el[-1], " tail", -1)
     else:
@@ -776,7 +780,7 @@ def _addoblink(res, cref, tid, ttype):
         if oldr.first != oldr.last:
             oldr.last = r
         elif oldr.last == r:
-            if r.char is not None and oldr.first.getchar(None) is None:
+            if r.getchar(None) is not None and oldr.first.getchar(None) is None:
                 oldr.first.setchar(1)
                 res[k] = RefRange(oldr.first, r)
         else:
@@ -787,7 +791,7 @@ def _addoblink(res, cref, tid, ttype):
     else:
         res[k] = r
 
-def getoblinkages(root, bk=None):
+def getlinkages(root, bk=None):
     res = {}
     for eloc, cref in iterusxref(root, book=bk):
         if eloc.head is not None:
@@ -797,12 +801,12 @@ def getoblinkages(root, bk=None):
                 lref = cref.first.copy()
                 key = (eloc.head.get("aid", ""), eloc.head.get("type", "unk"))
                 # spot word spans
-                if s == "za-s" and cref.first.char == 0:
-                    lref.char = None
+                if s == "za-s" and cref.first.getchar() == 0:
+                    lref.setchar(None)
                 elif s == "za-e" and (not eloc.head.tail or eloc.head.tail[0] in \
                             "\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000") \
                         and (key not in res or res[key].getchar(None) is None):
-                    lref.char = None
+                    lref.setchar(None)
                 _addoblink(res, lref, *key)
                 if i == 0:
                     if eloc.parent.text is None:
@@ -820,9 +824,9 @@ def insertlinkages(root, links, bk=None, grammar=None):
     ''' links = [(ref, mrkr, atend, id, type)] '''
     for l in links:
         loc = findref(l[0], root, atend=l[2], grammar=grammar)
-        insertoblink(loc, l[1], l)
+        _insertoblink(loc, l[1], l)
 
-def insertoblink(linkloc, tag, linfo):
+def _insertoblink(linkloc, tag, linfo):
     el = linkloc.el
     newel = el.makeelement("ms", {"style": tag, "aid": linfo[3]})
     if linfo[4] != "unk":
@@ -836,5 +840,3 @@ def insertoblink(linkloc, tag, linfo):
         el.tail = el.tail[:linkloc.char]
         newel.parent = el.parent
         el.parent.insert(el.parent.index(el)+1, newel)
-        
-

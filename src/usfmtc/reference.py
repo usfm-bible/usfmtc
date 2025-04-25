@@ -77,21 +77,22 @@ class MarkerRef:
             return False
         elif self.char != context.char:
             return False
+        return True
 
     def __str__(self):
         return self.str(force=True)
 
-    def str(self, context: Optional['MarkerRef']=None, force: bool=False):
+    def str(self, context: Optional['MarkerRef']=None, force: int=0):
         res = []
-        if force or context is None or context.mrkr != self.mrkr or context.index != self.index:
+        if force > 1 or context is None or context.mrkr != self.mrkr or context.index != self.index:
             res.append("!"+self.mrkr)
-            if self.index is not None:
+            if self.index is not None and self.index > 0:
                 res.append("[" + str(self.index) + "]")
-        if self.word is not None and (force or context is None or context.word != self.word):
+        if self.word is not None and (force > 1 or context is None or context.word != self.word):
             if len(res):
                 res.append("!")
             res.append(str(self.word))
-        if self.char is not None and (force or context is None or context.char != self.char):
+        if self.char is not None and (force > 1 or context is None or context.char != self.char):
             if len(res):
                 res.append("+")
             res.append(str(self.char))
@@ -312,7 +313,7 @@ class Ref:
         return self.str()
 
     def __repr__(self):
-        return "Ref("+self.str()+")"
+        return "Ref("+self.str(force=2)+")"
 
     def __eq__(self, o):
         if not isinstance(o, Ref):
@@ -321,15 +322,22 @@ class Ref:
         # res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
         return res
 
+    def identical(self, o):
+        if not isinstance(o, Ref):
+            return False
+        res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
+        return res
+
     def __contains__(self, o):
         if isinstance(o, RefRange):
-            selfr = RefRange.fromRef(self)
-            return o in selfr
+            end = self.end()
+            return o.first >= self and o.last <= end
         if self.book != o.book:
             return False
         return all(getattr(self, a) is None or getattr(self, a) == getattr(o, a) for a in self._parmlist)
 
     def __lt__(self, o):
+        """ self entirely precedes o """
         if o is None:
             return False
         elif not isinstance(o, Ref):
@@ -352,15 +360,19 @@ class Ref:
             else:
                 return self.subverse < o.subverse
         elif self.word != o.word:
+            if self.word is None:
+                return False        # a full verse does not preceded a word in the verse
             return (self.word or 0) < (o.word or 0)
         elif self.char != o.char:
+            if self.char is None:
+                return False
             return (self.char or 0) < (o.char or 0)
         return False
 
     def __gt__(self, o):
         if o is None:
             return True
-        return o < self
+        return not self <= o
 
     def __le__(self, o):
         return self < o or self in o
@@ -371,7 +383,8 @@ class Ref:
     def __hash__(self):
         return hash((getattr(self, a) for a in self._parmlist))
 
-    def str(self, context: Optional['Ref'] = None, force: bool = False):
+    def str(self, context: Optional['Ref'] = None, force: int = 0):
+        iniforce = force
         if context is None:
             context = Ref()
         else:
@@ -381,46 +394,46 @@ class Ref:
         if context.product != self.product:
             res.append(self.product)
             res.append('.')
-            force = True
-        if force or context.book != self.book:
+            force = max(1, iniforce)
+        if force > 1 or context.book != self.book:
             res.append(self.book)
             res.append(' ')
-            force = True
-        if self.book not in oneChbooks and (force or context.chapter != self.chapter):
+            force = max(2, iniforce)
+        if self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
             res.append(str(self.chapter))
             sep = ':'
-        if self.verse is not None and (force or context.verse != self.verse):
+        if self.verse is not None and (force > 1 or context.verse != self.verse):
             if len(res):
                 res.append(sep)
             res.append(strend(self.verse))
             res.append(self.subverse or "")
-            force = True
+            force = max(2, iniforce)
         sep = "!"
-        if self.word is not None and (force or context.word != self.word):
+        if self.word is not None and (force > 1 or context.word != self.word):
             if len(res):
                 res.append(sep)
             res.append(strend(self.word))
-            force = True
+            force = max(2, iniforce)
         else:
-            force = False
+            force = iniforce
         sep = "+"
-        if self.char is not None and (force or context.char != self.char):
+        if self.char is not None and (force > 1 or context.char != self.char):
             if len(res):
                 res.append(sep)
             res.append(strend(self.char))
-            force = True
+            force = max(2, iniforce)
         else:
-            force = False
+            force = iniforce
         sep = "!"
         if self.mrkrs is not None and len(self.mrkrs):
-            forcemkr = False
+            forcemkr = iniforce
             for i, m in enumerate(self.mrkrs):
                 if not forcemkr and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
                     if context.mrkrs[i] != m:
                         res.append(m.str(context=context.mrkrs[i], force=force or len(res)))
-                        forcemkr = True
+                        forcemkr = 1
                 elif force or forcemkr:
-                    res.append(m.str(force=True))
+                    res.append(m.str(force=iniforce))
         return "".join(res)
 
     @property
@@ -445,7 +458,7 @@ class Ref:
         return res
 
     def end(self):
-        if self.last != self:
+        if self.last is not self:
             self.last = end(self.last)
             return self.last
         res = self._setall(-1)
@@ -459,7 +472,7 @@ class Ref:
         return res
 
     def start(self):
-        if self.first != self:
+        if self.first is not self:
             self.first = start(self.first)
             return self.first
         return self._setall(1)
@@ -542,13 +555,18 @@ class RefRange:
     def fromRef(cls, r):
         return cls(r, r.end())
 
+    def __new__(cls, first: Optional[Ref]=None, last: Optional[Ref]=None):
+        if first.identical(last):
+            return first
+        return super().__new__(cls)
+
     def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
         self.first = first
         self.last = last
         if self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
 
-    def str(self, context: Optional[Ref] = None, force: bool = False):
+    def str(self, context: Optional[Ref] = None, force: int = 0):
         res = [self.first.str(context, force=force)]
         res.append("-")
         res.append(self.last.str(self.first, force=force))
@@ -630,7 +648,7 @@ class RefList(List):
     def __str__(self):
         return self.str()
 
-    def str(self, context: Optional[Ref] = None, force: bool = False):
+    def str(self, context: Optional[Ref] = None, force: int = 0):
         res = []
         for r in self:
             if context is not None:
@@ -694,7 +712,7 @@ def main():
     if len(sys.argv) > 1:
         s = " ".join(sys.argv[1:])
         res = RefList(s)
-        print(res.str(force=True))
+        print(res.str(force=1))
 
 if __name__ == "__main__":
     main()
