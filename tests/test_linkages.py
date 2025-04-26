@@ -108,3 +108,28 @@ def test_link_note():
                 ('1235', 'unk'): "JHN 17:6!s1!3-4",
                 ('1236', 'unk'): "JHN 17:6!s1!4+8!f!6+5"
                   }, skipsfmequal=True)
+
+def test_link_intro():
+    usfm = r'''\id PHM WSG Adilabad Gondi (Telangana, India) (C) 2010-2018 SIL SAG CIC WSG Team 
+\h pilemōn 
+\toc1 pilemōntun lihi kīta ciṭi 
+\toc2 pilemōn 
+\toc3 pilemōn 
+\mt1 pilemōn 
+\mt2 pilemōntun lihi kīta ciṭi 
+\is ciṭitun bāreta gosṭi 
+\im \k lihi kītona porol: \k* pavlu 
+\im \k lihi \za-s|001\*kīta\za-e|001\* sāl: \k* kiristu sakam lag-bag sāṭ (60) sāldaga lihi kiyval jargta. 
+\im \k muke gosṭi:\k* pavlu jēldaga maneke id ciṭi lihi kītor. \za-s|002\*pilemōntur\za-e|002\* dāsirgaṭal onesīmon inval dāsi-māynal parar āsi, pavlu manval jāgataga vātor. pavlu yēsun bāreta cokoṭna kabur vōn vehtor. aske vōr onesīm yēsun poro barosa irtor. te iṅke pavlu onesīmontun vōnor mālkanaga sāri kīser mantor. onesīmon itteke, «pāyda siyval» injer artam. iden mune onesīmon pilemōnta kāmun cukḍi kiyval āsi mattor. bati iṅke bagavantana permata-dayate pavlun, pilemōntun ani vīrgaṭal ter yēsu parbunte vele pāyda siyval ātor. onesīmontun māpi kīsi, kāmnaga malsi yētana injer pilemōntun, id ciṭi pavlu lihi kītor. 
+\iot baga batal manta 
+\io1 daṇḍosk \ior 1-3 \ior* 
+\io1 \za-s|003\*pārtana ani danevād\za-e|003\* \ior 4-7 \ior* 
+\io1 onesīmon sāṭi vinanti kiyval \ior 8-25 \ior*
+\c 1 
+\s daṇḍosk'''
+    _dotest(usfm, {
+                ('001', 'unk') : "PHM 0!im[2]!2",
+                ('002', 'unk') : "PHM 0!im[3]!10",
+                ('003', 'unk') : "PHM 0!io1[2]!1-3"
+                  })
+
