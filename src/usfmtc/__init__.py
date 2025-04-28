@@ -369,7 +369,7 @@ def main(hookcli=None, hookusx=None):
         elif os.path.isdir(args.outfile):
             outf = _makeoutfile(infile, args.outformat)
             if outf is None:
-                doerror(f"invalid output format {args.format} in {args.outfile}")
+                doerror(f"invalid output format {args.outformat} in {args.outfile}")
             outfile = os.path.join(args.outfile, os.path.basename(outf))
         elif len(infiles) == 1:
             outfile = args.outfile

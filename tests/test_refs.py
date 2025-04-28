@@ -363,7 +363,7 @@ def test_footnote1():
     if res != "dug":
         fail(f"{r}: {res}")
 
-@pytest.mark.skip
+# @pytest.mark.skip
 def test_footnote2():
     r, res = _get_textref("JON 1:13!5!f!5")
     if res != "dug":

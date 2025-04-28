@@ -829,18 +829,18 @@ def _findtextref(ref, el, atend=False, mrkri=-1, startref=None):
         w = sum(len(s) for s in b[:windex])
         c = r.getchar() - (cref.first.getchar() if r.getword() == cref.first.getword() else 0)
         if windex == len(b):
-            islast == True
+            islast = True
         elif len(b) % 2 == 1:       # odd => no final space
-            if windex == len(b) - 1 and c == len(b[-1]):
+            if windex == len(b) - 1 and (c == 0 or c == len(b[-1])):
                 islast = True
         elif windex == len(b) - 1:
             islast = True
         # print(f"{cref.first=}, {cref.last=}, {r=} {windex=}, {w=}, {c=}")
         res = USXLoc(e, a, w+c)
         if ref.mrkrs is not None and len(ref.mrkrs) > mrkri:
-            if not islast:
-                return res
             m = ref.mrkrs[mrkri]
+            if not islast:
+                raise ValueError(f"{m.mrkr} not found in {ref}")
             i = 0 if eloc.head is None else eloc.parent.index(eloc.head) + 1
             while i < len(eloc.parent):
                 nel = eloc.parent[i]
@@ -859,10 +859,10 @@ def findref(ref, root, atend=False, parindex=0, grammar=None):
         grammar = Grammar()
     el, mrkri = _findcvel(ref, root, grammar, atend=atend, parindex=parindex)
     elref = ref.copy()
-    elref.setword(None)
-    elref.setchar(None)
     if elref.mrkrs and len(elref.mrkrs):
         elref.mrkrs = elref.mrkrs[:mrkri]
+    elref.setword(None)
+    elref.setchar(None)
     word = ref.mrkrs[mrkri-1].word if mrkri > 0 else ref.word
     char = ref.mrkrs[mrkri-1].char if mrkri > 0 else ref.char
     if word is not None or char is not None:

@@ -136,10 +136,11 @@ def parse_wordref(s: str) -> Tuple[int, Optional[str]]:
 _reindex = re.compile(r"([0-9a-z_-]+)(?:\[([0-9]+\]))?")
 def asmarkers(s: str, t: str) -> List[MarkerRef]:
     res = []
-    if s is None or not len(s):
-        return res
-    b = s.split("!")
-    b += t.split("!")
+    b = []
+    if s is not None and len(s):
+        b = s.split("!")
+    if t is not None and len(t):
+        b += t.split("!")
     i = 0
     while i < len(b):
         if not len(b[i]):
