@@ -250,13 +250,13 @@ class Ref:
         return cls.versification
 
     def __init__(self, string: Optional[str] = None,
-                    context: Optional['Ref'] = None, start: int = 0, **kw):
+                    context: Optional['Ref'] = None, start: int = 0, strict: bool = True, **kw):
         if hasattr(self, 'chapter'):     # We were created in __new__ so skip __init__
             return
         if string is not None:
             s = string.strip()
             self.parse(s, context=(context.last if context is not None else None), start=start)
-            if self.strend < len(s):
+            if self.strend < len(s) and strict:
                 raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
             return
 
@@ -555,7 +555,7 @@ class RefRange:
         return cls(r, r.end())
 
     def __new__(cls, first: Optional[Ref]=None, last: Optional[Ref]=None):
-        if first.identical(last):
+        if first is not None and first.identical(last):
             return first
         return super().__new__(cls)
 

@@ -81,29 +81,30 @@ def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], a
     if intype is None:
         return None
 
+    if altparser and grammar is None:
+        if gramfile is None:
+            for a in ([], ['..', '..', '..', 'grammar']):
+                gramfile = os.path.join(os.path.dirname(__file__), *a, "usx.rng")
+                if os.path.exists(gramfile):
+                    break
+    if grammar is None:
+        fname = getattr(infpath, 'name', infpath)
+        extfiles.append(os.path.join(os.path.dirname(fname), "markers.ext"))
+        exts = [x for x in extfiles if os.path.exists(x)]
+        grammar = usfmGrammar(gramfile, extensions=exts, altparser=altparser, **kw)
+
     if intype == "usx":
-        usxdoc = USX.fromUsx(infpath, **kw)
+        usxdoc = USX.fromUsx(infpath, grammar=grammar, **kw)
     elif intype == "usj":
-        usxdoc = USX.fromUsj(infpath, **kw)
+        usxdoc = USX.fromUsj(infpath, grammar=grammar, **kw)
     elif intype.startswith("usfm"):
-        if altparser and grammar is None:
-            if gramfile is None:
-                for a in ([], ['..', '..', '..', 'grammar']):
-                    gramfile = os.path.join(os.path.dirname(__file__), *a, "usx.rng")
-                    if os.path.exists(gramfile):
-                        break
-        if grammar is None:
-            fname = getattr(infpath, 'name', infpath)
-            extfiles.append(os.path.join(os.path.dirname(fname), "markers.ext"))
-            exts = [x for x in extfiles if os.path.exists(x)]
-            grammar = usfmGrammar(gramfile, extensions=exts, altparser=altparser, **kw)
         usxdoc = USX.fromUsfm(infpath, grammar=grammar, altparser=altparser, strict=strict, keepparser=keepparser, **kw)
     return usxdoc
 
 
 class USX:
     @classmethod
-    def fromUsx(cls, src, elfactory=None, **kw):
+    def fromUsx(cls, src, elfactory=None, grammar=None, **kw):
         """ Loads USX and creates USX object to hold it """
         if elfactory is None:
             elfactory = ParentElement
@@ -124,7 +125,7 @@ class USX:
                 res = et.fromstring(src, parser=parser)
             except et.ParseError:
                 return None
-        return cls(res)
+        return cls(res, grammar)
 
     @classmethod
     def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, **kw):
@@ -144,20 +145,23 @@ class USX:
             xml = result.asEt(elfactory=elfactory)
 
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
-        res = cls(xml)
+        res = cls(xml, grammar)
         if keepparser:
             res.parser = p
         return res
 
     @classmethod
-    def fromUsj(cls, src, elfactory=None, **kw):
+    def fromUsj(cls, src, elfactory=None, grammar=None, **kw):
         data = _readsrc(src)
         djson = json.loads(data)
         xml = usjtousx(djson, elfactory=elfactory)
-        return cls(xml)
+        return cls(xml, grammar)
 
-    def __init__(self, xml):
+    def __init__(self, xml, grammar=None):
         self.xml = xml      # an Element, not an ElementTree
+        self.grammar = grammar
+        if self.grammar is None:
+            self.grammar = Grammar()
 
     def _outwrite(self, file, dat, fn=None, args={}):
         if fn is None:
