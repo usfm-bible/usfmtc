@@ -15,7 +15,8 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, findref, copy_range
+from usfmtc.usxmodel import addesids, cleanup, canonicalise
+from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
 from usfmtc.usfmgenerate import usx2usfm
@@ -213,17 +214,31 @@ class USX:
         """ Returns root XML element """
         return self.xml
 
-    def getrefs(self, *refs, addintro=False):
+    def _procrefs(self, *refs, skiptest=None):
+        for r in refs:
+            start = USXCursor.fromRef(r.first, self, skiptest=skiptest)
+            end = USXCursor.fromRef(r.last, self, atend=True, skiptest=skiptest)
+            yield start, end, r
+
+    def getrefs(self, *refs, addintro=False, skiptest=None):
+        """ Returns a doc containing paragraphs of the contents of each reference """
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
-        for i, r in enumerate(refs):
-            start = findref(r.first, root)
-            end = findref(r.last, root, atend=True)
-            subdoc = copy_range(root, start, end, addintro=(addintro and not i))
+        for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
+            subdoc = start.copy_range(root, end, addintro=(addintro and not i))
             if len(subdoc):
                 subdoc[0].set("vid", str(r.first))
                 res.extend(list(subdoc))
         return self.__class__(res)
+
+    def gettext(self, *refs, skiptest=None):
+        """ Returns the text of each reference one per line """
+        root = self.getroot()
+        res = []
+        for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
+            text = start.copy_text(root, end)
+            res.append(text)
+        return "\n".join(res)
 
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):

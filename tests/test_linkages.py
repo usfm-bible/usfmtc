@@ -26,7 +26,7 @@ def _dotest(txt, links, skipsfmequal=False):
     r = doc.getroot()
     tinit = asusfm(r, grammar)
     et.dump(r)
-    tlinks = getlinkages(r, doc.book)
+    tlinks = getlinkages(doc)
     et.dump(r)
     passed = True
     for k, v in tlinks.items():
@@ -43,7 +43,7 @@ def _dotest(txt, links, skipsfmequal=False):
             mlinks.append((v.last, "za-e", True, k[0], k[1]))
         else:
             mlinks.append((v.first, "za", False, k[0], k[1]))
-    insertlinkages(r, mlinks, bk=doc.book, grammar=grammar)
+    insertlinkages(doc, mlinks)
     if not skipsfmequal:
         t = asusfm(r, grammar)
         if t != tinit:
@@ -89,12 +89,12 @@ def test_link_romani():
                 ("8ad89bbc", "unk"): "JHN 2:24!23+0",
                 ("8be39bed", "unk"): "JHN 2:24!24",
                 ("e6a77bca", "unk"): "JHN 2:24!28-29+6",
-                ("85a815f7", "unk"): "JHN 2:24!30+1-6",
-                ("38c4ff42", "unk"): "JHN 2:24!31",
-                ("90fbe824", "unk"): "JHN 2:24!33",
-                ("8206cdd4", "unk"): "JHN 2:24!34+8",
-                ("afcccf77", "unk"): "JHN 2:24!35+1-3",
-                ("9deaa4bd", "unk"): "JHN 2:24!41",
+                ("85a815f7", "unk"): "JHN 2:24!q1!1+1-6",
+                ("38c4ff42", "unk"): "JHN 2:24!q1!2",
+                ("90fbe824", "unk"): "JHN 2:24!q1!4",
+                ("8206cdd4", "unk"): "JHN 2:24!q1!5+8",
+                ("afcccf77", "unk"): "JHN 2:24!q2!1-3",
+                ("9deaa4bd", "unk"): "JHN 2:24!m!1",
                   }, skipsfmequal=True)
 
 def test_link_note():

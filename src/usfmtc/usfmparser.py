@@ -340,6 +340,7 @@ class Node:
 
     def addNodeElement(self, e):
         self.element.append(e)
+        e.parent = self.element
 
     def appendElement(self, child):
         if isinstance(child, OptBreak):

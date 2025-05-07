@@ -86,7 +86,7 @@ class MarkerRef:
         res = []
         if force > 1 or context is None or context.mrkr != self.mrkr or context.index != self.index:
             res.append("!"+self.mrkr)
-            if self.index is not None and self.index > 0:
+            if self.index is not None and self.index > 1:
                 res.append("[" + str(self.index) + "]")
         if self.word is not None and (force > 1 or context is None or context.word != self.word):
             if len(res):
@@ -96,7 +96,7 @@ class MarkerRef:
             if len(res):
                 res.append("+")
             res.append(str(self.char))
-        return "".join(res)
+        return "".join([s for s in res if s is not None])
 
     def copy(self):
         return self.__class__(self.mrkr, self.index, self.word, self.char)
@@ -433,7 +433,7 @@ class Ref:
                         res.append(m.str(context=context.mrkrs[i], force=force or (len(res) != 0)))
                 elif force:
                     res.append(m.str(force=force))
-        return "".join(res)
+        return "".join([s for s in res if s is not None])
 
     @property
     def first(self):

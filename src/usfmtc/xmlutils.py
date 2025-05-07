@@ -161,8 +161,8 @@ def isempty(s):
         return False
     return True
 
-def hastext(self):
-    if self.head is not None:
-        return not isempty(self.head.tail)
+def hastext(self, isin):
+    if not isin:
+        return not isempty(self.tail)
     else:
-        return not isempty(self.parent.text)
+        return not isempty(self.text)

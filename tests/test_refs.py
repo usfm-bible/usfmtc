@@ -1,7 +1,7 @@
 import pytest
 from pytest import fail
 from usfmtc import readFile, usx2usfm
-from usfmtc.usxmodel import findref, copy_range, copy_text
+from usfmtc.usxcursor import USXCursor
 from usfmtc.reference import Ref, RefList, RefRange
 import os, io
 import xml.etree.ElementTree as et
@@ -25,10 +25,10 @@ jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
 def _get_textref(s):
     r = Ref(s)
     root = jon_usfm.getroot()
-    start = findref(r.first, root)
-    end = findref(r.last, root, atend=True)
+    start = USXCursor.fromRef(r.first, jon_usfm)
+    end = USXCursor.fromRef(r.last, jon_usfm, atend=True)
     print(start, end)
-    res = copy_text(root, start, end)
+    res = start.copy_text(root, end)
     return r, res
 
 def _r(bk, chap, verse, subv=None):
@@ -73,13 +73,8 @@ def _o(a, b, res):
         raise fail(f"{x} in {y} should be {res}")
     print("{} <-> {} ({})".format(x, y,restupd))
 
-def _do_findreftest(first, last):
-    root = jon_usfm.getroot()
-    start = findref(first, root)
-    end = findref(last, root, atend=True)
-    res = copy_range(root, start, end)
-
-    print(f"{first=} {start}; {last=} {end}")
+def _do_findreftest(ref):
+    res = jon_usfm.getrefs(ref).xml
     et.dump(res)
     print(asusfm(res))
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
@@ -104,26 +99,21 @@ def test_range():
 
 def test_findreftext():
     r = Ref("JON 3:6!3")
-    loc = findref(r, jon_usfm.getroot())
+    loc = USXCursor.fromRef(r, jon_usfm)
 
     if loc.el.tag != "verse" and loc.attrib != " tail" and loc.char != 18:
         fail(f"{r} resulted in {loc}")
     end = Ref("JON 3:6!4")
-    eloc = findref(end, jon_usfm.getroot(), atend=True)
+    eloc = USXCursor.fromRef(end, jon_usfm, atend=True)
     if eloc.el.tag != "verse" and eloc.attrib != " tail" and eloc.char !=24:
         fail(f"{end} resulted in {eloc}")
     res = eloc.el.tail[loc.char:eloc.char]
     if res != "reached the":
         fail(f"{res} != 'reached the'")
 
-def test_findref1():
-    first = Ref("JON 2:8")
-    last = Ref("JON 2")
-    _do_findreftest(first, last)
-
 def test_findref2():
     ref = Ref("JON 2:8-end")
-    _do_findreftest(ref.first, ref.last)
+    _do_findreftest(ref)
 
 def test_getrefs():
     refs = RefList("JON 1:3; 2:4-5; 3:9-end")
@@ -135,11 +125,7 @@ def test_getrefs():
 
 def test_textref1():
     r = Ref("JON 2:8!2-4")
-    root = jon_usfm.getroot()
-    start = findref(r.first, root)
-    end = findref(r.last, root, atend=True)
-    print(start, end)
-    res = copy_text(jon_usfm.getroot(), start, end)
+    res = jon_usfm.gettext(r)
     print(res)
     if res != "who cling to":
         fail(f"{res}")
@@ -317,10 +303,7 @@ def test_multiple_chapters():
 
 def test_partial_verse():
     r = Ref("JON 3:10!1-4")
-    root = jon_usfm.getroot()
-    start = findref(r.first, root)
-    end = findref(r.last, root, atend=True)
-    res = copy_text(root, start, end)
+    res = jon_usfm.gettext(r)
 
     if "God" not in res:
         fail("Partial verse not extracted correctly")
