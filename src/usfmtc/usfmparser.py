@@ -15,6 +15,9 @@ class Pos:
     def __str__(self):
         return f"{self.l}:{self.c}"
 
+    def __repr__(self):
+        return f"Pos({self.l}:{self.c})"
+
 class Tag(str):
     def __new__(cls, s, l=0, c=0, **kw):
         isend = False
@@ -418,13 +421,15 @@ class USXNode(Node):
         self.element.set('version', str(t).strip())
 
 class AttribNode(Node):
-    def __init__(self, parser, parent, tag, pos=None, **kw):
+    def __init__(self, parser, parent, tag, pos=None, only=[], **kw):
         self.parser = parser
         self.parent = parent
-        self.parent.addAttribNode(self)
         self.tag = tag
         self.pos = pos
         self.attribnodes = []
+        if len(only) and self.parent.tag not in only:
+            raise SyntaxError(f"Attrib marker {tag} found after {self.parent.tag} but may only follow {' '.join(only)}")
+        self.parent.addAttribNode(self)
 
     def addNodeElement(self, e):
         self.parent.addNodeElement(e)
@@ -532,6 +537,7 @@ class USFMParser:
         self.doindexing = index
         self.chapters = []
         self.ids = {}
+        self.errors = []
 
     def _setup(s, expanded=False):
         clsself = s.__class__
@@ -728,12 +734,22 @@ class USFMParser:
             res = self.removeTag(tag.basestr())
         return res
 
-    def attribute(self, tag):
+    def attribute(self, tag, only=[]):
         if tag.isend:
             return self.removeTag(str(tag))
-        parent = AttribNode(self, self.stack[-1], str(tag), pos=tag.pos)
+        try:
+            parent = AttribNode(self, self.stack[-1], str(tag), pos=tag.pos, only=only)
+        except SyntaxError as e:
+            self.errors.append((str(e), tag.pos))
+            parent = Node(self, 'char', tag.basestr(), pos=tag.pos)
         self.stack.append(parent)
         return parent
+
+    def _va(self, tag):
+        return self.attribute(tag, only=["v"])
+
+    def _ca(self, tag):
+        return self.attribute(tag, only=["c"])
 
     def cell(self, tag):
         self.removeType('cell', tags=["row"])

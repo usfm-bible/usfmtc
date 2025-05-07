@@ -146,7 +146,7 @@ class USX:
             xml = result.asEt(elfactory=elfactory)
 
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
-        res = cls(xml, grammar)
+        res = cls(xml, grammar, errors=p.errors)
         if keepparser:
             res.parser = p
         return res
@@ -158,11 +158,12 @@ class USX:
         xml = usjtousx(djson, elfactory=elfactory)
         return cls(xml, grammar)
 
-    def __init__(self, xml, grammar=None):
+    def __init__(self, xml, grammar=None, errors=None):
         self.xml = xml      # an Element, not an ElementTree
         self.grammar = grammar
         if self.grammar is None:
             self.grammar = Grammar()
+        self.errors = errors    # an error (description, sfmparser.Pos)
 
     def _outwrite(self, file, dat, fn=None, args={}):
         if fn is None:

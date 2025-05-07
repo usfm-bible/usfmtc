@@ -145,3 +145,13 @@ def test_footnote3():
     if 'xt*' not in f or 'ref' in f:        # is this what we really want?
         fail(f"{f}: bad ref handling")
 
+def test_va():
+    usfm = r"""\id GEN hanging vas
+\c 32
+\p \v 10-12 \va 12 \va* This is verse twelve and all it's interesting text
+\p
+\va 10 \va* Now verse 10 followed by \va 11 \va* verse 11. Done.
+"""
+    doc, f = _dousfm(usfm)
+    if doc.errors is not None and len(doc.errors) != 2 or doc.errors[0][1].l != 4:
+        fail(f"{doc.errors}")
