@@ -17,6 +17,9 @@ def _dousfm(s, grammar=None):
     doc.canonicalise()
     r = doc.getroot()
     et.dump(r)
+    if doc.errors is not None and len(doc.errors):
+        print("\nParser Errors:\n")
+        print("\n".join(["{0} at {2} pos {1}".format(*e) for e in doc.errors]))
     f = asusfm(r, grammar=grammar)
     print(f)
     return (doc, f)

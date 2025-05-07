@@ -411,6 +411,8 @@ class IdNode(Node):
         if m:
             self.element.set('code', m.group(1))
             self.element.text = m.group(2)
+            if self.parser:
+                self.parser.numbers['id'] = m.group(1)
         self.parser.removeTag('id', absentok=True)
 
     def addNodeElement(self, e):
@@ -458,6 +460,8 @@ class NumberNode(Node):
             if len(v):
                 self.element.set('number', v)
                 self.hasarg = True
+                if self.parser:
+                    self.parser.numbers[self.tag] = v
         else:
             b = ['', str(t)]
         if len(b) > 1 and b[1].strip():
@@ -538,6 +542,7 @@ class USFMParser:
         self.chapters = []
         self.ids = {}
         self.errors = []
+        self.numbers = {}
 
     def _setup(s, expanded=False):
         clsself = s.__class__
@@ -657,6 +662,9 @@ class USFMParser:
             self.stack = oldstack
         return self.stack[-1] if len(self.stack) else None
 
+    def cvref(self):
+        vals = [self.numbers.get(x, '') for x in ("id", "c", "v")]
+        return "{} {}:{}".format(*vals)
 #### Event methods
 
     def _c(self, tag):
@@ -740,7 +748,7 @@ class USFMParser:
         try:
             parent = AttribNode(self, self.stack[-1], str(tag), pos=tag.pos, only=only)
         except SyntaxError as e:
-            self.errors.append((str(e), tag.pos))
+            self.errors.append((str(e), tag.pos, self.cvref()))
             parent = Node(self, 'char', tag.basestr(), pos=tag.pos)
         self.stack.append(parent)
         return parent
