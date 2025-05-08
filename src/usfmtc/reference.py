@@ -410,15 +410,18 @@ class Ref:
             res.append(self.subverse or "")
             force = max(2, iniforce)
         sep = "!"
-        if self.word is not None and (force > 1 or context.word != self.word):
+        if self.word is not None and (force > 1 or context.word is not None and context.word != self.word):
             if len(res):
                 res.append(sep)
             res.append(strend(self.word))
-            force = max(2, iniforce)
+            if self.word != 0:
+                force = max(2, iniforce)
+            else:
+                force = iniforce
         else:
             force = iniforce
         sep = "+"
-        if self.char is not None and (force > 1 or context.char != self.char):
+        if self.char is not None and (force > 1 or context.char is not None and context.char != self.char):
             if len(res):
                 res.append(sep)
             res.append(strend(self.char))

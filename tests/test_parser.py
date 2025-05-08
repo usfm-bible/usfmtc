@@ -158,3 +158,13 @@ def test_va():
     doc, f = _dousfm(usfm)
     if doc.errors is not None and len(doc.errors) != 2 or doc.errors[0][1].l != 4:
         fail(f"{doc.errors}")
+
+def test_footnote4():
+    usfm = r"""\id PHM footnote structure
+\c 1
+\p
+\v 1 This is a test\f + \fr 1:1 \ft And a note in the \+fq test\+fq* for \xt John 3:16|href="JHN 3:16"\xt*\f*
+"""
+    doc, f = _dousfm(usfm)
+    if r"\fq test\ft " not in f:
+        fail(f"nested fq not converted")

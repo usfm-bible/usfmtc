@@ -440,32 +440,47 @@ def _sectionref(el, cref, grammar):
 def _wlen(t, w, c, atfirst=False):
     w = w or 0
     c = c or 0
+    win = w
+    cin = c
     b = re.split("([\u0020\n\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]+)", t)
-    trim = 0
-    if atfirst and c == 0 and w > 0:
-        w -= 1
-    if len(b[-1]):
-        if len(b) == 1:
-            c += len(b[-1])
-            w = max(w, 1)
-            return w, c
-        else:
-            c = len(b[-1])
-    else:
+    bin = b[:]
+    if not len(b[0]):
+        if w > 0 and c > 0:
+            w += 1
+            c = 0
+        b = b[2:]
+    elif w == 0:
+        w = 1
+    elif atfirst and c > 0:
+        w += 1
         c = 0
-    # if initial ws count the word, if initial word, remove it since part of the last text
-    if not atfirst or not len(b[0]):
-        b.pop(0)
-        b.pop(0)
-    w += (len(b) + 1) // 2      # number of words
-    # print(f"{b=}, {w=}, {c=}")
+
+    if len(b) and not len(b[-1]):
+        b = b[:-2]
+        finalspace = True
+    else:
+        finalspace = False
+
+    if len(b):
+        wc = (len(b) + 1) // 2
+        cc = len(b[-1])
+        if finalspace:
+            w += wc
+            c = 0
+        else:
+            w += wc - 1
+            c = cc + (0 if wc > 1 else c)
+    if w < win or w == win and c < cin:
+        print(f"{win}+{cin} {bin} ({atfirst=}) -> {w},{c} {b=}")
     return (w, c)
 
 def _extendlen(curr, txt, atfirst=False):
     if txt is not None and len(txt):
+        # sc = str(curr)
         w, c = _wlen(txt, curr.getword(), curr.getchar(), atfirst=atfirst)
         curr.setword(w)
         curr.setchar(c)
+        # print(f"{sc} -> {curr}")
 
 def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw):
     """ Iterates root as per iterusx yielding a RefRange that expresses the start
@@ -492,7 +507,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
                 setattr(curr, eloc.tag, int(eloc.get("number", 0)))
-                curr.word = 1
+                curr.word = 0
                 curr.char = 0
                 curr.mrkrs = None
                 pcounts = {}
@@ -501,7 +516,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
                 curr = lastref.last.copy()
                 if curr.mrkrs is None:
                     curr.mrkrs = []
-                curr.mrkrs.append(MarkerRef(eloc.get("style", ""), 0, 1))
+                curr.mrkrs.append(MarkerRef(eloc.get("style", ""), 0, 0))
                 curr.word = None
                 curr.char = None
             else:
@@ -548,10 +563,8 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
             else:
                 curr = lastref.last.copy()
             if eloc.tail is not None and len(eloc.tail):
-                atfirst = skiptest is not None and skiptest(eloc)
-                if curr.getword() == 0:
-                    curr.setword(1)
-                _extendlen(curr, eloc.tail, atfirst=not atfirst)
+                natfirst = skiptest is not None and skiptest(eloc)
+                _extendlen(curr, eloc.tail, atfirst=not natfirst)
                 cref = RefRange(lastref.last, curr)
             else:
                 cref = curr

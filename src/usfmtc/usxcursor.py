@@ -22,6 +22,17 @@ def testverse(v:str, verse:str) -> bool:
         except ValueError:
             return False
 
+def vint(v:str|int) -> int:
+    if isinstance(v, int):
+        return v
+    while len(v):
+        try:
+            return int(v)
+        except ValueError:
+            pass
+        v = v[:-1]
+    return None
+
 def _findel(node, tag, attrib, limits=[], parindex=None, count=None, start=None):
     """ Search for an element with the given tag and attrib matching forwards from
         node, including down into children. Returns a node. Limits is a list of stop
@@ -55,7 +66,9 @@ def _scanel(refmrkr, usx, parindex, rend=None, verseonly=False):
         parindex += 1
 
 def _findcvel(ref, usx, atend=False, parindex=0):
-    ''' Returns an element and mrkr index for a reference in a document '''
+    ''' Returns an element and mrkr index for a reference in a document. If atend
+        _findcvel will return the element containing the endpoint or if that is at
+        the end of the elment, the next element. '''
     resm = 0
     if ref.book:
         if ref.book is not None and usx.book != ref.book:
@@ -79,10 +92,10 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             else:
                 parindex = len(root)
     v = ref.verse
-    if v is not None and v > 0:     # scan for verse
+    if v is not None and v != "end" and vint(v) > 0:     # scan for verse
         if atend:
             parindex = startparindex + 1
-            if not ref.mrkrs and not ref.word and not ref.char:
+            if not ref.mrkrs and ref.word is None and ref.char is None:
                 v += 1
         else:
             parindex += 1
@@ -93,7 +106,11 @@ def _findcvel(ref, usx, atend=False, parindex=0):
                 break
             parindex += 1
         else:
-            raise ValueError("Reference verse {} out of range".format(ref))
+            if not atend:
+                raise ValueError("Reference verse {} out of range".format(ref))
+            else:
+                parindex -= 1
+                el = root[parindex]
     else:
         el = root[parindex]
 
@@ -136,7 +153,8 @@ def _findcvel(ref, usx, atend=False, parindex=0):
 
 def _findtextref(ref, el, cls, atend=False, mrkri=-1, startref=None, skiptest=None):
     ''' Given a verse element, searches within it for the word and char parts of
-        a reference. ref can be a list of ref if mrkri==0. '''
+        a reference. ref can be a list of ref if mrkri==0. atend causes the return
+        to be to the last character of the reference. '''
     if el is None:
         return el
     if mrkri > 0:

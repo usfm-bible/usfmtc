@@ -74,9 +74,9 @@ def test_link_romani():
 \q2 \qt \za-s|afcccf77\*haj\za-e|afcccf77\*Mirro gad// kasqe perel, von dikhle.}\qt*\x + \xo 19:24 \xt Psa 22:18.\xt*\x*
 \m \za-s|9deaa4bd\*Kadja\za-e|9deaa4bd\* vi kerde ol soldaturǎ."""
     _dotest(usfm, {
-                ("77934015", "unk"): "JHN 2:24!1+0",
-                ("1762aaba", "unk"): "JHN 2:24!1+0",
-                ("6ffadcab", "unk"): "JHN 2:24!1+0",
+                ("77934015", "unk"): "JHN 2:24!0",
+                ("1762aaba", "unk"): "JHN 2:24!0",
+                ("6ffadcab", "unk"): "JHN 2:24!0",
                 ("b596c2a4", "unk"): "JHN 2:24!4-5+5",
                 ("ee26b6ce", "unk"): "JHN 2:24!8",
                 ("c27de536", "unk"): "JHN 2:24!11+0",

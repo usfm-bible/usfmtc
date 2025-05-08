@@ -80,6 +80,14 @@ def _do_findreftest(ref):
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
         fail(f"{len(res)=}, {res[-1][-1].tail=}")
 
+def _type_test(srange, ref, text):
+    tdoc = jon_usfm.getrefs(srange)
+    loc = USXCursor(ref, tdoc)
+    tdoc.insert_text(loc, text)
+    return tdoc
+
+#### The tests
+
 def test_basic():
     r = Ref("JHN 3:16")
     rr = Ref("12", context=r)
