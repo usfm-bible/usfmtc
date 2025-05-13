@@ -5,6 +5,7 @@ import xml.etree.ElementTree as et
 from usfmtc.extension import SFMFile
 from collections import UserDict, UserString
 
+WS = "\t\n\v\f\r\u001C\u001D\u001E\u001F "
 
 class Pos:
     def __init__(self, l, c, **kw):
@@ -90,7 +91,7 @@ class String(UserString):
         cp = self.pos.c
         s = str(self)
         if lstrip:
-            t = s.lstrip()
+            t = s.lstrip(WS)
             if len(t) < len(s):
                 cp += len(s) - len(t)
         else:
@@ -400,9 +401,9 @@ class Node:
             return
         if len(self.element):
             if self.element[-1].tail is not None and self.ispara:
-                self.element[-1].tail = self.element[-1].tail.rstrip()
+                self.element[-1].tail = self.element[-1].tail.rstrip(WS)
         elif self.element.text is not None and self.ispara:
-            self.element.text = self.element.text.rstrip()
+            self.element.text = self.element.text.rstrip(WS)
         self.clearAttribNodes()
         
 class IdNode(Node):
@@ -420,7 +421,7 @@ class IdNode(Node):
 
 class USXNode(Node):
     def appendText(self, t):
-        self.element.set('version', str(t).strip())
+        self.element.set('version', str(t).strip(WS))
 
 class AttribNode(Node):
     def __init__(self, parser, parent, tag, pos=None, only=[], **kw):
@@ -439,10 +440,10 @@ class AttribNode(Node):
 
     def appendText(self, t):
         attrib = self.parent.parser.grammar.attribtags[self.tag]
-        self.parent.element.set(attrib, str(t).strip())
+        self.parent.element.set(attrib, str(t).strip(WS))
         fn = getattr(self.parser, "_"+self.tag+"_", None)
         if fn is not None:
-            fn(str(t).strip())
+            fn(str(t).strip(WS))
 
     def dumped(self):
         attrib = self.parent.parser.grammar.attribtags[self.tag]
@@ -455,8 +456,8 @@ class NumberNode(Node):
 
     def appendText(self, t):
         if not self.hasarg:
-            b = regex.split(r"\s+", str(t).lstrip(), 1)
-            v = b[0].strip()
+            b = regex.split(r"\s+", str(t).lstrip(WS), 1)
+            v = b[0].strip(WS)
             if len(v):
                 self.element.set('number', v)
                 self.hasarg = True
@@ -464,7 +465,7 @@ class NumberNode(Node):
                     self.parser.numbers[self.tag] = v
         else:
             b = ['', str(t)]
-        if len(b) > 1 and b[1].strip():
+        if len(b) > 1 and b[1].strip(WS):
             self.parser.removeTag(self.tag, absentok=True)
             if self.ispara:
                 self.parser.addNode(Node(self.parser, 'para', 'p', pos=self.element.pos))
@@ -487,8 +488,8 @@ class NoteNode(Node):
 
     def appendText(self, t):
         if not self.hascaller:
-            b = regex.split(r"\s+", str(t).lstrip(), 1)
-            self.element.set('caller', b[0].strip())
+            b = regex.split(r"\s+", str(t).lstrip(WS), 1)
+            self.element.set('caller', b[0].strip(WS))
             self.hascaller = True
             if len(b) > 1 and len(b[1]):
                 t = t.be(b[1])
@@ -500,9 +501,9 @@ class NoteNode(Node):
 
 class PeriphNode(Node):
     def appendText(self, t):
-        t = t.strip()
+        t = t.strip(WS)
         if t:
-            self.element.set('alt', str(t).strip())
+            self.element.set('alt', str(t).strip(WS))
 
 class MsNode(Node):
     def appendText(self, t):
