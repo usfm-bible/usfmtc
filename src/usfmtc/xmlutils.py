@@ -2,6 +2,7 @@
 import re
 import xml.etree.ElementTree as et
 from dataclasses import dataclass
+from usfmtc.usfmparser import WS
 
 class ParentElement(et.Element):
     def __init__(self, tag, attrib={}, parent=None, pos=None):
@@ -157,7 +158,7 @@ def _serialize_xml(write, elem, qnames, namespaces, short_empty_elements, **kwar
 def prettyxml(node, last=None, indent="", width=2):
     if node.tag in ('para', 'sidebar', 'table', 'chapter', 'usx', 'book'):
         if last is not None:
-            last.tail = (last.tail or "").rstrip() + "\n" + indent
+            last.tail = (last.tail or "").rstrip(WS) + "\n" + indent
         indent += " " * width
     last = None
     for e in node:

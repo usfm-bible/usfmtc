@@ -10,7 +10,7 @@ def usvout(m):
         return "\\u{:04X}".format(u)
 
 _reesc = re.compile(r'([\\|]|//)')
-_reatt = re.compile(r'([\\|"]|//)')
+_reatt = re.compile(r'([\\|"])')
 def attribescaped(s, escapes):
     return escaped(s, escapes, reg=_reatt)
 
@@ -162,7 +162,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 if el.get('gen', 'false').lower() != 'true':
                     emit("\\ref ")
             elif el.tag == "usx":
-                version = el.get("version", "3.1")
+                version =  el.get("version", "3.1")
             elif el.tag in ("table", ):
                 pass
             else:
@@ -197,7 +197,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\\ref*")
             elif el.tag == "book":
                 emit("\n")
-                if float(version) >= 3.1:
+                vb = [int(x) for x in version.split(".")]
+                if vb >= [3, 1]:
                     emit("\\usfm {}\n".format(version))
             lastel = el
     return lastel

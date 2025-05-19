@@ -266,8 +266,8 @@ class USX:
                     version = "3.0"
             self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
 
-    def canonicalise(self):
-        canonicalise(self.getroot())
+    def canonicalise(self, version=None):
+        canonicalise(self.getroot(), version=version)
 
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """

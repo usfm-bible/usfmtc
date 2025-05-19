@@ -2,7 +2,7 @@
 import re
 from dataclasses import dataclass
 from usfmtc.xmlutils import isempty
-from usfmtc.usfmparser import Grammar
+from usfmtc.usfmparser import Grammar, WS
 from usfmtc.reference import Ref, RefRange, MarkerRef
 import xml.etree.ElementTree as et
 from typing import Optional
@@ -29,9 +29,9 @@ def _addvids(lastp, endp, base, v, endv, atend=False):
             lastp = lastp.getnext()
             continue
         if lastp.tag == 'para' and partypes.get(lastp.get('style', None), None) in ("Section", "NonVerse") \
-                or (not len(lastp) and (lastp.text is None or lastp.text.strip() == "")):
+                or (not len(lastp) and (lastp.text is None or lastp.text.strip(WS) == "")):
             pending.append(lastp)
-        elif id(lastp) != id(endp) or atend or endp[0].tag != "verse" or (endp.text is not None and endp.text.strip() != ""):
+        elif id(lastp) != id(endp) or atend or endp[0].tag != "verse" or (endp.text is not None and endp.text.strip(WS) != ""):
             for p in pending:
                 p.set('vid', v)
             pending = []
@@ -180,10 +180,10 @@ def cleanup(node, parent=None):
         if fig2 is not None:
             bits = fig2.split("|")      # \fig_DESC|FILE|SIZE|LOC|COPY|CAP|REF\fig*
             if node.text is not None and len(node.text):
-                node.set("alt", node.text.strip())
+                node.set("alt", node.text.strip(WS))
             for i, a in enumerate(("src", "size", "loc", "copy", "caption", "ref")):
                 if i < len(bits) and len(bits[i]):
-                    node.set(a, bits[i].strip())
+                    node.set(a, bits[i].strip(WS))
             del node.attrib["_unknown_"]
         src = node.get("src", None)
         if src is not None:
@@ -239,9 +239,9 @@ def strnormal(s, t, mode=0):
         return ""
     res = re.sub("[\n\t\r ]+", " ", s) if t in ('para', 'char') else s
     if mode & 1 == 1:
-        res = res.lstrip(" \t\n\r")
+        res = res.lstrip(WS)
     if mode & 2 == 2:
-        res = res.rstrip(" \t\n\r")
+        res = res.rstrip(WS)
     res = re.sub(r"[ \n]*\n[ ]*", "\n", res)
     for k, v in unescapes.items():
         if k in res:
@@ -252,7 +252,9 @@ notechars = [
     "fr ft fk fqa fq fl fw fdc fp".split(),
     "xt xop xo xta xk xq xot xnt xdc".split()]
 
-def canonicalise(node, endofpara=False, factory=et):
+def canonicalise(node, endofpara=False, factory=et, version=None):
+    if version is None:
+        version = node.get("version", "3.0")
     # whitespace and recursion
     if node.text is not None:
         mode = 1 # if len(node) else 3
@@ -264,7 +266,7 @@ def canonicalise(node, endofpara=False, factory=et):
     lasti = len(node) - 1 - lasti
     for i, c in enumerate(node):
         eop = c.tag == 'para' or (endofpara and (i == lasti) and not c.tail)
-        canonicalise(c, endofpara=eop)
+        canonicalise(c, endofpara=eop, version=version)
         if c.tail is not None:
             mode = 2 if eop or c.tag in ("para", "sidebar") else 0
             c.tail = strnormal(c.tail, c.tag, mode)
@@ -297,6 +299,14 @@ def canonicalise(node, endofpara=False, factory=et):
                     node[i-1].append(c)
                 node.remove(c)
                 break
+    if [int(x) for x in version.split(".")] >= [3, 1] and node.tag == "char" and node.get("style", "") == "xt" \
+                and len(node) == 1 and isempty(node.text) and isempty(node[0].tail) and node[0].tag == "ref":
+        i = node.parent.index(node)
+        node.parent.insert(i, node[0])
+        node[0].parent = node.parent
+        node[0].attrib.pop("gen", "")
+        node[0].tail = node.tail
+        node.parent.remove(node)
 
 def attribnorm(d):
     banned = ('closed', 'status', 'vid', 'version')

@@ -5,7 +5,7 @@ import xml.etree.ElementTree as et
 from usfmtc.extension import SFMFile
 from collections import UserDict, UserString
 
-WS = "\t\n\v\f\r\u001C\u001D\u001E\u001F "
+WS = "\t\n\r "   # \v\f\u001C\u001D\u001E\u001F "  full python ASCII WS
 
 class Pos:
     def __init__(self, l, c, **kw):
