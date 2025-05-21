@@ -8,7 +8,7 @@ from functools import reduce
 _bookslist = """GEN|50 EXO|40 LEV|27 NUM|36 DEU|34 JOS|24 JDG|21 RUT|4 1SA|31
         2SA|24 1KI|22 2KI|25 1CH|29 2CH|36 EZR|10 NEH|13 EST|10 JOB|42 PSA|150
         PRO|31 ECC|12 SNG|8 ISA|66 JER|52 LAM|5 EZK|48 DAN|12 HOS|14 JOL|3 AMO|9
-        OBA|1 JON|4 MIC|7 NAM|3 HAB|3 ZEP|3 HAG|2 ZEC|14 MAL|4 ZZZ|0
+        OBA|1 JON|4 MIC|7 NAM|3 HAB|3 ZEP|3 HAG|2 ZEC|14 MAL|4 
         MAT|28 MRK|16 LUK|24 JHN|21 ACT|28 ROM|16 1CO|16 2CO|13 GAL|6 EPH|6 PHP|4
         COL|4 1TH|5 2TH|3 1TI|6 2TI|4 TIT|3 PHM|1 HEB|13 JAS|5 1PE|5 2PE|3 1JN|5
         2JN|1 3JN|1 JUD|1 REV|22
@@ -60,6 +60,7 @@ bookcodes.update(_endBkCodes)
 booknumbers = {k: booknum(v) for k, v in bookcodes.items()}
 chaps = dict(b.split("|") for b in _bookslist.split())
 oneChbooks = [b.split("|")[0] for b in _bookslist.split() if b[-2:] == "|1"]
+
 
 @dataclass
 class MarkerRef:
@@ -160,32 +161,6 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
         i += 1
     return res if len(res) else None
 
-def readvrs(fname):
-    ''' res[book number] [0] versenum of start of book from start of Bible
-                         [1..n] number of verses from start of book to end of chapter'''
-    res = [[] for i in range(len(allbooks))]
-    with open(fname, encoding="utf-8") as inf:
-        for li in inf.readlines():
-            l = li.strip()
-            if l.startswith("#"):
-                continue
-            b = l.split()
-            if not len(b) or (len(b) == 5 and b[2] == "="):
-                continue
-            if b[0] not in books:
-                continue
-            verses = [int(x.split(':')[1]) for x in b[1:]]
-            versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
-            res[books[b[0]]] = versesums[0]
-    curr = 0
-    for b in res:
-        if len(b):
-            b[0] = curr
-            curr += b[-1] + len(b) - 1
-        else:
-            b.append(curr)
-    return res
-
 
 _regexes = {
     "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
@@ -243,10 +218,21 @@ class Ref:
         return RefRange(start, end)
 
     @classmethod
+    def fromBCV(cls, bcv: int) -> Ref:
+        """ Parses an int BBBCCCVVV into a reference """
+        v = bcv % 1000
+        b = int(bcv / 1000000)
+        c = int((bcv - b * 1000000) / 1000)
+        bk = allbooks[b-1]
+        return cls(book=bk, chapter=c, verse=v)
+
+    @classmethod
     def loadversification(cls, fname=None):
+        from usfmtc.versification import Versification
         if fname is None:
             fname = os.path.join(os.path.dirname(__file__), 'eng.vrs')
-        cls.versification = readvrs(fname)
+        cls.versification = "Loading"
+        cls.versification = Versification(fname)
         return cls.versification
 
     def __init__(self, string: Optional[str] = None,
@@ -274,6 +260,8 @@ class Ref:
                 setattr(self, a, kw.get(a, None))
 
     def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0):
+        """ Parses a single scripture reference relative to context if given.
+            start is an index into the string """
         if "-" in s:
             return 
         p = {}
@@ -324,6 +312,7 @@ class Ref:
         return res
 
     def identical(self, o):
+        """ Tests to see if two references are identical """
         if not isinstance(o, Ref):
             return False
         res = all(getattr(self, a) == getattr(o, a) for a in self._parmlist)
@@ -371,14 +360,17 @@ class Ref:
         return False
 
     def __gt__(self, o):
+        """ self comes entirely after o """
         if o is None:
             return True
         return not self <= o
 
     def __le__(self, o):
+        """ self finishes before o finishes """
         return self < o or self in o
 
     def __ge__(self, o):
+        """ self starts after o starts """
         return self > o or self in o
 
     def __hash__(self):
@@ -438,6 +430,10 @@ class Ref:
                     res.append(m.str(force=force))
         return "".join([s for s in res if s is not None])
 
+    def bcv(self):
+        """ Returns an integer BBBCCCVVV """
+        return (books[self.book] * 1000 + self.chapter) * 1000 + self.verse
+
     @property
     def first(self):
         return self
@@ -461,14 +457,14 @@ class Ref:
 
     def end(self):
         if self.last is not self:
-            self.last = end(self.last)
+            self.last = self.last.end()
             return self.last
         res = self._setall(-1)
         if res.chapter == -1:
             vrs = self.versification or Ref.loadversification()
-            book = books.get(self.book, None)
-            if book is not None:
-                res.chapter = len(vrs[book])
+            vbk = vrs[bk]
+            if vbk is not None:
+                res.chapter = len(vrs[bk])
         if res.verse == -1:
             res.verse = self._getmaxvrs(self.book, self.chapter)
         return res
@@ -483,20 +479,26 @@ class Ref:
         return RefRange(self.start(), self.end())
 
     def _getmaxvrs(self, bk, chap):
+        """ Returns the maximum verse for the book and chapter in this versification """
         vrs = self.first.versification or Ref.loadversification()
-        book = books.get(bk, None)
-        if book is None or len(vrs[book]) <= chap:
+        if isinstance(vrs, str) and vrs == "Loading":
+            return 200
+        vbk = vrs[bk]
+        if vbk is None:
+            return 200
+        if len(vbk) <= chap:
             maxvrs = -1
         else:
-            maxvrs = vrs[book][chap] - (vrs[book][chap-1] if chap > 1 else 0)
+            maxvrs = vbk[chap] - (vbk[chap-1] if chap > 1 else 0)
         return maxvrs
 
     def isvalid(self):
+        """ Returns whether the reference is valid in its versification """
         vrs = self.first.versification or Ref.loadversification()
         if self.book not in books:
             return False
-        book = vrs[books.get(self.book)]
-        if len(book) < self.chapter:
+        book = vrs[self.book]
+        if book is None or len(book) <= self.chapter:
             return False
         if book[self.chapter] < self.verse:
             return False
@@ -511,12 +513,13 @@ class Ref:
         else:
             r.verse += 1
         if r.verse > maxvrs:
+            breakpoint()
             r.chapter = (r.chapter + 1) if r.chapter is not None else 1
             r.verse = 1
             if r.book not in books:
                 r.book = "GEN"
                 r.chapter = 1
-            elif r.chapter >= len(self.versification[books[r.book]]):
+            elif r.chapter >= len(self.versification[r.book]):
                 newbk = books[r.book] + 1
                 while newbk < len(allbooks) and allbooks[newbk] not in books:
                     newbk += 1
@@ -621,7 +624,10 @@ class RefRange:
     def isvalid(self):
         return self.first.isvalid() and self.last.isvalid()
 
-    def allverses(self):
+    def __iter__(self):
+        return RefRangeIter(self)
+
+    def __next__(self):
         r = self.first
         while r is not None and r <= self.last:
             yield r
@@ -629,6 +635,23 @@ class RefRange:
 
     def copy(self):
         return self.__class__(self.first, self.last)
+
+
+class RefRangeIter:
+
+    def __init__(self, base):
+        self.r = base.first.copy()
+        self.last = base.last
+
+    def __next__(self):
+        if self.r is None:
+            raise StopIteration
+        res = self.r
+        if self.r >= self.last:
+            self.r = None
+        else:
+            self.r = self.r.nextverse()
+        return res
 
 
 class RefList(List):
