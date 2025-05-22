@@ -1,6 +1,7 @@
 
 import re
 from functools import reduce
+from usfmtc.utils import readsrc
 
 class Versification:
 
@@ -18,46 +19,46 @@ class Versification:
 
     def readFile(self, fname):
         from usfmtc.reference import Ref, books
-        with open(fname, encoding="utf-8") as inf:
-            for li in inf.readlines():
-                l = li.strip()
-                l = re.sub(r"#!\s*", "", l)     # remove the magic #!
-                l = re.sub(r"\s*#.*$", "", l)   # strip comments
-                if not l:
-                    continue
-                if "=" in l:
-                    ismany = l.startswith("&")
-                    if ismany:
-                        l = l[1:]
-                    b = l.split("=")
-                    left = Ref(b[0].strip())
-                    right = Ref(b[1].strip())
-                    if ismany:
-                        if left.first == left.last:
-                            for r in right:
-                                self._addMapping(left, r)
-                        else:
-                            for r in left:
-                                self._addMapping(r, right)
-                    elif left.first == left.last and right.first == right.last:
-                        self._addMapping(left, right)
+        srcdat = readsrc(fname)
+        for li in srcdat.splitlines():
+            l = li.strip()
+            l = re.sub(r"#!\s*", "", l)     # remove the magic #!
+            l = re.sub(r"\s*#.*$", "", l)   # strip comments
+            if not l:
+                continue
+            if "=" in l:
+                ismany = l.startswith("&")
+                if ismany:
+                    l = l[1:]
+                b = l.split("=")
+                left = Ref(b[0].strip())
+                right = Ref(b[1].strip())
+                if ismany:
+                    if left.first == left.last:
+                        for r in right:
+                            self._addMapping(left, r)
                     else:
-                        lefts = self._makevlist(left)
-                        rights = self._makevlist(right)
-                        for r in zip(lefts, rights):
-                            self._addMapping(*r)
-                elif l.startswith("-"):         # excluded verse
-                    self.exclusions.add(l[1:].strip())
-                elif l.startswith("*"):         # segment list
-                    b = l[1:].split(",")
-                    self.segments[b[0].strip()] = [x.strip() for x in b[1:] if "-" not in x]
-                else:                           # CV list
-                    b = l.split()
-                    if b[0] not in books:
-                        continue
-                    verses = [int(x.split(':')[1]) for x in b[1:]]
-                    versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
-                    self.vnums[b[0]] = versesums[0]
+                        for r in left:
+                            self._addMapping(r, right)
+                elif left.first == left.last and right.first == right.last:
+                    self._addMapping(left, right)
+                else:
+                    lefts = self._makevlist(left)
+                    rights = self._makevlist(right)
+                    for r in zip(lefts, rights):
+                        self._addMapping(*r)
+            elif l.startswith("-"):         # excluded verse
+                self.exclusions.add(l[1:].strip())
+            elif l.startswith("*"):         # segment list
+                b = l[1:].split(",")
+                self.segments[b[0].strip()] = [x.strip() for x in b[1:] if "-" not in x]
+            else:                           # CV list
+                b = l.split()
+                if b[0] not in books:
+                    continue
+                verses = [int(x.split(':')[1]) for x in b[1:]]
+                versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
+                self.vnums[b[0]] = versesums[0]
 
     def _addMapping(self, left, right):
         self.toorg[str(left)] = right
@@ -73,7 +74,7 @@ class Versification:
             res.append(r)
         return res
 
-    def remap(self, ref, other=None):
+    def remap(self, ref, other):
         if str(ref) not in self.toorg and self.fromorg.get(str(ref), ref) != ref:       # e.g. ISA 64:2-12 = ISA 64:1-11
             orgref = ref.copy()
             orgref.verse = orgref.verse - 1

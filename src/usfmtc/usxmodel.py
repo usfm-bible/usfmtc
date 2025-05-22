@@ -661,3 +661,81 @@ def _insertoblink(linkloc, tag, linfo):
         el.tail = el.tail[:linkloc.char]
         newel.parent = el.parent
         el.parent.insert(el.parent.index(el)+1, newel)
+
+def _getref(e, book, lastchap=0):
+    refstr = e.get("sid", None)
+    if refstr is None:
+        num = int(e.get("number", 0))
+        if e.tag == "verse":
+            ref = Ref(book=book, chapter=lastchap, verse=num)
+        else:
+            ref = Ref(book=book, chapter=num, verse=0)
+    else:
+        ref = Ref(refstr)
+    return ref
+
+
+def reversify(usx, srcvrs, tgtvrs):
+    """ Convert the versification of the text from one system to another limted
+        to the changes being monotonically increasing, that is no reordering """
+    bk = usx.book
+    curr = Ref(None)
+    lastref = Ref(None)
+    removecs = []
+    insertcs = []
+    root = usx.getroot()
+    rootlist = list(root)
+    synco = 0
+    for i, pe in enumerate(rootlist):
+        if pe.tag == "chapter":
+            ref = _getref(pe, bk)
+            if ref is None:
+                continue
+            oref = srcvrs.remap(ref, tgtvrs)
+            if oref == ref and ref >= curr or oref.chapter != ref.chapter:
+                if oref.verse > 0:
+                    # insert verse at start of next versepara
+                    for se in rootlist[i+1:]:
+                        if se.tag == "para" and usx.grammar.marker_categories.get(se.get("style", ""), None) == "versepara":
+                            newv = se.makeelement("verse", {"style": "v", "number": str(oref.verse), "ssid": str(oref)})
+                            newv = se.text
+                            se.text = None
+                            se.insert(0, newv)
+                            break
+                    else:
+                        raise ValueError(f"Can't insert verse for {oref} at chapter {ref.chapter}")
+                if oref.chapter != ref.chapter:
+                    pe.set("number", str(oref.chapter))
+                lastref, curr = ref, oref
+                continue
+            root.remove(pe)
+            synco -= 1
+            lastref, curr = ref, oref
+            continue
+        for ve in pe:
+            if ve.tag != "verse":
+                continue
+            ref = _getref(ve, bk, lastchap=lastref.chapter or 0)
+            if ref is None:
+                continue
+            oref = srcvrs.remap(ref, tgtvrs)
+            if oref == ref or oref.verse == 0:
+                if oref.verse == 0:
+                    pe.remove(ve)
+                lastref, curr = ref, oref
+                continue
+            if oref.chapter != curr.chapter:
+                # insert chapter above section paras
+                for j, se in enumerate(rootlist[i-1:0:-1]):
+                    if se.tag == "para" and usx.grammar.marker_categories.get(se.get("style", ""), None) == "sectionpara":
+                        continue
+                    if se.tag != "chapter":
+                        newc = root.makeelement("chapter", {"style": "c", "number": str(oref.chapter)}, pos=ve.pos)
+                        root.insert(i + synco - j, newc)
+                        synco += 1
+                    break
+            if oref.verse != ref.verse or oref.subverse != ref.subverse:
+                ve.set("number", str(oref.verse))
+                ve.set("ssid", str(oref))
+            lastref, curr = ref, oref
+

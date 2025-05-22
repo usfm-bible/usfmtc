@@ -9,13 +9,14 @@
 #     nuitka-project: --output-filename=usfmconv.bin
 
 import os, json, io
+from usfmtc.utils import readsrc
 from usfmtc.validating.usfmparser import parseusfm, UsfmParserBackend
 from usfmtc.validating.rngparser import NoParseError
 from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
@@ -23,22 +24,8 @@ from usfmtc.usfmgenerate import usx2usfm
 from usfmtc.reference import RefList
 import xml.etree.ElementTree as et
 
-def _readsrc(src):
-    if hasattr(src, "read"):
-        return src.read()
-    elif not isinstance(src, str):      # we're a parsed xml doc
-        return src
-    elif len(src) < 128 and os.path.exists(src):
-        with open(src, encoding="utf-8") as inf:
-            data = inf.read()
-        return data
-    elif "\n" in src or len(src) > 127:
-        return src
-    else:
-        raise FileNotFoundError(src)
-
 def _grammarDoc(gsrc, extensions=[], factory=et):
-    data = _readsrc(gsrc)
+    data = readsrc(gsrc)
     if isinstance(data, (str, bytes)):
         rdoc = factory.ElementTree(factory.fromstring(data))
     else:
@@ -134,7 +121,7 @@ class USX:
             Raise usfmtc.parser.NoParseError on error.
             elfactory must take parent and pos named parameters not as attributes
         """
-        data = _readsrc(src)
+        data = readsrc(src)
 
         if not altparser:
             p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, **kw)
@@ -153,7 +140,7 @@ class USX:
 
     @classmethod
     def fromUsj(cls, src, elfactory=None, grammar=None, **kw):
-        data = _readsrc(src)
+        data = readsrc(src)
         djson = json.loads(data)
         xml = usjtousx(djson, elfactory=elfactory)
         return cls(xml, grammar)
@@ -163,7 +150,11 @@ class USX:
         self.grammar = grammar
         if self.grammar is None:
             self.grammar = Grammar()
-        self.errors = errors    # an error (description, sfmparser.Pos)
+        self.errors = errors    # list of errors (description, sfmparser.Pos)
+
+    def copy(self, deep=False):
+        res = self.__class__(self.xml.copy(deep=deep), grammar=self.grammar)
+        return res
 
     def _outwrite(self, file, dat, fn=None, args={}):
         if fn is None:
@@ -222,7 +213,9 @@ class USX:
             yield start, end, r
 
     def getrefs(self, *refs, addintro=False, skiptest=None):
-        """ Returns a doc containing paragraphs of the contents of each reference """
+        """ Returns a doc containing paragraphs of the contents of each reference.
+            skiptest is a fn to test whether text in the marker does not cause
+            a word break. """
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
         for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
@@ -233,13 +226,17 @@ class USX:
         return self.__class__(res)
 
     def gettext(self, *refs, skiptest=None):
-        """ Returns the text of each reference one per line """
+        """ Returns the text of each reference one per line. skiptest is a fn
+            to test whether text in the marker does not cause a word break. """
         root = self.getroot()
         res = []
         for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
             text = start.copy_text(root, end)
             res.append(text)
         return "\n".join(res)
+
+    def reversify(self, srcvrs, tgtvrs):
+        reversify(self, srcvrs, tgtvrs)
 
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):

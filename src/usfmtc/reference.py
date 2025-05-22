@@ -218,7 +218,7 @@ class Ref:
         return RefRange(start, end)
 
     @classmethod
-    def fromBCV(cls, bcv: int) -> Ref:
+    def fromBCV(cls, bcv: int) -> "Ref":
         """ Parses an int BBBCCCVVV into a reference """
         v = bcv % 1000
         b = int(bcv / 1000000)
