@@ -74,24 +74,31 @@ class Versification:
             res.append(r)
         return res
 
-    def remap(self, ref, other):
-        if str(ref) not in self.toorg and self.fromorg.get(str(ref), ref) != ref:       # e.g. ISA 64:2-12 = ISA 64:1-11
-            orgref = ref.copy()
-            orgref.verse = orgref.verse - 1
-            while orgref.verse >= 0:
-                if str(orgref) not in self.fromorg:
-                    break
-            else:
-                return None         # No idea what to do here. This verse gets mapped to but can't map away from so can't roundtrip
-        else:
-            orgref = self.toorg.get(str(ref), ref)
+    def remap(self, ref, other, reverse=False):
+        toorg = self.fromorg if reverse else self.toorg
+        fromorg = self.toorg if reverse else self.fromorg
+        if other is not None:
+            otoorg = other.fromorg if reverse else other.toorg
+            ofromorg = other.toorg if reverse else other.fromorg
+
+#        if str(ref) not in toorg and fromorg.get(str(ref), ref) != ref:       # e.g. ISA 64:2-12 = ISA 64:1-11
+#            orgref = ref.copy()
+#            while orgref.verse > 0:
+#                orgref.verse -= 1
+#                if str(orgref) not in fromorg:
+#                    break
+#            else:
+#                return None         # No idea what to do here. This verse gets mapped to but can't map away from so can't roundtrip
+#        else:
+        orgref = toorg.get(str(ref), ref)
+
         if other is None:
             res = orgref.copy()
         else:
-            oorgref = orgref if other is None else other.toorg.get(str(ref), ref)
+            oorgref = orgref if other is None else otoorg.get(str(ref), ref)
             if ref.book != "ESG" and orgref == oorgref:     # if both ends map to the same org, then they are the same
                 res = ref.copy()
             else:
-                res = orgref.copy() if other is None else other.fromorg.get(str(orgref), orgref).copy()
+                res = orgref.copy() if other is None else ofromorg.get(str(orgref), orgref).copy()
         res.versification = self if other is None else other
         return res

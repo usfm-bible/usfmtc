@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+
+import argparse, os, sys
+from usfmtc import readFile
+from usfmtc.versification import Versification
+
+parser = argparse.ArgumentParser()
+parser.add_argument("infile", nargs="+", help="Input files or directory")
+parser.add_argument("-o", "--outfile", default=".", help="Output file or directory")
+parser.add_argument("-f", "--From", help="from versification file")
+parser.add_argument("-t", "--to", help="to versification file")
+args = parser.parse_args()
+
+fromv = Versification(args.From) if args.From is not None else None
+tov = Versification(args.to) if args.to is not None else None
+
+infiles = []
+for inf in args.infile:
+    if os.path.isdir(inf):
+        for f in os.listdir(inf):
+            if f.lower().endswith("sfm"):
+                infiles.append(os.path.join(inf, f))
+    elif os.path.exists(inf):
+        infiles.append(inf)
+
+jobs = []
+if len(infiles) > 1 and not os.path.isdir(args.outfile):
+    print("Can't map multiples files onto one")
+    sys.exit(1)
+elif not os.path.isdir(args.outfile):
+    jobs = [infiles[0], args.outfile]
+else:
+    for inf in infiles:
+        jobs.append((inf, os.path.join(args.outfile, os.path.basename(inf))))
+
+for j in jobs:
+    usx = readFile(j[0])
+    usx.reversify(fromv, tov)
+    usx.saveAs(j[1])
+

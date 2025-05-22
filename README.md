@@ -8,8 +8,12 @@ implementation of the standard. It also has support for Scripture References.
 
 ```
 import sys, usfmtc
+from usfmtc.versification import Versification
 
+# engvrs = Versification("eng.vrs")
 usxdoc = usfmtc.readFile(sys.argv[1])
+# usxdoc.canonicalise()
+# usxdov.reversify(engvrs, None)
 usxdoc.saveAs(sys.argv[2])
 ```
 

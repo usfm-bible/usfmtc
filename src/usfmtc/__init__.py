@@ -236,7 +236,12 @@ class USX:
         return "\n".join(res)
 
     def reversify(self, srcvrs, tgtvrs):
-        reversify(self, srcvrs, tgtvrs)
+        if srcvrs is None:
+            srcvrs, tgtvrs = tgtvrs, srcvrs
+            rev = True
+        else:
+            rev = False
+        reversify(self, srcvrs, tgtvrs, reverse=rev)
 
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):

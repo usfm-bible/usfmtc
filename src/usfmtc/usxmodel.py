@@ -675,7 +675,7 @@ def _getref(e, book, lastchap=0):
     return ref
 
 
-def reversify(usx, srcvrs, tgtvrs):
+def reversify(usx, srcvrs, tgtvrs, reverse=False):
     """ Convert the versification of the text from one system to another limted
         to the changes being monotonically increasing, that is no reordering """
     def isptype(e, s):
@@ -695,14 +695,14 @@ def reversify(usx, srcvrs, tgtvrs):
             ref = _getref(pe, bk)
             if ref is None:
                 continue
-            oref = srcvrs.remap(ref, tgtvrs)
+            oref = srcvrs.remap(ref, tgtvrs, reverse=reverse)
             chapters[oref.chapter] += synco
-            if oref == ref and ref >= curr or oref.chapter != ref.chapter:
+            if oref == ref and (curr.book is None or ref >= curr) or oref.chapter != ref.chapter:
                 if oref.verse > 0:
                     # insert verse at start of next versepara
                     for se in rootlist[i+1:]:
                         if isptype(se, "versepara"):
-                            newv = se.makeelement("verse", {"style": "v", "number": str(oref.verse), "ssid": str(oref)})
+                            newv = se.makeelement("verse", {"style": "v", "number": str(oref.verse)})   # , "ssid": str(oref)})
                             newv = se.text
                             se.text = None
                             se.insert(0, newv)
@@ -723,11 +723,13 @@ def reversify(usx, srcvrs, tgtvrs):
             ref = _getref(ve, bk, lastchap=lastref.chapter or 0)
             if ref is None:
                 continue
-            oref = srcvrs.remap(ref, tgtvrs)
-            if oref == ref or oref.verse == 0:
-                if oref.verse == 0:
+            oref = srcvrs.remap(ref, tgtvrs, reverse=reverse)
+            if oref == ref or oref == curr or oref.verse == 0:
+                if oref.verse == 0 or oref == curr:
                     pe.remove(ve)
-                lastref, curr = ref, oref
+                    lastref = ref
+                else:
+                    lastref, curr = ref, oref
                 continue
             if oref.chapter != curr.chapter:
                 # insert chapter above section paras
@@ -738,13 +740,19 @@ def reversify(usx, srcvrs, tgtvrs):
                         newc = root.makeelement("chapter", {"style": "c", "number": str(oref.chapter)}, pos=ve.pos)
                         root.insert(i + synco - j, newc)
                         synco += 1
-                        if i + synco - j != root[chapters[oref.chapter]]:
-                            while isptype(ce := root[chapters[oref.chapter]+1], "sectionpara"):
-                                root.remove(ce)
-                                root.insert(i + synco - j, ce)
+                        if oref.chapter < len(chapters):
+                            rc = root[chapters[oref.chapter]] 
+                            if rc.tag == "chapter":
+                                root.remove(rc)
+                                synco -= 1
+                            if i + synco - j != chapters[oref.chapter]:
+                                while isptype(ce := root[chapters[oref.chapter]+1], "sectionpara"):
+                                    root.remove(ce)
+                                    root.insert(i + synco - j, ce)
                     break
             if oref.verse != ref.verse or oref.subverse != ref.subverse:
                 ve.set("number", str(oref.verse))
-                ve.set("ssid", str(oref))
+                if 'ssid' in ve.attrib:
+                    ve.set("ssid", str(oref))
             lastref, curr = ref, oref
 

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "usfmtc"
 version = "0.3.7"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
-readme = "python/README.md"
+readme = "README.md"
 license = "MIT"
 description = "USFM reference parser"
 classifiers = [
