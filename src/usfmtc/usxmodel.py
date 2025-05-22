@@ -678,6 +678,9 @@ def _getref(e, book, lastchap=0):
 def reversify(usx, srcvrs, tgtvrs):
     """ Convert the versification of the text from one system to another limted
         to the changes being monotonically increasing, that is no reordering """
+    def isptype(e, s):
+        return e.tag == "para" and usx.grammar.marker_categories.get(e.get("style", ""), None) == s
+
     bk = usx.book
     curr = Ref(None)
     lastref = Ref(None)
@@ -686,17 +689,19 @@ def reversify(usx, srcvrs, tgtvrs):
     root = usx.getroot()
     rootlist = list(root)
     synco = 0
+    chapters = [0] + [i for i, e in enumerate(rootlist) if e.tag=="chapter"]
     for i, pe in enumerate(rootlist):
         if pe.tag == "chapter":
             ref = _getref(pe, bk)
             if ref is None:
                 continue
             oref = srcvrs.remap(ref, tgtvrs)
+            chapters[oref.chapter] += synco
             if oref == ref and ref >= curr or oref.chapter != ref.chapter:
                 if oref.verse > 0:
                     # insert verse at start of next versepara
                     for se in rootlist[i+1:]:
-                        if se.tag == "para" and usx.grammar.marker_categories.get(se.get("style", ""), None) == "versepara":
+                        if isptype(se, "versepara"):
                             newv = se.makeelement("verse", {"style": "v", "number": str(oref.verse), "ssid": str(oref)})
                             newv = se.text
                             se.text = None
@@ -727,12 +732,16 @@ def reversify(usx, srcvrs, tgtvrs):
             if oref.chapter != curr.chapter:
                 # insert chapter above section paras
                 for j, se in enumerate(rootlist[i-1:0:-1]):
-                    if se.tag == "para" and usx.grammar.marker_categories.get(se.get("style", ""), None) == "sectionpara":
+                    if isptype(se, "sectionpara"):
                         continue
                     if se.tag != "chapter":
                         newc = root.makeelement("chapter", {"style": "c", "number": str(oref.chapter)}, pos=ve.pos)
                         root.insert(i + synco - j, newc)
                         synco += 1
+                        if i + synco - j != root[chapters[oref.chapter]]:
+                            while isptype(ce := root[chapters[oref.chapter]+1], "sectionpara"):
+                                root.remove(ce)
+                                root.insert(i + synco - j, ce)
                     break
             if oref.verse != ref.verse or oref.subverse != ref.subverse:
                 ve.set("number", str(oref.verse))
