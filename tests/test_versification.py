@@ -130,3 +130,22 @@ As \add when\add* the melting fire burneth, the fire causeth the waters to boil,
 '''
     cmptest(intext, outtext, 'ISA', 63, 'Merge verses in ISA 64')
 
+def test_psa10():
+    intext = r'''
+\q1
+\v 18 To judge the fatherless and the oppressed, that the man of the earth may no more oppress.\f + \fr 10.18 \ft oppress: or, terrify\f*
+\c 11
+\d To the chief Musician, \add A Psalm\add* of David.
+\q1
+\v 1 In the \nd LORD\nd* put I my trust: how say ye to my soul, Flee \add as\add* a bird to your mountain?
+\q1
+\v 2 For, lo, the wicked bend \add their\add* bow, they make ready their arrow upon the string, that they may privily shoot at the upright in heart.\f + \fr 11.2 \ft privily: Heb. in darkness\f*
+'''
+    outtext = r'''
+\q1 \v 18 To judge the fatherless and the oppressed, that the man of the earth may no more oppress.\f + \fr 10.18 \ft oppress: or, terrify\f*
+\c 11
+\d To the chief Musician, \add A Psalm\add* of David.
+\q1 \v 1 In the \nd LORD\nd* put I my trust: how say ye to my soul, Flee \add as\add* a bird to your mountain?
+\q1 \v 2 For, lo, the wicked bend \add their\add* bow, they make ready their arrow upon the string, that they may privily shoot at the upright in heart.\f + \fr 11.2 \ft privily: Heb. in darkness\f*
+'''
+    cmptest(intext, outtext, 'PSA', 10, 'versetext headers after chapter')

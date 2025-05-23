@@ -713,7 +713,7 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False):
                         skipverse = True
                         break
             for j, e in enumerate(root[i+1:]):
-                if not isptype(e, "sectionpara"):
+                if not isptype(e, "sectionpara") and any(x.tag == "verse" for x in e):
                     skippara = i + 1 + j
                     break
             continue
@@ -744,7 +744,8 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False):
                 else:
                     s = chapters[oref.chapter]
                     for e in root[s:]:
-                        if e.tag == "chapter" or isptype(e, "sectionpara"):
+                        if e.tag == "chapter" or isptype(e, "sectionpara") \
+                                    or isptype(e, "versepara") and not any(x.tag == "verse" for x in e):
                             results.append(e)
                         else:
                             break
