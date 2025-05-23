@@ -7,11 +7,12 @@ from usfmtc.versification import Versification
 parser = argparse.ArgumentParser()
 parser.add_argument("infile", nargs="+", help="Input files or directory")
 parser.add_argument("-o", "--outfile", default=".", help="Output file or directory")
-parser.add_argument("-f", "--From", help="from versification file")
+parser.add_argument("-f", "--from", help="from versification file")
 parser.add_argument("-t", "--to", help="to versification file")
 args = parser.parse_args()
 
-fromv = Versification(args.From) if args.From is not None else None
+argfr = getattr(args, 'from', None)
+fromv = Versification(argfr) if argfr is not None else None
 tov = Versification(args.to) if args.to is not None else None
 
 infiles = []

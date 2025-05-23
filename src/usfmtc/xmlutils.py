@@ -30,9 +30,8 @@ class ParentElement(et.Element):
         res = self.__class__(self.tag, attrib=self.attrib, parent=parent, pos=self.pos)
         res.text = self.text
         res.tail = self.tail
-        if deep:
-            for e in self:
-                res.append(e.copy(deep=deep, parent=res))
+        for e in self:
+            res.append(e.copy(deep=deep, parent=res) if deep else e)
         return res
 
     def _getindex(self):

@@ -80,18 +80,7 @@ class Versification:
         if other is not None:
             otoorg = other.fromorg if reverse else other.toorg
             ofromorg = other.toorg if reverse else other.fromorg
-
-#        if str(ref) not in toorg and fromorg.get(str(ref), ref) != ref:       # e.g. ISA 64:2-12 = ISA 64:1-11
-#            orgref = ref.copy()
-#            while orgref.verse > 0:
-#                orgref.verse -= 1
-#                if str(orgref) not in fromorg:
-#                    break
-#            else:
-#                return None         # No idea what to do here. This verse gets mapped to but can't map away from so can't roundtrip
-#        else:
         orgref = toorg.get(str(ref), ref)
-
         if other is None:
             res = orgref.copy()
         else:

@@ -662,6 +662,7 @@ def _insertoblink(linkloc, tag, linfo):
         newel.parent = el.parent
         el.parent.insert(el.parent.index(el)+1, newel)
 
+
 def _getref(e, book, lastchap=0):
     refstr = e.get("sid", None)
     if refstr is None:
@@ -674,85 +675,93 @@ def _getref(e, book, lastchap=0):
         ref = Ref(refstr)
     return ref
 
+def _list_insert(arr, k, v, default=0):
+    if k >= len(arr):
+        arr += [default] * (k - len(arr) + 1)
+    arr[k] = v
 
 def reversify(usx, srcvrs, tgtvrs, reverse=False):
-    """ Convert the versification of the text from one system to another limted
-        to the changes being monotonically increasing, that is no reordering """
+
     def isptype(e, s):
         return e.tag == "para" and usx.grammar.marker_categories.get(e.get("style", ""), None) == s
 
-    bk = usx.book
-    curr = Ref(None)
-    lastref = Ref(None)
-    removecs = []
-    insertcs = []
     root = usx.getroot()
-    rootlist = list(root)
-    synco = 0
-    chapters = [0] + [i for i, e in enumerate(rootlist) if e.tag=="chapter"]
-    for i, pe in enumerate(rootlist):
+    bk = usx.book
+    results = []
+    chapters = [-1]
+    for i, e in enumerate(root):
+        if e.tag == "chapter":
+            _list_insert(chapters, int(e.get("number", 0)), i, default=-1)
+    curr = Ref(None)
+    currc = 0
+    skipverse = False
+    skippara = -1
+    for i, pe in enumerate(root):
         if pe.tag == "chapter":
             ref = _getref(pe, bk)
             if ref is None:
                 continue
+            currc = ref.chapter
             oref = srcvrs.remap(ref, tgtvrs, reverse=reverse)
-            chapters[oref.chapter] += synco
-            if oref == ref and (curr.book is None or ref >= curr) or oref.chapter != ref.chapter:
-                if oref.verse > 0:
-                    # insert verse at start of next versepara
-                    for se in rootlist[i+1:]:
-                        if isptype(se, "versepara"):
-                            newv = se.makeelement("verse", {"style": "v", "number": str(oref.verse)})   # , "ssid": str(oref)})
-                            newv = se.text
-                            se.text = None
-                            se.insert(0, newv)
-                            break
-                    else:
-                        raise ValueError(f"Can't insert verse for {oref} at chapter {ref.chapter}")
-                if oref.chapter != ref.chapter:
-                    pe.set("number", str(oref.chapter))
-                lastref, curr = ref, oref
-                continue
-            root.remove(pe)
-            synco -= 1
-            lastref, curr = ref, oref
+            if oref.verse > 0:
+                for e in root[i+1:]:
+                    if isptype(e, "versepara"):
+                        newv = e.makeelement("verse", {"style": "v", "number": str(oref.verse)})   # , "ssid": str(oref)})
+                        newv.tail = e.text
+                        e.text = None
+                        e.insert(0, newv)
+                        skipverse = True
+                        break
+            for j, e in enumerate(root[i+1:]):
+                if not isptype(e, "sectionpara"):
+                    skippara = i + 1 + j
+                    break
             continue
+        oldpe = pe
         for ve in pe:
             if ve.tag != "verse":
                 continue
-            ref = _getref(ve, bk, lastchap=lastref.chapter or 0)
+            ref = _getref(ve, bk, lastchap=currc)
             if ref is None:
                 continue
             oref = srcvrs.remap(ref, tgtvrs, reverse=reverse)
-            if oref == ref or oref == curr or oref.verse == 0:
-                if oref.verse == 0 or oref == curr:
-                    pe.remove(ve)
-                    lastref = ref
+            # insert a chapter?
+            if curr.book is None or oref.chapter > curr.chapter:
+                ive = pe.index(ve)
+                if ive != 0 or (pe.text and pe.text.strip() != ''):
+                    newpe = root.makeelement(pe.tag, pe.attrib, pos=pe.pos)
+                    newpe.text = pe.text
+                    pe.text = None
+                    oldpe = pe.copy()
+                    for j in range(ive):
+                        newpe.append(pe[j])
+                    for j in range(ive-1, -1, -1):
+                        oldpe.remove(oldpe[j])
+                    results.append(newpe)
+                if oref.chapter >= len(chapters) or chapters[oref.chapter] == -1:
+                    newc = root.makeelement("chapter", {"style": "c", "number": str(oref.chapter)}, pos=pe.pos)
+                    results.append(newc)
                 else:
-                    lastref, curr = ref, oref
+                    s = chapters[oref.chapter]
+                    for e in root[s:]:
+                        if e.tag == "chapter" or isptype(e, "sectionpara"):
+                            results.append(e)
+                        else:
+                            break
+            curr = oref
+            if skipverse:
+                skipverse = False
                 continue
-            if oref.chapter != curr.chapter:
-                # insert chapter above section paras
-                for j, se in enumerate(rootlist[i-1:0:-1]):
-                    if isptype(se, "sectionpara"):
-                        continue
-                    if se.tag != "chapter":
-                        newc = root.makeelement("chapter", {"style": "c", "number": str(oref.chapter)}, pos=ve.pos)
-                        root.insert(i + synco - j, newc)
-                        synco += 1
-                        if oref.chapter < len(chapters):
-                            rc = root[chapters[oref.chapter]] 
-                            if rc.tag == "chapter":
-                                root.remove(rc)
-                                synco -= 1
-                            if i + synco - j != chapters[oref.chapter]:
-                                while isptype(ce := root[chapters[oref.chapter]+1], "sectionpara"):
-                                    root.remove(ce)
-                                    root.insert(i + synco - j, ce)
-                    break
-            if oref.verse != ref.verse or oref.subverse != ref.subverse:
+            if oref.verse != ref.verse  or oref.subverse != ref.subverse:
                 ve.set("number", str(oref.verse))
                 if 'ssid' in ve.attrib:
                     ve.set("ssid", str(oref))
-            lastref, curr = ref, oref
+        if i >= skippara:
+            results.append(oldpe)
+
+    for c in list(root):
+        root.remove(c)
+    for c in results:
+        root.append(c)
+
 
