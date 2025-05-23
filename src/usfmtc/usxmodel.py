@@ -748,14 +748,23 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False):
                             results.append(e)
                         else:
                             break
-            curr = oref
             if skipverse:
                 skipverse = False
+                curr = ref      # ref has been inserted mapped by the chapter
                 continue
-            if oref.verse != ref.verse  or oref.subverse != ref.subverse:
+            if curr.book is not None and oref == curr:
+                if ve.tail:
+                    ive = pe.index(ve)
+                    if ive > 0:
+                        pe[ive-1].tail = (pe[ive-1].tail or "") + ve.tail
+                    else:
+                        pe.text = (pe.text or "") + ve.tail
+                pe.remove(ve)
+            elif oref.verse != ref.verse  or oref.subverse != ref.subverse:
                 ve.set("number", str(oref.verse))
                 if 'ssid' in ve.attrib:
                     ve.set("ssid", str(oref))
+            curr = oref
         if i >= skippara:
             results.append(oldpe)
 

@@ -99,3 +99,34 @@ nations.\f + \fr 9.1 \ft of the nations: or, populous\f*
 \v 3 For thou hast broken the yoke of his burden, and the staff of his shoulder, the rod of his oppressor, as in the day of
 Midian.\f + \fr 9.4 \ft For…: or, When thou brakest\f*'''
     cmptest(intext, outtext, 'ISA', 8, 'Chapter shift for ISA 9')
+
+
+def test_isa64():
+    intext = r'''
+\p
+\v 17 ¶ O \nd LORD\nd*, why hast thou made us to err from thy ways, \add and\add* hardened our heart from thy fear? Return for thy servants’ sake, the tribes of thine inheritance.
+\v 18 The people of thy holiness have possessed \add it\add* but a little while: our adversaries have trodden down thy sanctuary.
+\v 19 We are \add thine:\add* thou never barest rule over them; they were not called by thy name.\f + \fr 63.19 \ft they…: Heb. thy name was not called upon
+ them\f*
+\c 64
+\p
+\v 1 Oh that thou wouldest rend the heavens, that thou wouldest come down, that the mountains might flow down at thy presence,
+\v 2 As \add when\add* the melting fire burneth, the fire causeth the waters to boil, to make thy name known to thine adversaries, \add that\add* the nations may tremble at thy presence!\f + \fr 64.2 \ft the melting…: Heb. the fire of meltings\f*
+\v 3 When thou didst terrible things \add which\add* we looked not for, thou camest down, the mountains flowed down at thy presence.
+\v 4 For since the beginning of the world \add men\add* have not heard, nor perceived by the ear, neither hath the eye seen, O God, beside thee, \add what\add* he hath prepared for him that waiteth for him.\f + \fr 64.4 \ft seen…: or, seen a God beside thee, which doeth so for him, etc\f*
+\v 5 Thou meetest him that rejoiceth and worketh righteousness, \add those that\add* remember thee in thy ways: behold, thou art wroth; for we have sinned: in those is continuance, and we shall be saved.
+'''
+    outtext = r'''
+\p \v 17 ¶ O \nd LORD\nd*, why hast thou made us to err from thy ways, \add and\add* hardened our heart from thy fear? Return for thy servants’ sake, the tribes of thine inheritance.
+\v 18 The people of thy holiness have possessed \add it\add* but a little while: our adversaries have trodden down thy sanctuary.
+\v 19 We are \add thine:\add* thou never barest rule over them; they were not called by thy name.\f + \fr 63.19 \ft they…: Heb. thy name was not called upon
+them\f*
+\c 64
+\p \v 1 Oh that thou wouldest rend the heavens, that thou wouldest come down, that the mountains might flow down at thy presence,
+As \add when\add* the melting fire burneth, the fire causeth the waters to boil, to make thy name known to thine adversaries, \add that\add* the nations may tremble at thy presence!\f + \fr 64.2 \ft the melting…: Heb. the fire of meltings\f*
+\v 2 When thou didst terrible things \add which\add* we looked not for, thou camest down, the mountains flowed down at thy presence.
+\v 3 For since the beginning of the world \add men\add* have not heard, nor perceived by the ear, neither hath the eye seen, O God, beside thee, \add what\add* he hath prepared for him that waiteth for him.\f + \fr 64.4 \ft seen…: or, seen a God beside thee, which doeth so for him, etc\f*
+\v 4 Thou meetest him that rejoiceth and worketh righteousness, \add those that\add* remember thee in thy ways: behold, thou art wroth; for we have sinned: in those is continuance, and we shall be saved.
+'''
+    cmptest(intext, outtext, 'ISA', 63, 'Merge verses in ISA 64')
+
