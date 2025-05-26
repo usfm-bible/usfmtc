@@ -713,11 +713,6 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
                 for e in root[i+1:]:
                     if isptype(e, "versepara"):
                         newv = e.makeelement("verse", {"style": "v", "number": str(oref.verse)+(oref.subverse or "")})   # , "ssid": str(oref)})
-                        if keep:
-                            if chnums and oref.chapter != ref.chapter:
-                                newv.set("pubnumber", "{}:{}".format(ref.chapter, str(ref.verse)+(ref.subverse or "")))
-                            else:
-                                newv.set("pubnumber", str(ref.verse)+(ref.subverse or ""))
                         newv.tail = e.text
                         e.text = None
                         e.insert(0, newv)
