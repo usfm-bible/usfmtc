@@ -764,7 +764,7 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
                 skipverse = False
                 curr = ref      # ref has been inserted mapped by the chapter
                 continue
-            if curr.book is not None and oref == curr and not keep:
+            if curr.book is not None and oref == curr and (not keep or oref.verse == 0):
                 if ve.tail:
                     ive = pe.index(ve)
                     if ive > 0:
