@@ -776,7 +776,7 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
                 ve.set("number", str(oref.verse))
                 if 'ssid' in ve.attrib:
                     ve.set("ssid", str(oref))
-                if keep:
+                if keep and ref.verse != 0:
                     if chnums and oref.chapter != ref.chapter:
                         ve.set("pubnumber", "{}:{}".format(ref.chapter, str(ref.verse)+(ref.subverse or "")))
                     else:
