@@ -11,6 +11,7 @@ class Versification:
         self.vnums = {}         # list of verse index to the start of each chapter keyed by book
         self.segments = {}
         self.exclusions = set()
+        self.name = None
         if fname is not None:
             self.readFile(fname)
 
@@ -22,6 +23,9 @@ class Versification:
         srcdat = readsrc(fname)
         for li in srcdat.splitlines():
             l = li.strip()
+            if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l)):
+                self.name = m.group(1)
+                continue
             l = re.sub(r"#!\s*", "", l)     # remove the magic #!
             l = re.sub(r"\s*#.*$", "", l)   # strip comments
             if not l:
@@ -91,3 +95,59 @@ class Versification:
                 res = orgref.copy() if other is None else ofromorg.get(str(orgref), orgref).copy()
         res.versification = self if other is None else other
         return res
+
+    def issame_map(other):
+        if self.name is not None and other.name == self.name:
+            return True
+        if len(self.toorg) != len(other.toorg) or len(self.fromorg) != len(other.fromorg):
+            return False
+        if any(v != other.toorg.get(k, None) for k, v in self.toorg.items()):
+            return False
+        if any(v != other.fromorg.get(k, None) for k, v in self.fromorg.items()):
+            return False
+        return True
+
+
+def main():
+    import argparse, os, sys
+    from usfmtc import readFile
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("infile", nargs="+", help="Input files or directory")
+    parser.add_argument("-o", "--outfile", default=".", help="Output file or directory")
+    parser.add_argument("-f", "--from", help="from versification file")
+    parser.add_argument("-t", "--to", help="to versification file")
+    parser.add_argument("-k", "--keep", action="store_true", help="Add vp for change verse numbers")
+    parser.add_argument("-C", "--withcnums", action="store_true", help="with --keep include chapter numbers if different")
+    args = parser.parse_args()
+
+    argfr = getattr(args, 'from', None)
+    fromv = Versification(argfr) if argfr is not None else None
+    tov = Versification(args.to) if args.to is not None else None
+
+    infiles = []
+    for inf in args.infile:
+        if os.path.isdir(inf):
+            for f in os.listdir(inf):
+                if f.lower().endswith("sfm"):
+                    infiles.append(os.path.join(inf, f))
+        elif os.path.exists(inf):
+            infiles.append(inf)
+
+    jobs = []
+    if len(infiles) > 1 and not os.path.isdir(args.outfile):
+        print("Can't map multiples files onto one")
+        sys.exit(1)
+    elif not os.path.isdir(args.outfile):
+        jobs = [(infiles[0], args.outfile)]
+    else:
+        for inf in infiles:
+            jobs.append((inf, os.path.join(args.outfile, os.path.basename(inf))))
+
+    for j in jobs:
+        usx = readFile(j[0])
+        usx.reversify(fromv, tov, keep=args.keep, chnums=args.withcnums)
+        usx.saveAs(j[1])
+
+if __name__ == "__main__":
+    main()

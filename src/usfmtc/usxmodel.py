@@ -680,11 +680,17 @@ def _list_insert(arr, k, v, default=0):
         arr += [default] * (k - len(arr) + 1)
     arr[k] = v
 
-def reversify(usx, srcvrs, tgtvrs, reverse=False):
-
+def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
+    ''' Reversifies a text from one versification to another. It is limited to
+        the same text order as the original. reverse swaps src and tgt (only tgtvrs
+        can be None). keep says to insert \\vp for changed verses. chnums says
+        if keep then insert the chapter if the chapter of the source is different
+        from the target. '''
     def isptype(e, s):
         return e.tag == "para" and usx.grammar.marker_categories.get(e.get("style", ""), None) == s
 
+    if tgtvrs is not None and scrvrs.issame_map(tgtvrs):
+        return              # identical, nothing to do
     root = usx.getroot()
     bk = usx.book
     results = []
@@ -706,7 +712,12 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False):
             if oref.verse > 0:
                 for e in root[i+1:]:
                     if isptype(e, "versepara"):
-                        newv = e.makeelement("verse", {"style": "v", "number": str(oref.verse)})   # , "ssid": str(oref)})
+                        newv = e.makeelement("verse", {"style": "v", "number": str(oref.verse)+(oref.subverse or "")})   # , "ssid": str(oref)})
+                        if keep:
+                            if chnums and oref.chapter != ref.chapter:
+                                newv.set("pubnumber", "{}:{}".format(ref.chapter, str(ref.verse)+(ref.subverse or "")))
+                            else:
+                                newv.set("pubnumber", str(ref.verse)+(ref.subverse or ""))
                         newv.tail = e.text
                         e.text = None
                         e.insert(0, newv)
@@ -765,6 +776,11 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False):
                 ve.set("number", str(oref.verse))
                 if 'ssid' in ve.attrib:
                     ve.set("ssid", str(oref))
+                if keep:
+                    if chnums and oref.chapter != ref.chapter:
+                        ve.set("pubnumber", "{}:{}".format(ref.chapter, str(ref.verse)+(ref.subverse or "")))
+                    else:
+                        ve.set("pubnumber", str(ref.verse)+(ref.subverse or ""))
             curr = oref
         if i >= skippara:
             results.append(oldpe)

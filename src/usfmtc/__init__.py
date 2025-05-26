@@ -235,13 +235,13 @@ class USX:
             res.append(text)
         return "\n".join(res)
 
-    def reversify(self, srcvrs, tgtvrs):
+    def reversify(self, srcvrs, tgtvrs, **kw):
         if srcvrs is None:
             srcvrs, tgtvrs = tgtvrs, srcvrs
             rev = True
         else:
             rev = False
-        reversify(self, srcvrs, tgtvrs, reverse=rev)
+        reversify(self, srcvrs, tgtvrs, reverse=rev, **kw)
 
     def saveAs(self, outfpath, outformat=None, addesids=False, grammar=None,
                 gramfile=None, version=None, altparser=False, **kw):

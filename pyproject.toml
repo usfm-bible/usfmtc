@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "usfmtc"
-version = "0.3.7"
+version = "0.3.8"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
 readme = "README.md"
 license = "MIT"
@@ -47,3 +47,4 @@ universal = true
 
 [project.scripts]
 usfmconv = "usfmtc:main"
+usfmreversify = "usfmtc.versification:main"
