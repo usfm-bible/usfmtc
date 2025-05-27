@@ -1,7 +1,7 @@
 
 import re
 from functools import reduce
-from usfmtc.utils import readsrc
+from usfmtc.utils import readsrc, get_trace
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class Versification:
 
     def __init__(self, fname=None):
-        logger.debug(f"Creating Versification {fname=}"
+        logger.debug(f"Creating Versification {fname=}")
         self.toorg = {}         # mappings to org (canonical references)
         self.fromorg = {}       # mappings from org
         self.vnums = {}         # list of verse index to the start of each chapter keyed by book
@@ -25,7 +25,7 @@ class Versification:
 
     def readFile(self, fname):
         from usfmtc.reference import Ref, books
-        logger.debug(f"readFile({fname})")
+        logger.debug(f"readFile({fname}) via {get_trace()}")
         srcdat = readsrc(fname)
         logger.log(5, f"Read: {srcdat}")
         for li in srcdat.splitlines():

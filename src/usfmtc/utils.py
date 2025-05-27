@@ -1,6 +1,7 @@
 
 import os
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -17,5 +18,7 @@ def readsrc(src):
     elif "\n" in src or len(src) > 127:
         return src
     else:
-        raise FileNotFoundError(src)
+        raise FileNotFoundError
 
+def get_trace():
+    return traceback.format_stack()
