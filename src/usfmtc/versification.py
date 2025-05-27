@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class Versification:
 
     def __init__(self, fname=None):
+        logger.debug(f"Creating Versification {fname=}"
         self.toorg = {}         # mappings to org (canonical references)
         self.fromorg = {}       # mappings from org
         self.vnums = {}         # list of verse index to the start of each chapter keyed by book
@@ -17,6 +18,7 @@ class Versification:
         self.name = None
         if fname is not None:
             self.readFile(fname)
+        logger.debug("Versification created")
 
     def __getitem__(self, bk):
         return self.vnums.get(bk, None)
@@ -25,7 +27,7 @@ class Versification:
         from usfmtc.reference import Ref, books
         logger.debug(f"readFile({fname})")
         srcdat = readsrc(fname)
-        logger.debug(f"Read: {srcdat}")
+        logger.log(5, f"Read: {srcdat}")
         for li in srcdat.splitlines():
             l = li.strip()
             if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l)):
@@ -68,6 +70,7 @@ class Versification:
                 verses = [int(x.split(':')[1]) for x in b[1:]]
                 versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
                 self.vnums[b[0]] = versesums[0]
+    logger.debug("End of parsing")
 
     def _addMapping(self, left, right):
         self.toorg[str(left)] = right
