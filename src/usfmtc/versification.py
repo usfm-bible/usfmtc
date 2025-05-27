@@ -2,6 +2,9 @@
 import re
 from functools import reduce
 from usfmtc.utils import readsrc
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Versification:
 
@@ -20,6 +23,7 @@ class Versification:
 
     def readFile(self, fname):
         from usfmtc.reference import Ref, books
+        logger.debug(f"readFile({fname})")
         srcdat = readsrc(fname)
         for li in srcdat.splitlines():
             l = li.strip()

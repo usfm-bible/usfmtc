@@ -1,5 +1,8 @@
 
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def readsrc(src):
     if hasattr(src, "read"):
@@ -7,6 +10,7 @@ def readsrc(src):
     elif not isinstance(src, str):      # we're a parsed xml doc
         return src
     elif len(src) < 128 and os.path.exists(src):
+        logger.debug(f"Opening {src}")
         with open(src, encoding="utf-8") as inf:
             data = inf.read()
         return data
