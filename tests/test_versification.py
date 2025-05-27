@@ -51,7 +51,13 @@ def test_engmap2():
     res = engvrs.remap(r, engvrs)
     if str(res) != "ISA 64:1":      # we don't want to delete it, delete v2 instead
         fail(f"{r} remaps to {res} instead of ISA 64:1")
+    if r.versification.name != "Original":
+        fail(f"{r} versification is {r.versification.name}")
 
+def test_hasvrs():
+    r = Ref("ISA 64:1", versification=engvrs)
+    if r.versification.name != "English":
+        fail(f"{r} versification is {r.versification.name}")
 def test_psa6():
     intext = r'''
 \d To the chief Musician on Neginoth upon Sheminith, A Psalm of David.

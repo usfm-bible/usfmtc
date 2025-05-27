@@ -30,7 +30,7 @@ class Versification:
         logger.log(5, f"Read: {srcdat}")
         for li in srcdat.splitlines():
             l = li.strip()
-            if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l)):
+            if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l, flags=re.I)):
                 self.name = m.group(1)
                 continue
             l = re.sub(r"#!\s*", "", l)     # remove the magic #!
@@ -42,8 +42,8 @@ class Versification:
                 if ismany:
                     l = l[1:]
                 b = l.split("=")
-                left = Ref(b[0].strip())
-                right = Ref(b[1].strip())
+                left = Ref(b[0].strip(), versification=self)
+                right = Ref(b[1].strip(), versification=self)
                 if ismany:
                     if left.first == left.last:
                         for r in right:

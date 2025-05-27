@@ -230,7 +230,7 @@ class Ref:
     def loadversification(cls, fname=None):
         from usfmtc.versification import Versification
         if fname is None:
-            fname = os.path.join(os.path.dirname(__file__), 'eng.vrs')
+            fname = os.path.join(os.path.dirname(__file__), 'org.vrs')
         cls.versification = "Loading"
         cls.versification = Versification(fname)
         return cls.versification
@@ -244,9 +244,7 @@ class Ref:
             self.parse(s, context=(context.last if context is not None else None), start=start)
             if self.strend < len(s) and strict:
                 raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
-            return
-
-        if context is not None:
+        elif context is not None:
             hitlimit = False
             for a in self._parmlist:
                 v = kw.get(a, None)
@@ -258,6 +256,8 @@ class Ref:
         else:
             for a in self._parmlist:
                 setattr(self, a, kw.get(a, None))
+        if 'versification' in kw:
+            self.versification = kw['versification']
 
     def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0):
         """ Parses a single scripture reference relative to context if given.
@@ -513,7 +513,6 @@ class Ref:
         else:
             r.verse += 1
         if r.verse > maxvrs:
-            breakpoint()
             r.chapter = (r.chapter + 1) if r.chapter is not None else 1
             r.verse = 1
             if r.book not in books:
