@@ -25,6 +25,7 @@ class Versification:
         from usfmtc.reference import Ref, books
         logger.debug(f"readFile({fname})")
         srcdat = readsrc(fname)
+        logger.debug(f"Read: {srcdat}")
         for li in srcdat.splitlines():
             l = li.strip()
             if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l)):
