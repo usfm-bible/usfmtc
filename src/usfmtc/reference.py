@@ -211,10 +211,10 @@ class Ref:
         if string is None or "-" not in string:
             return super().__new__(cls)
         bits = string.split("-", 1)
-        start = Ref(bits[0], context)
+        start = Ref(bits[0], context, **kw)
         if not bits[1]:
             return start
-        end = Ref(bits[1], start)
+        end = Ref(bits[1], start, **kw)
         return RefRange(start, end)
 
     @classmethod
@@ -446,6 +446,7 @@ class Ref:
         kw = {k: getattr(self, k) for k in self._parmlist}
         if kw.get('mrkrs', None) is not None:
             kw['mrkrs'] = [m.copy() for m in kw['mrkrs']]
+        kw['versification'] = self.versification
         return self.__class__(**kw)
 
     def _setall(self, val):
