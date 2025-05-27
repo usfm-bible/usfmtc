@@ -1,15 +1,27 @@
 
-import re
+import re, os
 from functools import reduce
 from usfmtc.utils import readsrc, get_trace
 import logging
 
 logger = logging.getLogger(__name__)
 
+versifications = {}
+
+def cached_versification(fname):
+    if fname is None:
+        return None
+    if fname not in versifications:
+        if os.path.exists(fname):
+             versifications[fname] = Versification(fname)
+        fpath = os.path.join(os.path.dirname(__file__), fname + ".vrs")
+        if os.path.exists(fpath):
+            versifications[fname] = Versification(fpath)
+    return versifications.get(fname, None)
+
 class Versification:
 
     def __init__(self, fname=None):
-        logger.debug(f"Creating Versification {fname=}")
         self.toorg = {}         # mappings to org (canonical references)
         self.fromorg = {}       # mappings from org
         self.vnums = {}         # list of verse index to the start of each chapter keyed by book
@@ -18,16 +30,14 @@ class Versification:
         self.name = None
         if fname is not None:
             self.readFile(fname)
-        logger.debug("Versification created")
 
     def __getitem__(self, bk):
         return self.vnums.get(bk, None)
 
     def readFile(self, fname):
         from usfmtc.reference import Ref, books
-        logger.debug(f"readFile({fname}) via {get_trace()}")
+        logger.debug(f"versification readFile({fname})")
         srcdat = readsrc(fname)
-        logger.log(5, f"Read: {srcdat}")
         for li in srcdat.splitlines():
             l = li.strip()
             if self.name is None and (m := re.match(r'^#\s+versification\s*"(.*?)"', l, flags=re.I)):
@@ -70,7 +80,6 @@ class Versification:
                 verses = [int(x.split(':')[1]) for x in b[1:]]
                 versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
                 self.vnums[b[0]] = versesums[0]
-    logger.debug("End of parsing")
 
     def _addMapping(self, left, right):
         self.toorg[str(left)] = right
@@ -87,6 +96,12 @@ class Versification:
         return res
 
     def remap(self, ref, other, reverse=False):
+        ''' maps a reference from this mapping to org, or reverse if set '''
+        from usfmtc.reference import RefRange
+        if isinstance(ref, RefRange):
+            first = self.remap(ref.first, other, reverse=reverse)
+            last = self.remap(ref.last, other, reverse=reverse)
+            return RefRange(first, last)
         toorg = self.fromorg if reverse else self.toorg
         fromorg = self.toorg if reverse else self.fromorg
         if other is not None:

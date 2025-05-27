@@ -689,7 +689,7 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
     def isptype(e, s):
         return e.tag == "para" and usx.grammar.marker_categories.get(e.get("style", ""), None) == s
 
-    if tgtvrs is not None and scrvrs.issame_map(tgtvrs):
+    if tgtvrs is not None and srcvrs.issame_map(tgtvrs):
         return              # identical, nothing to do
     root = usx.getroot()
     bk = usx.book

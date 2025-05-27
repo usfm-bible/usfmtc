@@ -228,11 +228,11 @@ class Ref:
 
     @classmethod
     def loadversification(cls, fname=None):
-        from usfmtc.versification import Versification
+        from usfmtc.versification import cached_versification
         if fname is None:
             fname = os.path.join(os.path.dirname(__file__), 'org.vrs')
         cls.versification = "Loading"
-        cls.versification = Versification(fname)
+        cls.versification = cached_versification(fname)
         return cls.versification
 
     def __init__(self, string: Optional[str] = None,

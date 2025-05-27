@@ -2,11 +2,11 @@ import pytest
 from pytest import fail
 from usfmtc import readFile
 from usfmtc.reference import Ref
-from usfmtc.versification import Versification
+from usfmtc.versification import Versification, cached_versification
 from usfmtc.usxmodel import etCmp
 import os
 
-engvrs = Versification(os.path.join(os.path.dirname(__file__), "eng.vrs"))
+engvrs = cached_versification("eng")
 jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
 
 def cmptest(intext, outtext, bk, chap, msg):
@@ -32,6 +32,12 @@ def test_engmapr1():
     res = engvrs.remap(r, engvrs)
     if str(res) != "ISA 64:3":
         fail(f"{r} remaps to {res} instead of ISA 64:3")
+
+def test_maprange():
+    r = Ref("ISA 9:1-9:4")
+    res = engvrs.remap(r, None)
+    if str(res) != "ISA 8:23-9:3":
+        fail(f"{r} remaps to {res} instead of ISA 8:23-9:3")
 
 def test_reversify1():
     jtest = jon_usfm.copy(deep=True)
