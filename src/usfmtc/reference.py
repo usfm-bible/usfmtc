@@ -376,6 +376,9 @@ class Ref:
     def __hash__(self):
         return hash((getattr(self, a) for a in self._parmlist))
 
+    def __iter__(self):
+        return RefRangeIter(self)
+
     def str(self, context: Optional['Ref'] = None, force: int = 0):
         iniforce = force
         if context is None:
@@ -696,9 +699,9 @@ class RefList(List):
             t, u = (r.first, r.last)
             if r.first == r.last and r.first.verse is None:
                 if isinstance(r, RefRange):
-                    r.last = Ref(book=r.first.book, chapter=r.first.chapter, verse=-1)
+                    r.last = Ref(book=r.first.book, chapter=r.first.chapter)
                 else:
-                    r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter, verse=-1))
+                    r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter))
             n = lastref.last.nextverse()
             if lastref.first < t <= lastref.last:
                 t = n

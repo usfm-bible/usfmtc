@@ -119,7 +119,7 @@ class Versification:
         res.versification = self if other is None else other
         return res
 
-    def issame_map(other):
+    def issame_map(self, other):
         if self.name is not None and other.name == self.name:
             return True
         if len(self.toorg) != len(other.toorg) or len(self.fromorg) != len(other.fromorg):

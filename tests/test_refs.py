@@ -198,6 +198,8 @@ def test_deu2():
 def test_exo2f():
     _o("EXO 2:2-3", "EXO 2:1-5", (False,False,True))
 
+def test_exo27():
+    _t("EXO 27:5; 38:1-6", _r("EXO", 27, 5), RefRange(_r("EXO", 38, 1), _r("EXO", 38, 6)))
 
 # ChatGPT tests:
 def test_invalid_ref():
