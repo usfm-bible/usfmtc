@@ -161,11 +161,13 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
         i += 1
     return res if len(res) else None
 
+_bookre = re.compile(r"^(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9]))$")
 
 _regexes = {
     "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
-                    (?P<book>(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9])))
-                    \s*{chap}""",
+                    (?P<book>\d?{id})
+                    \s+{chap}""",
+#    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
     "wordrefanon": r"",
@@ -191,6 +193,36 @@ for i in range(3):
     regexes = {k: v.format(**regexes) for k, v in regexes.items()}
 
 
+class Environment:
+    booksep: str = "; "
+    chapsep: str = "; "
+    versesep: str = ","
+    cvsep: str = ":"            # after chap before verse
+    bookspace: str = " "        # after the book
+    rangemk: str = "-"
+    sep: str = "\u200B"
+    verseid: str = "v"
+    end: str = "end"
+    nobook: bool = False
+    nochap: bool = False
+
+    def localbook(self, bk: str) -> str:
+        return bk
+
+    def localchapter(self, c: int) -> str:
+        return str(c)
+
+    def localverse(self, v: int) -> str:
+        if v < 0 or v >= 200:
+            return self.end
+        else:
+            return str(v)
+
+    def parsebook(self, bk: str) -> str:
+        if not _bookre.match(bk):
+            raise SyntaxError(f"Illegal book name: {bk}")
+        return bk
+
 class Ref:
     product: Optional[str]
     book: Optional[str]
@@ -202,7 +234,7 @@ class Ref:
     mrkrs: Optional[List["MarkerRef"]]
 
     versification: Optional[List[List[int]]] = None
-    _rebook = re.compile(regexes["book"], flags=re.X)
+    _rebook = re.compile(regexes["book"], flags=re.X|re.I)
     _recontext = re.compile(regexes["context"], flags=re.X)
     _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
 
@@ -239,6 +271,7 @@ class Ref:
                     context: Optional['Ref'] = None, start: int = 0, strict: bool = True, **kw):
         if hasattr(self, 'chapter'):     # We were created in __new__ so skip __init__
             return
+        self.env = kw.get('env', None)
         if string is not None:
             s = string.strip()
             self.parse(s, context=(context.last if context is not None else None), start=start)
@@ -268,7 +301,7 @@ class Ref:
         s = s.strip()
         if m := self._rebook.match(s, pos=start):
             p['product'] = m.group('transid') or None
-            p['book'] = m.group('book')
+            p['book'] = self.parsebook(m.group('book'))
         elif not (m:= self._recontext.match(s, pos=start)):
             raise SyntaxError("Cannot parse {}".format(s))
         gs = m.groupdict()
@@ -297,6 +330,13 @@ class Ref:
             p['verse'] = p['chapter']
             p['chapter'] = 1
         self.__init__(None, context, **p)
+
+    def parsebook(self, bk):
+        if self.env is not None:
+            return self.env.parsebook(bk)
+        if not _bookre.match(bk):
+            raise SyntaxError(f"Illegal book name: {bk}")
+        return bk
 
     def __str__(self):
         return self.str()
@@ -379,7 +419,9 @@ class Ref:
     def __iter__(self):
         return RefRangeIter(self)
 
-    def str(self, context: Optional['Ref'] = None, force: int = 0):
+    def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None):
+        if env is None:
+            env = self.env
         iniforce = force
         if context is None:
             context = Ref()
@@ -387,21 +429,21 @@ class Ref:
             context = context.last
         res = []
         sep = ''
-        if context.product != self.product:
+        if (env is None or not env.nobook) and context.product != self.product:
             res.append(self.product)
             res.append('.')
             force = max(1, iniforce)
-        if force > 1 or context.book != self.book:
-            res.append(self.book)
-            res.append(' ')
+        if (env is None or not env.nobook) and (force > 1 or context.book != self.book):
+            res.append(env.localbook(self.book) if env else self.book)
+            res.append(env.bookspace if env else ' ')
             force = max(2, iniforce)
-        if self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
-            res.append(str(self.chapter))
-            sep = ':'
+        if (env is None or not env.nochap) and self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
+            res.append(env.localchap(self.chapter) if env else str(self.chapter))
+            sep = env.cvsep if env else ':'
         if self.verse is not None and (force > 1 or context.verse != self.verse):
             if len(res):
                 res.append(sep)
-            res.append(strend(self.verse))
+            res.append(env.localverse(self.verse) if env else strend(self.verse))
             res.append(self.subverse or "")
             force = max(2, iniforce)
         sep = "!"
