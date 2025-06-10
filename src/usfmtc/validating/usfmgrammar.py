@@ -234,7 +234,13 @@ class UsfmGrammarParser:
         return self.proc_children(e, res, **kw)
 
     def group(self, e, res, **kw):
-        res = self.back.append_seq(res, forced=e.get(f"{usfmns}seq", "false") in ("true", "1"))
+        alt = e.get(f'{usfmns}alt', None)
+        if alt is not None:
+            res = self.back.append_or(res)
+            ores = res
+        res = self.back.append_seq(res, forced=e.get(f"{usfmns}seq", "false") in ("true", "1"), stacked=e.get(f'{usfmns}stacked', "false") in ("true", "1") )
+        if alt is not None:
+            self.ref(None, ores, name=alt, **kw)
         return self.proc_children(e, res, **kw)
 
     def choice(self, e, res, **kw):

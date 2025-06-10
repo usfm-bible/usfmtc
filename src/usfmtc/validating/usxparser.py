@@ -525,6 +525,8 @@ class USXConverter(RelaxValidator):
         return True
 
     def usfm_matchpair(self, vel, state):
+        if vel.get("noout", "false").lower() in ("true", "1"):
+            return True
         if (res := self._getmatchfield(vel, 'before')) is not None:
             state.addresult(res)
         state.addresult(state.key)

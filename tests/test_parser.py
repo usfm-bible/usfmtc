@@ -156,8 +156,9 @@ def test_va():
 \va 10 \va* Now verse 10 followed by \va 11 \va* verse 11. Done.
 """
     doc, f = _dousfm(usfm)
-    if doc.errors is not None and len(doc.errors) != 2 or doc.errors[0][1].l != 4:
-        fail(f"{doc.errors}")
+    if doc.errors is not None and len(doc.errors) != 3 or doc.errors[0][1].l != 4:
+        print(doc.errors)
+        fail(f"Wrong number of errors")
 
 def test_footnote4():
     usfm = r"""\id PHM footnote structure
@@ -168,3 +169,15 @@ def test_footnote4():
     doc, f = _dousfm(usfm)
     if r"\fq test\ft " not in f:
         fail(f"nested fq not converted")
+
+def test_unknown():
+    usfm = r"""\id MRK test unknown marker
+\c 1
+\pqr
+\v 1 This is a test
+"""
+    doc, f = _dousfm(usfm)
+    if doc.errors is None or len(doc.errors) != 1 or doc.errors[0][1].l != 2:
+        print(doc.errors)
+        fail(f"Bad handling of \\pqr")
+
