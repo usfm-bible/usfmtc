@@ -4,6 +4,7 @@ from typing import Optional, List, Tuple
 from dataclasses import dataclass
 import re, json, os
 from functools import reduce
+from collections import UserList
 
 _bookslist = """GEN|50 EXO|40 LEV|27 NUM|36 DEU|34 JOS|24 JDG|21 RUT|4 1SA|31
         2SA|24 1KI|22 2KI|25 1CH|29 2CH|36 EZR|10 NEH|13 EST|10 JOB|42 PSA|150
@@ -166,7 +167,7 @@ _bookre = re.compile(r"^(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[
 _regexes = {
     "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
                     (?P<book>\d?{id})
-                    \s+{chap}""",
+                    (?:\s+{chap})?""",
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
@@ -205,8 +206,13 @@ class Environment:
     end: str = "end"
     nobook: bool = False
     nochap: bool = False
+    __allfields__ = "booksep chapsep versesep cvsep bookspace rangemk sep verseid end nobook nochap".split()
 
-    def localbook(self, bk: str) -> str:
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+    def localbook(self, bk: str, level: Optional[int] = -1) -> str:
         return bk
 
     def localchapter(self, c: int) -> str:
@@ -222,6 +228,12 @@ class Environment:
         if not _bookre.match(bk):
             raise SyntaxError(f"Illegal book name: {bk}")
         return bk
+
+    def copy(self, **kw):
+        res = self.__class__()
+        for a in self.__allfields__:
+            setattr(res, a, kw[a] if a in kw else getattr(self, a))
+        return res
 
 class Ref:
     product: Optional[str]
@@ -274,7 +286,7 @@ class Ref:
         self.env = kw.get('env', None)
         if string is not None:
             s = string.strip()
-            self.parse(s, context=(context.last if context is not None else None), start=start)
+            self.parse(s, context=(context.last if context is not None else None), start=start, **kw)
             if self.strend < len(s) and strict:
                 raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
         elif context is not None:
@@ -292,10 +304,11 @@ class Ref:
         if 'versification' in kw:
             self.versification = kw['versification']
 
-    def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0):
+    def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0, **kw):
         """ Parses a single scripture reference relative to context if given.
             start is an index into the string """
-        if "-" in s:
+        self.strend = start
+        if s is None or not len(s) or "-" in s:
             return 
         p = {}
         s = s.strip()
@@ -419,7 +432,8 @@ class Ref:
     def __iter__(self):
         return RefRangeIter(self)
 
-    def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None):
+    def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None,
+            level: Optional[int] = -1):
         if env is None:
             env = self.env
         iniforce = force
@@ -434,7 +448,7 @@ class Ref:
             res.append('.')
             force = max(1, iniforce)
         if (env is None or not env.nobook) and (force > 1 or context.book != self.book):
-            res.append(env.localbook(self.book) if env else self.book)
+            res.append(env.localbook(self.book, level=level) if env else self.book)
             res.append(env.bookspace if env else ' ')
             force = max(2, iniforce)
         if (env is None or not env.nochap) and self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
@@ -526,6 +540,8 @@ class Ref:
 
     def _getmaxvrs(self, bk, chap):
         """ Returns the maximum verse for the book and chapter in this versification """
+        if chap is None:
+            return 200
         vrs = self.first.versification or Ref.loadversification()
         if isinstance(vrs, str) and vrs == "Loading":
             return 200
@@ -605,18 +621,22 @@ class RefRange:
     def fromRef(cls, r):
         return cls(r, r.end())
 
-    def __new__(cls, first: Optional[Ref]=None, last: Optional[Ref]=None):
+    def __new__(cls, first: Optional[Ref]=None, last: Optional[Ref]=None, **kw):
         if first is not None and first.identical(last):
             return first
         return super().__new__(cls)
 
-    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
+    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, **kw):
         self.first = first.first
         self.last = last.last
         if self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
+        if isinstance(self.first, RefRange):
+            raise ValueError(f"Nested RefRange({self.first})")
+        if isinstance(self.last, RefRange):
+            raise ValueError(f"Nested RefRange({self.last})")
 
-    def str(self, context: Optional[Ref] = None, force: int = 0):
+    def str(self, context: Optional[Ref] = None, force: int = 0, level: int = -1):
         res = [self.first.str(context, force=force)]
         res.append("-")
         res.append(self.last.str(self.first, force=force))
@@ -699,18 +719,29 @@ class RefRangeIter:
         return res
 
 
-class RefList(List):
-    def __init__(self, content: str | List[Ref | RefRange], context: Optional[Ref] = None, start: int = 0):
-        if isinstance(content, list):
+class RefList(UserList):
+    def __init__(self, content: Optional[str | List[Ref | RefRange]] = None,
+                context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
+        if isinstance(content, (list, tuple, RefList)):
             super().__init__(content)
+            return
+        elif isinstance(content, Ref):
+            super().__init__([content])
+            return
         else:
-            self.parse(content, context, start=start)
+            super().__init__()
+        if content is not None and len(content):        # assume it's a str
+            self.parse(content, context, start=start, sep=sep, **kw)
 
-    def parse(self, s: str, context: Optional[Ref] = None, start: int = 0):
-        bits = re.split(r"\s*[,;]\s*", s[start:])
+    def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
+        if sep is None:
+            sep = ",;"
+        bits = re.split(r"\s*[{}]\s*".format(sep), s[start:])
         res = []
         for b in bits:
-            r = Ref(b, context=context)
+            if not len(b):
+                continue
+            r = Ref(b, context=context, **kw)
             res.append(r)
             context = r
         self.__init__(res)
@@ -718,7 +749,7 @@ class RefList(List):
     def __str__(self):
         return self.str()
 
-    def str(self, context: Optional[Ref] = None, force: int = 0):
+    def str(self, context: Optional[Ref] = None, force: int = 0, env: Optional['Environment'] = None, **kw):
         res = []
         for r in self:
             if context is not None:
@@ -726,7 +757,7 @@ class RefList(List):
                     res.append(",")
                 else:
                     res.append("; ")
-            res.append(r.str(context, force=force))
+            res.append(r.str(context, force=force, **kw))
             context = r.last
         return "".join(res)
 
@@ -766,6 +797,17 @@ class RefList(List):
         self[:] = res
         return self
 
+    @property
+    def first(self):
+        return self[0] if len(self) else None
+
+    @property
+    def last(self):
+        return self[-1] if len(self) else None
+
+    def allrefs(self):
+        for r in self:
+            yield from r
 
 class RefJSONEncoder(json.JSONEncoder):
     def default(self, obj):
