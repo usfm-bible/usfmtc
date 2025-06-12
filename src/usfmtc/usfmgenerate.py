@@ -30,7 +30,9 @@ def proc_start_ms(el, tag, pref, emit, ws, escapes):
         extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber"), escapes), "\n" if pref == "c" else "\\"+pref+"p*")
     emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
 
-def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes=""):
+excludes = ["style", "status", "title", "caller", "number", "code", "version"]
+
+def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes="", init=False):
     s = el.get('style', el.tag)
     if tag is not None and type(tag) != tuple:
         tag = (tag, tag)
@@ -41,15 +43,16 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes=""):
         return
     else:
         l = [(tag[0], el.get(tag[1], ""))]
-    l = [(k, v) for k,v in l if k not in ('style', 'status', 'title')]
+    l = [(k, v) for k,v in l if k not in excludes]
     if not len(l):
         return
+    final = "|" if init else ""
     if len(l) == 1 and l[0][0] == attribmap.get(s, ''):
-        emit("|"+attribescaped(l[0][1], escapes))
+        emit("|"+attribescaped(l[0][1], escapes)+final)
     else:
         attribs = ['{0}="{1}"'.format(k, attribescaped(v, escapes)) for k,v in l]
         if len(attribs):
-            emit("|"+" ".join(attribs))
+            emit("|"+" ".join(attribs)+final)
 
 def get(el, k):
     return el.get(k, "")
@@ -85,7 +88,6 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
     if version < [3, 2]:
         escapes = ""
     emit = Emitter(outf, escapes)
-    version = "3.1"
     paraelements = ("chapter", "para", "row", "sidebar")
     cref = None
     innote = None
@@ -115,7 +117,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 proc_start_ms(el, "verse", "v", emit, " ", escapes)
                 n = el.get("number", 0)
                 if cref is None:
-                    cref = Ref(verse=n)
+                    cref = Ref(verse=n).first
                 else:
                     cref.verse = n
             elif el.tag == "book":
@@ -124,8 +126,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag in ("row", "para"):
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
-                    if cref is None or (cref.chapter != r.chapter and cref.chapter != r.chapter+1) \
-                                    or cref.verse != r.verse:
+                    if cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
+                                    or cref.verse != r.first.verse:
                         emit(f"\\zsetref|{r}\\*\n")
                     cref = r 
                 if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
@@ -135,11 +137,14 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag in ("link", "char"):
                 emit("\\{0} ".format(s))
             elif el.tag in ("note", "sidebar"):
+                emit("\\{0}".format(s))
+                if version >= [3, 2] and el.tag != "ms":
+                    append_attribs(el, emit, attribmap=attribmap, init=True)
                 if el.tag != "sidebar":
-                    emit("\\{0} {1} ".format(s, el.get("caller")))
+                    emit(" {} ".format(el.get("caller")))
                 else:
-                    emit("\\{0}\n".format(s))
-                if "category" in el.attrib:
+                    emit("\n")
+                if version < [3, 2] and "category" in el.attrib:
                     emit("\\cat {0}\\cat*".format(el.get("category")))
                 innote = mcats.get(s, "") if el.tag == "note" else None
             elif el.tag == "unmatched":
@@ -162,11 +167,15 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 if el.get('gen', 'false').lower() != 'true':
                     emit("\\ref ")
             elif el.tag == "usx":
-                version =  el.get("version", "3.1")
+                version =  el.get("version", [3,1])
+                if isinstance(version, str):
+                    version = [int(x.strip()) for x in version.split(".")]
             elif el.tag in ("table", ):
                 pass
             else:
                 raise SyntaxError(el.tag)
+            if version >= [3, 2] and el.tag not in ("ms", "note", "sidebar"):
+                append_attribs(el, emit, attribmap=attribmap, init=True)
             if el.text is not None and len(el.text.lstrip()):
                 if prespace:
                     emit(" ")
@@ -188,7 +197,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\\{}*".format(s))
                 innote = None
             elif el.tag in ("char", "link", "figure") and (not innote or mcats.get(s, "") != innote + "char"):
-                append_attribs(el, emit, attribmap=attribmap)
+                if version <= [3, 1]:
+                    append_attribs(el, emit, attribmap=attribmap)
                 emit("\\{}*".format(s))
             elif el.tag == "sidebar":
                 emit("\n\\{}e\n".format(s))
@@ -197,8 +207,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\\ref*")
             elif el.tag == "book":
                 emit("\n")
-                vb = [int(x) for x in version.split(".")]
-                if vb >= [3, 1]:
-                    emit("\\usfm {}\n".format(version))
+                if version >= [3, 1]:
+                    emit("\\usfm {}\n".format(".".join([str(x) for x in version])))
             lastel = el
     return lastel

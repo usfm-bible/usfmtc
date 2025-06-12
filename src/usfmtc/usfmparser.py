@@ -132,14 +132,14 @@ class Lexer:
         (?: [^\\\n] | \\[^a-zA-Z_*+] )*     # nonmagic or escaped single char
     ''', regex.X)
     endattribs = regex.compile(r'\s*\|\s*')
-    afterattribs = regex.compile(r'\s*\\|')
+    afterattribs = regex.compile(r'\s*\\')
     usvre = regex.compile(r'(?:\\u([0-9a-fA-F]{4})|\\U([0-9a-fA-F]{8}))')
 
-    def __init__(self, txt, expanded=False, strict=False, version=[3, 1]):
+    def __init__(self, txt, parser, expanded=False, strict=False):
         self.txt = txt
         self.expanded = expanded
         self.strict = strict
-        self.version = version
+        self.parser = parser
 
     def __iter__(self):
         self.nexts = []
@@ -172,7 +172,7 @@ class Lexer:
                 self.lpos = m.end(2)
                 continue
             elif n == "\\":
-                if self.version >= [3, 2]:
+                if self.parser.version >= [3, 2]:
                     u = self.usvre.match(self.txt[m.end():])
                     if u:
                         c = chr(int((m.group(1) or m.group(2)), 16))
@@ -234,10 +234,12 @@ class Lexer:
             if m:
                 curri += m.end()
                 res = AttribText(m.group(0), l=self.lindex, c=curri-self.lpos)  # tests say not to strip()
-        if (m := self.endattribs.match(self.txt[curri:])):
+        frontattrib = False
+        if self.parser.version >= [3, 2] and (m := self.endattribs.match(self.txt[curri:])):
             curri += m.end()
-        elif not self.afterattribs.match(self.txt[curri:]):
-            self.error(SyntaxError, f"Bad end of attributes", self.currpos())
+            frontattrib = True
+        if not frontattrib and not self.afterattribs.match(self.txt[curri:]):
+            self.parser.error(SyntaxError, f"Bad end of attributes", self.currpos())
         return res, curri
 
     def readLine(self):
@@ -514,6 +516,8 @@ class PeriphNode(Node):
 
 class MsNode(Node):
     def appendText(self, t):
+        if not len(t.strip()):
+            return
         self.parser.removeTag(self.tag)
         self.parser.parent = self.parser.stack[-1]
         self.parser.parent.appendText(t)
@@ -543,7 +547,7 @@ class USFMParser:
         self.factory = factory
         self.grammar = grammar
         self._setup(expanded=expanded)
-        self.lexer = Lexer(txt, expanded=expanded, strict=strict, version=version)
+        self.lexer = Lexer(txt, self, expanded=expanded, strict=strict)
         self.strict = strict
         self.version = version
         self.doindexing = index
@@ -630,7 +634,7 @@ class USFMParser:
         while len(self.stack):
             curr = self.stack.pop()
             curr.close()
-            if curr.tag == tag:
+            if curr.tag == tag or tag == "" and curr.element.tag == "ms":
                 if getattr(curr, 'element', "") == "unk":
                     curr.element.tag = "char"
                 break
@@ -748,11 +752,13 @@ class USFMParser:
         return parent
 
     def _xt(self, tag):
+        removed = False
         if self.grammar.marker_categories.get(self.stack[-1].tag, "") == "crossreferencechar":
             res = self.removeType('crossreferencechar')
+            removed = True
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag.basestr(), pos=tag.pos))
-        else:
+        elif not removed:
             res = self.removeTag(tag.basestr())
         return res
 

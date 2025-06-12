@@ -12,14 +12,17 @@ def asusfm(root, grammar=None):
         res = fh.getvalue()
     return res
 
-def _dousfm(s, grammar=None):
+def _dousfm(s, grammar=None, errors=False, version=None):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
     doc.canonicalise()
+    doc.version = "3.1"
     r = doc.getroot()
     et.dump(r)
     if doc.errors is not None and len(doc.errors):
         print("\nParser Errors:\n")
         print("\n".join(["{0} at {2} pos {1}".format(*e) for e in doc.errors]))
+        if not errors:
+            fail("Unexpected parser errors encountered")
     f = asusfm(r, grammar=grammar)
     print(f)
     return (doc, f)
@@ -99,9 +102,11 @@ def test_charattrib():
         fail(f"{len(doc.getroot()[2])} {f}")
 
 def test_closext():
+    grammar = usfmtc.Grammar()
+    grammar.marker_categories['wl']="char"
     usfm = r"""\id XXS A test
 \li \bd 5601\bd* \wg Ὠβήδ\wg* \wl Ōbḗd\wl* \k వోబెద-\k*; a person in the genealogy of Jesus; \xt $a(MAT 1:5)\xt*"""
-    doc, f = _dousfm(usfm)
+    doc, f = _dousfm(usfm, grammar=grammar)
     if 'xt*' not in f:
         fail(f"{f}")
 
@@ -155,7 +160,7 @@ def test_va():
 \p
 \va 10 \va* Now verse 10 followed by \va 11 \va* verse 11. Done.
 """
-    doc, f = _dousfm(usfm)
+    doc, f = _dousfm(usfm, errors=True)
     if doc.errors is not None and len(doc.errors) != 3 or doc.errors[0][1].l != 4:
         print(doc.errors)
         fail(f"Wrong number of errors")
@@ -176,8 +181,19 @@ def test_unknown():
 \pqr
 \v 1 This is a test
 """
-    doc, f = _dousfm(usfm)
+    doc, f = _dousfm(usfm, errors=True)
     if doc.errors is None or len(doc.errors) != 1 or doc.errors[0][1].l != 2:
         print(doc.errors)
         fail(f"Bad handling of \\pqr")
+
+def test_attribs32():
+    usfm = r"""\id MRK test 3.2 attributes
+\usfm 3.2
+\c 1
+\p
+\v 1 This is a test\f|category="fred"| + \fr 1:1 \ft Fred was a dog\f* of attributes
+"""
+    doc, f = _dousfm(usfm, version="3.1")
+    if r"\cat fred" not in f:
+        fail(f"Can't parse front attributes: {f}")
 

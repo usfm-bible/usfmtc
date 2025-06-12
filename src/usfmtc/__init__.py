@@ -280,11 +280,17 @@ class USX:
 
     @property
     def version(self):
-        return self.getroot().get('version', None)
+        res = self.getroot().get('version', None)
+        if res is not None:
+            res = [int(x) for x in res.split(".")]
+        return res
 
     @version.setter
     def version(self, version):
-        self.getroot().set('version', str(version))
+        if isinstance(version, (list, tuple)):
+            version = ".".join([str(x) for x in version])
+        if version is not None:
+            self.getroot().set('version', str(version))
 
     @property
     def book(self):
@@ -427,10 +433,10 @@ def main(hookcli=None, hookusx=None):
             continue
 
         version = usxdoc.version
-        if version is None:
-            usxdoc.version = args.version or "3.1"
-        elif args.version is not None:
+        if args.version is not None:
             usxdoc.version = args.version
+        elif usxdoc.version is None:
+            usxdoc.version = [3, 1]
 
         if not args.canonical:
             usxdoc.canonicalise()
