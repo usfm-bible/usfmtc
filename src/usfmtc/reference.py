@@ -611,8 +611,8 @@ class RefRange:
         return super().__new__(cls)
 
     def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None):
-        self.first = first
-        self.last = last
+        self.first = first.first
+        self.last = last.last
         if self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
 

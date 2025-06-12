@@ -110,14 +110,14 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 proc_start_ms(el, "chapter", "c", emit, "", escapes)
                 n = int(el.get("number", 0))
                 if cref is None:
-                    cref = Ref(chapter=n).first
+                    cref = Ref(chapter=n)
                 else:
                     cref.chapter = n
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ", escapes)
                 n = el.get("number", 0)
                 if cref is None:
-                    cref = Ref(verse=n).first
+                    cref = Ref(verse=n)
                 else:
                     cref.verse = n
             elif el.tag == "book":
@@ -129,7 +129,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                     if cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
                                     or cref.verse != r.first.verse:
                         emit(f"\\zsetref|{r}\\*\n")
-                    cref = r 
+                    cref = r.last
                 if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
                     emit("\\{0}\n".format(s))
                 else:
