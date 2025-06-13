@@ -263,7 +263,7 @@ class Lexer:
         self.nexts.append(tag)
 
     def currpos(self):
-        return f"{self.lindex}:{self.cindex-self.lpos+1}"
+        return Pos(self.lindex, self.cindex-self.lpos+1)
 
 class Grammar:
     category_markers = {
