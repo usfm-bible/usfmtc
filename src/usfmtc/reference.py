@@ -256,8 +256,14 @@ class Ref:
 
     def __new__(cls, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = 0, **kw):
-        if string is None or "-" not in string:
+        if string is None or ("-" not in string and "," not in string):
             return super().__new__(cls)
+        if "," in string:
+            temp = RefList(string)
+            temp.simplify()
+            if len(temp) != 1:
+                raise SyntaxError(f"Non contiguous ranges in reference {string}")
+            return temp[0]
         bits = string.split("-", 1)
         start = Ref(bits[0], context, **kw)
         if not bits[1]:

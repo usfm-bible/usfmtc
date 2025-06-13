@@ -362,4 +362,15 @@ def test_footnote2():
     if res != "dug":
         fail(f"{r}: {res}")
 
+def test_verselist():
+    r = Ref("JHN 3:16,17,18")
+    if str(r.last) != "JHN 3:18":
+        fail(f"{r}")
+
+def test_badverselist():
+    try:
+        r = Ref("JHN 3:16,18")
+        fail("Non contigous list returned {r}")
+    except SyntaxError:
+        pass
 
