@@ -668,7 +668,7 @@ def _getref(e, book, lastchap=0):
     if refstr is None:
         num = int(e.get("number", 0))
         if e.tag == "verse":
-            ref = Ref(book=book, chapter=lastchap, verse=num)
+            ref = Ref(f"{book} {lastchap}:{num}")
         else:
             ref = Ref(book=book, chapter=num, verse=0)
     else:
