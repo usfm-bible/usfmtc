@@ -649,6 +649,11 @@ class RefRange:
         if isinstance(self.last, RefRange):
             raise ValueError(f"Nested RefRange({self.last})")
 
+    def __getattr__(self, a):
+        if a in Ref._parmlist:
+            return getattr(self.first, a)
+        raise AttributeError(f"Bad attribute {a}")
+
     def str(self, context: Optional[Ref] = None, force: int = 0, level: int = -1):
         res = [self.first.str(context, force=force)]
         res.append("-")
@@ -773,6 +778,11 @@ class RefList(UserList):
             res.append(r.str(context, force=force, **kw))
             context = r.last
         return "".join(res)
+
+    def __getattr__(self, a):
+        if len(self) and a in Ref._parmlist:
+            return getattr(self[0], a)
+        raise AttributeError(f"Bad attribute {a} or missing references [{len(self)}]")
 
     def simplify(self, sort=True):
         res = []

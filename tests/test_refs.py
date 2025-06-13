@@ -374,3 +374,16 @@ def test_badverselist():
     except SyntaxError:
         pass
 
+def test_goodreflistattr():
+    r = RefList("JHN 3:16, 19, 30")
+    if r.chapter != 3:
+        fail("The chapter of {r} is not 3")
+
+def test_badreflistattr():
+    r = RefList()
+    try:
+        x = r.chapter
+        fail("Empty RefList has chapter {x}")
+    except AttributeError:
+        pass
+
