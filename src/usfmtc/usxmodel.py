@@ -666,7 +666,7 @@ def _insertoblink(linkloc, tag, linfo):
 def _getref(e, book, lastchap=0):
     refstr = e.get("sid", None)
     if refstr is None:
-        num = int(e.get("number", 0))
+        num = e.get("number", 0)
         if e.tag == "verse":
             ref = Ref(f"{book} {lastchap}:{num}")
         else:
