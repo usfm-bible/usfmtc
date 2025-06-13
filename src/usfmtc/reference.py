@@ -327,7 +327,7 @@ class Ref:
         bookre = self._rebook if strict else self._rebooklax
         if m := bookre.match(s, pos=start):
             p['product'] = m.group('transid') or None
-            p['book'] = self.parsebook(m.group('book'))
+            p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s, pos=start)):
             raise SyntaxError("Cannot parse {}".format(s))
         gs = m.groupdict()
@@ -357,10 +357,10 @@ class Ref:
             p['chapter'] = 1
         self.__init__(None, context, **p)
 
-    def parsebook(self, bk):
+    def parsebook(self, bk, strict:bool=True):
         if self.env is not None:
             return self.env.parsebook(bk)
-        if not _bookre.match(bk):
+        if strict and not _bookre.match(bk):
             raise SyntaxError(f"Illegal book name: {bk}")
         return bk
 
