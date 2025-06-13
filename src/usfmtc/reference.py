@@ -167,6 +167,9 @@ _bookre = re.compile(r"^(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[
 _regexes = {
     "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
                     (?P<book>\d?{id})
+                    (?:\s+{chap})""",
+    "booklax": r"""^(?P<transid>(?:[a-z0-9_-]*[+])*)
+                    (?P<book>(?!end)\d?{id})
                     (?:\s+{chap})?""",
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
@@ -247,6 +250,7 @@ class Ref:
 
     versification: Optional[List[List[int]]] = None
     _rebook = re.compile(regexes["book"], flags=re.X|re.I)
+    _rebooklax = re.compile(regexes["booklax"], flags=re.X|re.I)
     _recontext = re.compile(regexes["context"], flags=re.X)
     _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
 
@@ -286,7 +290,9 @@ class Ref:
         self.env = kw.get('env', None)
         if string is not None:
             s = string.strip()
-            self.parse(s, context=(context.last if context is not None else None), start=start, **kw)
+            if strict and not len(s):
+                raise SyntaxError(f"Empty reference string")
+            self.parse(s, context=(context.last if context is not None else None), start=start, strict=strict, **kw)
             if self.strend < len(s) and strict:
                 raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
         elif context is not None:
@@ -304,7 +310,7 @@ class Ref:
         if 'versification' in kw:
             self.versification = kw['versification']
 
-    def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0, **kw):
+    def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0, strict: bool = True, **kw):
         """ Parses a single scripture reference relative to context if given.
             start is an index into the string """
         self.strend = start
@@ -312,7 +318,8 @@ class Ref:
             return 
         p = {}
         s = s.strip()
-        if m := self._rebook.match(s, pos=start):
+        bookre = self._rebook if strict else self._rebooklax
+        if m := bookre.match(s, pos=start):
             p['product'] = m.group('transid') or None
             p['book'] = self.parsebook(m.group('book'))
         elif not (m:= self._recontext.match(s, pos=start)):
@@ -452,7 +459,7 @@ class Ref:
             res.append(env.bookspace if env else ' ')
             force = max(2, iniforce)
         if (env is None or not env.nochap) and self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
-            res.append(env.localchap(self.chapter) if env else str(self.chapter))
+            res.append(env.localchapter(self.chapter) if env else str(self.chapter))
             sep = env.cvsep if env else ':'
         if self.verse is not None and (force > 1 or context.verse != self.verse):
             if len(res):
