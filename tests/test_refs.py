@@ -375,7 +375,7 @@ def test_badverselist():
         pass
 
 def test_goodreflistattr():
-    r = RefList("JHN 3:16, 19, 30")
+    r = RefList("JHN 3:16, 19, 30", strict=False)
     if r.chapter != 3:
         fail("The chapter of {r} is not 3")
 
@@ -387,3 +387,10 @@ def test_badreflistattr():
     except AttributeError:
         pass
 
+def test_unequalrangeattr():
+    r = Ref("JHN 3:16-4:3")
+    try:
+        x = r.chapter
+        fail("Unequal chapters in RefRange returned {x}")
+    except AttributeError:
+        pass

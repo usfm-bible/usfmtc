@@ -162,7 +162,7 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
         i += 1
     return res if len(res) else None
 
-_bookre = re.compile(r"^(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9]))$")
+_bookre = re.compile(r"\A(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9]))$")
 
 _regexes = {
     "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
@@ -239,14 +239,14 @@ class Environment:
         return res
 
 class Ref:
-    product: Optional[str]
-    book: Optional[str]
-    chapter: Optional[int]
-    verse: Optional[int]
-    subverse: Optional[str]
-    word: Optional[int]
-    char: Optional[int]
-    mrkrs: Optional[List["MarkerRef"]]
+    product: Optional[str] = None
+    book: Optional[str] = None
+    chapter: Optional[int] = None
+    verse: Optional[int] = None
+    subverse: Optional[str] = None
+    word: Optional[int] = None
+    char: Optional[int] = None
+    mrkrs: Optional[List["MarkerRef"]] = None
 
     versification: Optional[List[List[int]]] = None
     _rebook = re.compile(regexes["book"], flags=re.X|re.I)
@@ -289,10 +289,11 @@ class Ref:
         cls.versification = cached_versification(fname)
         return cls.versification
 
-    def __init__(self, string: Optional[str] = None,
-                    context: Optional['Ref'] = None, start: int = 0, strict: bool = True, **kw):
-        if hasattr(self, 'chapter'):     # We were created in __new__ so skip __init__
+    def __init__(self, string: Optional[str]=None,
+                    context: Optional['Ref']=None, start:int=0, strict: bool=True, **kw):
+        if getattr(self, 'chapter', None) is not None:     # We were created in __new__ so skip __init__
             return
+        self.strict = strict
         self.env = kw.get('env', None)
         if string is not None:
             s = string.strip()
@@ -316,7 +317,7 @@ class Ref:
         if 'versification' in kw:
             self.versification = kw['versification']
 
-    def parse(self, s: str, context: Optional['Ref'] = None, start: int = 0, strict: bool = True, **kw):
+    def parse(self, s: str, context: Optional['Ref']=None, start: int=0, strict: bool=True, **kw):
         """ Parses a single scripture reference relative to context if given.
             start is an index into the string """
         self.strend = start
@@ -325,10 +326,10 @@ class Ref:
         p = {}
         s = s.strip()
         bookre = self._rebook if strict else self._rebooklax
-        if m := bookre.match(s, pos=start):
+        if m := bookre.match(s[start:]):
             p['product'] = m.group('transid') or None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
-        elif not (m:= self._recontext.match(s, pos=start)):
+        elif not (m:= self._recontext.match(s[start:])):
             raise SyntaxError("Cannot parse {}".format(s))
         gs = m.groupdict()
         p['chapter'] = intend(gs.get('chap', None))
@@ -349,7 +350,7 @@ class Ref:
             if rep is not None:
                 p[rep] = p['chapter']
                 p['chapter'] = None 
-        self.strend = m.end(0)
+        self.strend = m.end(0) + start
         if p.get('mrkrs', None) == []:
             p['mrkrs'] = None
         if p.get('book', None) in oneChbooks and p['verse'] is None:
@@ -368,7 +369,7 @@ class Ref:
         return self.str()
 
     def __repr__(self):
-        return "Ref("+self.str(force=2)+")"
+        return "Ref('"+self.str(force=2)+"')"
 
     def __eq__(self, o):
         if not isinstance(o, Ref):
@@ -440,15 +441,21 @@ class Ref:
         return self > o or self in o
 
     def __hash__(self):
-        return hash((getattr(self, a) for a in self._parmlist))
+        return hash(tuple(getattr(self, a, "") for a in self._parmlist))
 
     def __iter__(self):
         return RefRangeIter(self)
 
     def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None,
             level: Optional[int] = -1):
+        def neqa(c, s, a):
+            if getattr(s, a, None) is None:
+                return False
+            if getattr(c, a, None) is None:
+                return True
+            return getattr(c, a) != getattr(s, a)
         if env is None:
-            env = self.env
+            env = getattr(self, 'env', None)
         iniforce = force
         if context is None:
             context = Ref()
@@ -456,25 +463,25 @@ class Ref:
             context = context.last
         res = []
         sep = ''
-        if (env is None or not env.nobook) and context.product != self.product:
+        if (env is None or not env.nobook) and neqa(context, self, 'product'):
             res.append(self.product)
             res.append('.')
             force = max(1, iniforce)
-        if (env is None or not env.nobook) and (force > 1 or context.book != self.book):
-            res.append(env.localbook(self.book, level=level) if env else self.book)
+        if (env is None or not env.nobook) and (force > 1 or neqa(context, self, 'book')):
+            res.append(env.localbook(getattr(self, 'book', ""), level=level) if env else getattr(self, 'book', ""))
             res.append(env.bookspace if env else ' ')
             force = max(2, iniforce)
-        if (env is None or not env.nochap) and self.book not in oneChbooks and (force > 1 or context.chapter != self.chapter):
-            res.append(env.localchapter(self.chapter) if env else str(self.chapter))
+        if (env is None or not env.nochap) and getattr(self, 'book', None) not in oneChbooks and (force > 1 or neqa(context, self, 'chapter')):
+            res.append(env.localchapter(getattr(self, 'chapter', 0)) if env else str(getattr(self, 'chapter', 0)))
             sep = env.cvsep if env else ':'
-        if self.verse is not None and (force > 1 or context.verse != self.verse):
+        if getattr(self, 'verse', None) is not None and (force > 1 or neqa(context, self, 'verse')):
             if len(res):
                 res.append(sep)
-            res.append(env.localverse(self.verse) if env else strend(self.verse))
-            res.append(self.subverse or "")
+            res.append(env.localverse(getattr(self, 'verse', 0)) if env else strend(getattr(self, 'verse', 0)))
+            res.append(getattr(self, 'subverse', '') or "")
             force = max(2, iniforce)
         sep = "!"
-        if self.word is not None and (force > 1 or context.word is not None and context.word != self.word):
+        if getattr(self, 'word', None) is not None and (force > 1 or neqa(context, self, 'word')):
             if len(res):
                 res.append(sep)
             res.append(strend(self.word))
@@ -485,7 +492,7 @@ class Ref:
         else:
             force = iniforce
         sep = "+"
-        if self.char is not None and (force > 1 or context.char is not None and context.char != self.char):
+        if getattr(self, 'char', None) is not None and (force > 1 or neqa(context, self, 'char')):
             if len(res):
                 res.append(sep)
             res.append(strend(self.char))
@@ -493,7 +500,7 @@ class Ref:
         else:
             force = iniforce
         sep = "!"
-        if self.mrkrs is not None and len(self.mrkrs):
+        if getattr(self, 'mrkrs', None) is not None and len(self.mrkrs):
             for i, m in enumerate(self.mrkrs):
                 if force < 2 and context is not None and context.mrkrs is not None and i < len(context.mrkrs):
                     if context.mrkrs[i] != m:
@@ -639,7 +646,8 @@ class RefRange:
             return first
         return super().__new__(cls)
 
-    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, **kw):
+    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, strict: bool=True, **kw):
+        self.strict = strict
         self.first = first.first
         self.last = last.last
         if self.last < self.first:
@@ -651,10 +659,15 @@ class RefRange:
 
     def __getattr__(self, a):
         if a in Ref._parmlist:
-            return getattr(self.first, a)
-        raise AttributeError(f"Bad attribute {a}")
+            f = getattr(self.first, a)
+            l = getattr(self.last, a)
+            if not self.strict or f == l:
+                return f
+            else:
+                raise AttributeError(f"RefRange unequal values for {a}. {f} != {l}")
+        raise AttributeError(f"RefRange unknown attribute {a}")
 
-    def str(self, context: Optional[Ref] = None, force: int = 0, level: int = -1):
+    def str(self, context:Optional[Ref]=None, force:int=0, level:int=-1, env:Optional[Environment]=None):
         res = [self.first.str(context, force=force)]
         res.append("-")
         res.append(self.last.str(self.first, force=force))
@@ -739,30 +752,38 @@ class RefRangeIter:
 
 class RefList(UserList):
     def __init__(self, content: Optional[str | List[Ref | RefRange]] = None,
-                context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
+                context: Optional[Ref]=None, start: int=0, sep: Optional[str]=None, 
+                strict: bool=True, **kw):
         if isinstance(content, (list, tuple, RefList)):
             super().__init__(content)
-            return
         elif isinstance(content, Ref):
             super().__init__([content])
-            return
         else:
             super().__init__()
-        if content is not None and len(content):        # assume it's a str
-            self.parse(content, context, start=start, sep=sep, **kw)
+            if content is not None and len(content):        # assume it's a str
+                self.parse(content, context, start=start, sep=sep, strict=strict, **kw)
+        self.strict = strict
 
     def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
-        if sep is None:
-            sep = ",;"
-        bits = re.split(r"\s*[{}]\s*".format(sep), s[start:])
         res = []
+        if sep == ' ':
+            while len(s[start:].strip()):
+                r = Ref(s, start=start, strict=False)
+                res.append(r)
+                start = r.strend
+                start += len(s[start:]) - len(s[start:].lstrip())
+            self.extend(res)
+            return
+        elif sep is None:
+            sep = ",;"
+        bits = re.split(r"\s*[{}]\s*".format(sep), s[start:].strip())
         for b in bits:
             if not len(b):
                 continue
             r = Ref(b, context=context, **kw)
             res.append(r)
             context = r
-        self.__init__(res)
+        self.extend(res)
 
     def __str__(self):
         return self.str()
@@ -780,6 +801,8 @@ class RefList(UserList):
         return "".join(res)
 
     def __getattr__(self, a):
+        if self.strict:
+            raise AttributeError(f"Ref attribute {a} queried on strict list")
         if len(self) and a in Ref._parmlist:
             return getattr(self[0], a)
         raise AttributeError(f"Bad attribute {a} or missing references [{len(self)}]")
