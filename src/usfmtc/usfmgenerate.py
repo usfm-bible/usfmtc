@@ -32,7 +32,7 @@ def proc_start_ms(el, tag, pref, emit, ws, escapes):
 
 excludes = ["style", "status", "title", "caller", "number", "code", "version"]
 
-def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes="", init=False):
+def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes="", init=False, excludes=excludes):
     s = el.get('style', el.tag)
     if tag is not None and type(tag) != tuple:
         tag = (tag, tag)
@@ -172,6 +172,11 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                     version = [int(x.strip()) for x in version.split(".")]
             elif el.tag in ("table", ):
                 pass
+            elif el.tag == "periph":
+                name = el.get("alt", None)
+                emit("\\periph" + (" "+name if name else ""))
+                append_attribs(el, emit, attribmap=attribmap, excludes=["alt"])
+                emit("\n")
             else:
                 raise SyntaxError(el.tag)
             if version >= [3, 2] and el.tag not in ("ms", "note", "sidebar"):

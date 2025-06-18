@@ -78,7 +78,7 @@ def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], a
     if grammar is None:
         fname = getattr(infpath, 'name', infpath)
         extfiles.append(os.path.join(os.path.dirname(fname), "markers.ext"))
-        exts = [x for x in extfiles if os.path.exists(x)]
+        exts = [x for x in extfiles if os.path.exists(x) or hasattr(x, 'read')]
         grammar = usfmGrammar(gramfile, extensions=exts, altparser=altparser, **kw)
 
     if intype == "usx":

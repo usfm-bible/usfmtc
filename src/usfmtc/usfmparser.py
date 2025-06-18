@@ -303,12 +303,52 @@ class Grammar:
 
     attribtags = { 'cp': 'pubnumber', 'ca': 'altnumber', 'vp': 'pubnumber',
         'va': 'altnumber', 'cat': 'category', 'usfm': 'version'}
+    attribvals = {
+        "aid?": "imt1 imt2 imt3 imt4 imte1 imte2 imte imt ib ie imi imq im io1 io2 io3 io4 iot io ipc ipi ipq ipr ip iq1 iq2 iq3 iq is1 is2 is iex ilit restore ms1 ms2 ms3 ms mr mte1 mte2 mte r s1 s2 s3 s4 sr sp sd1 sd2 sd3 sd4 sd s cl cd cls nb pc pi1 pi2 pi3 pi po pr pmo pmc pmr pm ph1 ph2 ph3 ph p q1 q2 q3 q4 qc qr qm1 qm2 qm3 qm qd q b d mi1 mi2 mi3 mi4 mi m fe f efe ef ex x fig esb",
+        "altnumber?": "c v",
+        "caller": "f x fe ef ex efe",
+        "category?": "fe f efe ef ex x esb",
+        "code": "id",
+        "eid?": "c ts-e t-e qt1-e qt2-e qt3-e qt4-e qt5-e qt-e v",
+        "gloss?": "rb",
+        "href?": "jmp",
+        "lemma?": "w",
+        "link-href?": "jmp",
+        "number?": "c v",
+        "pubnumber?": "c v",
+        "sid?": "c ts-s t-s qt1-s qt2-s qt3-s qt4-s qt5-s qt-s v",
+        "srcloc?": "w",
+        "strong?": "w",
+        "vid?": "ip iex restore ms1 ms2 ms3 ms mr mte1 mte2 mte r s1 s2 s3 s4 sr sp sd1 sd2 sd3 sd4 sd s cl cd cls nb pc pi1 pi2 pi3 pi po pr pmo pmc pmr pm ph1 ph2 ph3 ph p q1 q2 q3 q4 qc qr qm1 qm2 qm3 qm qd q b d mi1 mi2 mi3 mi4 mi m lit qa lh li1 li2 li3 li4 lim1 lim2 lim3 lim4 lim li lf v",
+        "who?": "qt1-s qt2-s qt3-s qt4-s qt5-s qt-s",
+    }
+    attribsextra = {
+        "fig": "alt? copy? file? loc? src? ref size caption",
+        "cell": "colspan? align? content?",
+        "xt": "href?",
+        "ref": "gen? loc",
+        "jmp": "title? id?"
+    }
 
     tagre = regex.compile(r"(^t[hc][cr]?\d+)[-_^].*|(.)[_^].*$")
 
     def __init__(self):
         self.marker_categories = self.marker_categories.copy()
         self.attribmap = self.attribmap.copy()
+        self.attributes = {}
+        for k, v in self.attribvals.items():
+            for u in v.split():
+                self.attributes.setdefault(u, []).append(k)
+        for k, v in self.attribsextra.items():
+            if k in self.category_markers:
+                for m in self.category_markers[k].split():
+                    self.attributes.setdefault(m, []).extend(v.split())
+            else:
+                self.attributes.setdefault(k, []).extend(v.split())
+        for k, v in self.attribmap.items():
+            if k in self.attributes and v in self.attributes[k]:
+                continue
+            self.attributes.setdefault(k, []).append(v+"?")
 
     def readmrkrs(self, fname):
         sfm = SFMFile(fname)
@@ -318,6 +358,10 @@ class Grammar:
                 self.marker_categories[k] = b.lower()
             if 'defattrib' in v:
                 self.attribmap[k] = v['defattrib']
+            if 'attributes' in v:
+                if k in self.attributes:
+                    val = set(self.attributes.get(k, [])) + set(v['attributes'].split())
+                    self.attributes[k] = sorted(val)
 
     def parsetag(self, t):
         return self.tagre.sub(r"\1\2", str(t))

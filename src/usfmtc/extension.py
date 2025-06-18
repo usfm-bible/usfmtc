@@ -30,20 +30,25 @@ class SFMFile:
         self.parse()
 
     def parse(self):
-        with open(self.fname, encoding="utf-8") as inf:
-            for l in inf.readlines():
-                s = l.strip()
-                s = re.sub(r'#.*$', '', s)
-                if not s.startswith("\\"):
-                    continue
-                b = s[1:].split(None, 1)
-                b = self.preproc(b)
-                mk = b[0].lower()
-                if mk == "marker":
-                    curr = {}
-                    self.markers[b[1]] = curr
-                else:
-                    curr[mk] = b[1]
+        if hasattr(self.fname, 'read'):
+            self.parsefh(self.fname)
+        else:
+            with open(self.fname, encoding="utf-8") as inf:
+                self.parsefh(inf)
+    def parsefh(self, inf):
+        for l in inf.readlines():
+            s = l.strip()
+            s = re.sub(r'#.*$', '', s)
+            if not s.startswith("\\"):
+                continue
+            b = s[1:].split(None, 1)
+            b = self.preproc(b)
+            mk = b[0].lower()
+            if mk == "marker":
+                curr = {}
+                self.markers[b[1]] = curr
+            else:
+                curr[mk] = b[1]
 
     def preproc(self, b):
         return b
