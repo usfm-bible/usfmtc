@@ -481,7 +481,7 @@ class Ref:
             res.append(getattr(self, 'subverse', '') or "")
             force = max(2, iniforce)
         sep = "!"
-        if getattr(self, 'word', None) is not None and (force > 1 or neqa(context, self, 'word')):
+        if getattr(self, 'word', None) is not None and (force > 1 or context.word is not None and neqa(context, self, 'word')):
             if len(res):
                 res.append(sep)
             res.append(strend(self.word))
@@ -492,7 +492,7 @@ class Ref:
         else:
             force = iniforce
         sep = "+"
-        if getattr(self, 'char', None) is not None and (force > 1 or neqa(context, self, 'char')):
+        if getattr(self, 'char', None) is not None and (force > 1 or context.char is not None and neqa(context, self, 'char')):
             if len(res):
                 res.append(sep)
             res.append(strend(self.char))
