@@ -186,7 +186,7 @@ _regexes = {
     "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",
     "verse2": r"(?P<verse2>[0-9]+|end)(?P<subv2>[a-z]?)",
     "chapter": r"(?:(?P<chap>[0-9]+|end))",
-    "chap": r"{chapter}(?:[:.]{verse1})?{wordref1}?",
+    "chap": r"{chapter}(?![a-zA-Z])(?:[:.]{verse1})?{wordref1}?",
     "context": r"""(?:{chap}
                     | {verse2}{wordref2}? | {wordrefonly}(?P<mrkn3>{mrkref}*)
                     | (?P<char3>{charref})(?P<mrkn4>{mrkref}*))(?=[-;,\s]|$)"""

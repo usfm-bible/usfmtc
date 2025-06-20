@@ -33,7 +33,7 @@ class Tag(str):
         res.kw = kw
         res.isplus = isplus
         res.isend = isend
-        res.pos = (l, c)
+        res.pos = Pos(l, c)
         return res
 
     def __init__(self, s, l=0, c=0):

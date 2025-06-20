@@ -394,3 +394,9 @@ def test_unequalrangeattr():
         fail("Unequal chapters in RefRange returned {x}")
     except AttributeError:
         pass
+
+def test_reflistspace():
+    r = RefList("MRK PHP 1JN 2JN 3JN JUD", sep=" ")
+    if len(r) != 6:
+        fail(f"{r} should have 6 books in it")
+
