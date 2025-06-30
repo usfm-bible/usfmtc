@@ -185,7 +185,7 @@ class USX:
         if not altparser:
             if grammar is None:
                 grammar = Grammar()
-            return self._outwrite(file, self.xml, fn=usx2usfm, args={'grammar': grammar})
+            return self._outwrite(file, self.xml, fn=usx2usfm, args={'grammar': grammar, **kw})
         parser = USXConverter(grammar.getroot(), **kw)
         res = parser.parse(self.xml)
         if res:
