@@ -365,6 +365,7 @@ class Ref:
     def parsebook(self, bk, strict:bool=True):
         if self.env is not None:
             return self.env.parsebook(bk)
+        bk = bk.upper()     # be kind
         if strict and not _bookre.match(bk):
             raise SyntaxError(f"Illegal book name: {bk}")
         return bk

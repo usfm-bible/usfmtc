@@ -9,14 +9,17 @@ import os
 engvrs = cached_versification("eng")
 jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
 
-def cmptest(intext, outtext, bk, chap, msg):
+def cmptest(intext, outtext, bk, chap, msg, vrsf=None, rev=False, **kw):
     prefix = r'''\id {} Test book
 \c {}
 '''.format(bk, chap)
     inu = readFile(prefix+intext, informat="usfm")
     outu = readFile(prefix+outtext, informat="usfm")
     print(inu.outUsfm())
-    inu.reversify(engvrs, None)
+    if rev:
+        inu.reversify(None, vrsf or engvrs, **kw)
+    else:
+        inu.reversify(vrsf or engvrs, None, **kw)
     print(inu.outUsfm())
     if not etCmp(inu.getroot(), outu.getroot(), verbose=True):
         fail(msg)
@@ -161,3 +164,24 @@ def test_psa10():
 \q1 \v 2 For, lo, the wicked bend \add their\add* bow, they make ready their arrow upon the string, that they may privily shoot at the upright in heart.\f + \fr 11.2 \ft privily: Heb. in darkness\f*
 '''
     cmptest(intext, outtext, 'PSA', 10, 'versetext headers after chapter')
+
+def test_to0():
+    vrsf = """PSA 51:0 = PSA 51:1
+PSA 51:0 = PSA 51:2
+"""
+    v = Versification(vrsf)
+    intext = r'''
+\d To the chief Musician, A Psalm of David, when Nathan the prophet came unto him,
+after he had gone in to Bath-sheba.
+\q1 \v 1 Have mercy upon me, O God, according to thy lovingkindness:
+according unto the multitude of thy tender mercies blot out my transgressions.
+\q1 \v 2 Wash me throughly from mine iniquity, and cleanse me from my sin.
+'''
+    outtext = r'''
+\d \v 1-2 \vp \vp* To the chief Musician, A Psalm of David, when Nathan the prophet came unto him,
+after he had gone in to Bath-sheba.
+\q1 \v 3 \vp 1\vp* Have mercy upon me, O God, according to thy lovingkindness:
+according unto the multitude of thy tender mercies blot out my transgressions.
+\q1 \v 4 \vp 2\vp* Wash me throughly from mine iniquity, and cleanse me from my sin.
+'''
+    cmptest(intext, outtext, 'PSA', 51, 'Reversification', keep=True)

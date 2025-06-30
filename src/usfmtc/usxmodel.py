@@ -709,10 +709,14 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
                 continue
             currc = ref.chapter
             oref = srcvrs.remap(ref, tgtvrs, reverse=reverse)
-            if oref.verse > 0:
+            if oref.first.verse > 0:
                 for e in root[i+1:]:
                     if isptype(e, "versepara"):
-                        newv = e.makeelement("verse", {"style": "v", "number": str(oref.verse)+(oref.subverse or "")})   # , "ssid": str(oref)})
+                        if isinstance(oref, RefRange):
+                            vnum = "{}{}-{}{}".format(oref.first.verse, oref.first.subverse or "", oref.last.verse, oref.last.subverse or "")
+                        else:
+                            vnum = "{}{}".format(oref.verse, oref.subverse or "")
+                        newv = e.makeelement("verse", {"style": "v", "number": vnum})   # , "ssid": str(oref)})
                         if keep:
                             newv.set("pubnumber", "")
                         newv.tail = e.text

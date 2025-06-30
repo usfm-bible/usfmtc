@@ -2,6 +2,7 @@
 import re, os
 from functools import reduce
 from usfmtc.utils import readsrc, get_trace
+from usfmtc.reference import RefRange
 import logging
 
 logger = logging.getLogger(__name__)
@@ -81,9 +82,26 @@ class Versification:
                 versesums = reduce(lambda a, x: (a[0] + [a[1]+x], a[1]+x), verses, ([0], 0))
                 self.vnums[b[0]] = versesums[0]
 
+    def _addOneMapping(self, mapping, left, right):
+        if str(left) in mapping:
+            r = mapping[str(left)]
+            if isinstance(r, RefRange):
+                if right.last < r.first:
+                    r.first = right.first
+                elif right.first > r.last:
+                    r.last = right.last
+            else:
+                if right.last < r:
+                    r = RefRange(right.first, r)
+                else:
+                    r = RefRange(r, right.last)
+                mapping[str(left)] = r
+        else:
+            mapping[str(left)] = right
+
     def _addMapping(self, left, right):
-        self.toorg[str(left)] = right
-        self.fromorg[str(right)] = left
+        self._addOneMapping(self.toorg, left, right)
+        self._addOneMapping(self.fromorg, right, left)
 
     def _makevlist(self, rrange):
         if rrange.first.book != rrange.last.book or rrange.first.chapter != rrange.last.chapter:
