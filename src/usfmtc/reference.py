@@ -786,11 +786,17 @@ class RefList(UserList):
     def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
         res = []
         if sep == ' ':
+            olds = 0
             while len(s[start:].strip()):
                 r = Ref(s, start=start, strict=False)
                 res.append(r)
                 start = r.strend
                 start += len(s[start:]) - len(s[start:].lstrip())
+                while start < len(s) and s[start] in " ,;":
+                    start += 1
+                if start <= olds:
+                    break
+                olds = start
             self.extend(res)
             return
         elif sep is None:
