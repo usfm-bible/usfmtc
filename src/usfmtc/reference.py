@@ -473,9 +473,13 @@ class Ref:
             force = max(1, iniforce)
         if (env is None or not env.nobook) and (force > 1 or neqa(context, self, 'book')):
             res.append(env.localbook(getattr(self, 'book', ""), level=level) if env else getattr(self, 'book', ""))
-            res.append(env.bookspace if env else ' ')
+            sep = env.bookspace if env else ' '
             force = max(2, iniforce)
-        if (env is None or not env.nochap) and getattr(self, 'book', None) not in oneChbooks and (force > 1 or neqa(context, self, 'chapter')):
+        oneChap = getattr(self, 'book', '') in oneChbooks
+        nskipchap = any(getattr(self, a, None) is not None for a in ('chapter', 'verse', 'word'))
+        if (env is None or not env.nochap) and not oneChap and nskipchap and (force > 1 or neqa(context, self, 'chapter')):
+            if len(res):
+                res.append(sep)
             res.append(env.localchapter(getattr(self, 'chapter', 0)) if env else str(getattr(self, 'chapter', 0)))
             sep = env.cvsep if env else ':'
         if getattr(self, 'verse', None) is not None and (force > 1 or neqa(context, self, 'verse')):
@@ -614,6 +618,9 @@ class Ref:
                 r.chapter = 1
         return r
 
+    def allchaps(self):
+        return self
+
     def getword(self, default=0):
         if self.mrkrs is not None and len(self.mrkrs):
             return self.mrkrs[-1].word or default
@@ -729,6 +736,16 @@ class RefRange:
         while r is not None and r <= self.last:
             yield r
             r = r.nextverse()
+
+    def allchaps(self):
+        if self.first.chapter == self.last.chapter:
+            yield self
+        else:
+            yield RefRange(self.first, Ref(book=self.first.book, chapter=self.first.chapter,
+                                           verse=self.first._getmaxvrs(self.first.book, self.first.chapter)))
+            for i in range(self.first.chapter + 1, self.last.chapter):
+                yield Ref(book=self.first.book, chapter=i)
+            yield RefRange(Ref(book=self.last.book, chapter=self.last.chapter, verse=1), self.last)
 
     def copy(self):
         return self.__class__(self.first, self.last)
@@ -855,6 +872,10 @@ class RefList(UserList):
     def allrefs(self):
         for r in self:
             yield from r
+
+    def allchaps(self):
+        for r in self:
+            yield from r.allchaps()
 
 class RefJSONEncoder(json.JSONEncoder):
     def default(self, obj):
