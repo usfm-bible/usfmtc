@@ -15,7 +15,7 @@ def asusfm(root, grammar=None):
 def _dousfm(s, grammar=None, errors=False, version=None):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
     doc.canonicalise()
-    doc.version = "3.1"
+    doc.version = version or "3.1"
     r = doc.getroot()
     et.dump(r)
     if doc.errors is not None and len(doc.errors):
@@ -196,4 +196,18 @@ def test_attribs32():
     doc, f = _dousfm(usfm, version="3.1")
     if r"\cat fred" not in f:
         fail(f"Can't parse front attributes: {f}")
+
+def test_vp():
+    usfm = r"""\id MRK test versepub
+\usfm 3.1
+\c 1
+\p
+\v 1 \vp A\vp* This is a test
+"""
+    doc, f = _dousfm(usfm, version="3.2")
+    if "vp" in f:
+        fail(f"Bad vp in {f}")
+    doc, f = _dousfm(usfm, version="3.1")
+    if "number" in f:
+        fail(f"Bad pubnumber in {f}")
 

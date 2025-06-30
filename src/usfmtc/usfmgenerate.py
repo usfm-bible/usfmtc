@@ -1,6 +1,7 @@
 
 import re
 from usfmtc.reference import Ref
+from usfmtc.usfmparser import WS
 
 def usvout(m):
     u = ord(m.group(1))
@@ -20,15 +21,20 @@ def escaped(s, escapes, reg=None):
         res = re.sub(r'([{}])'.format(escapes), usvout, res)
     return res
 
-def proc_start_ms(el, tag, pref, emit, ws, escapes):
+def proc_start_ms(el, tag, pref, emit, ws, escapes, version):
     if "style" not in el.attrib:
         return
     extra = ""
-    if "altnumber" in el.attrib:
-        extra += " \\{0}a {1}\\{0}a*".format(pref, el.get("altnumber"))
-    if "pubnumber" in el.attrib:
-        extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber"), escapes), "\n" if pref == "c" else "\\"+pref+"p*")
-    emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
+    if version < [3, 2]:
+        if "altnumber" in el.attrib:
+            extra += " \\{0}a {1}\\{0}a*".format(pref, el.get("altnumber"))
+        if "pubnumber" in el.attrib:
+            extra += " \\{0}p {1}{2}".format(pref, escaped(el.get("pubnumber"), escapes), "\n" if pref == "c" else "\\"+pref+"p*")
+        emit("\\{0} {1}{2}{3}".format(el.get("style"), el.get("number"), extra, ws))
+    else:
+        emit("\\{}".format(el.get("style")))
+        append_attribs(el, emit, init=True)
+        emit(" {0}{1}{2}".format(el.get("number"), extra, ws))
 
 excludes = ["style", "status", "title", "caller", "number", "code", "version"]
 
@@ -78,13 +84,19 @@ def iterels(el, events):
     if 'end' in events:
         yield ('end', el)
 
-def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes=""):
     if grammar is None:
         attribmap = {}
         mcats = {}
     else:
         attribmap = grammar.attribmap
         mcats = grammar.marker_categories
+    if version is None:
+        vtext = root.get("version")
+        if vtext:
+            version = [int(x) for x in vtext.split(".")]
+    if version is None:
+        version = [100]
     if version < [3, 2]:
         escapes = ""
     emit = Emitter(outf, escapes)
@@ -97,24 +109,24 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
         if ev == "start":
             if el.tag in paraelements and s != "":
                 if lastel is not None and lastel.tail is not None:
-                    emit(lastel.tail.rstrip(), text=True)
+                    emit(lastel.tail.rstrip(WS), text=True)
                 # emit("\n")
             elif el.tag == "table":
                 if lastel is not None and lastel.tail is not None:
-                    emit(lastel.tail.rstrip(), text=True)
+                    emit(lastel.tail.rstrip(WS), text=True)
             elif lastel is not None:
                 emit(lastel.tail, text=True)
             lastel = None
             prespace = False
             if el.tag == "chapter":
-                proc_start_ms(el, "chapter", "c", emit, "", escapes)
+                proc_start_ms(el, "chapter", "c", emit, "", escapes, version)
                 n = int(el.get("number", 0))
                 if cref is None:
                     cref = Ref(chapter=n)
                 else:
                     cref.chapter = n
             elif el.tag == "verse":
-                proc_start_ms(el, "verse", "v", emit, " ", escapes)
+                proc_start_ms(el, "verse", "v", emit, " ", escapes, version)
                 n = el.get("number", 0)
                 if cref is None:
                     cref = Ref(verse=n)
@@ -130,7 +142,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                                     or cref.verse != r.first.verse:
                         emit(f"\\zsetref|{r}\\*\n")
                     cref = r.last
-                if (el.text is None or not el.text.strip()) and (len(el) and el[0].tag in paraelements):
+                if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):
                     emit("\\{0}\n".format(s))
                 else:
                     emit("\\{0} ".format(s))
@@ -169,7 +181,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
             elif el.tag == "usx":
                 version =  el.get("version", [3,1])
                 if isinstance(version, str):
-                    version = [int(x.strip()) for x in version.split(".")]
+                    version = [int(x.strip(WS)) for x in version.split(".")]
             elif el.tag in ("table", ):
                 pass
             elif el.tag == "periph":
@@ -179,22 +191,22 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=[100], escapes=""):
                 emit("\n")
             else:
                 raise SyntaxError(el.tag)
-            if version >= [3, 2] and el.tag not in ("ms", "note", "sidebar"):
+            if version >= [3, 2] and el.tag not in ("ms", "note", "sidebar", "verse", "chapter"):
                 append_attribs(el, emit, attribmap=attribmap, init=True)
-            if el.text is not None and len(el.text.lstrip()):
+            if el.text is not None and len(el.text.lstrip(WS)):
                 if prespace:
                     emit(" ")
                 if not(len(el)) and prespace:
-                    emit(el.text.strip(), text=True)
+                    emit(el.text.strip(WS), text=True)
                 else:
-                    emit(el.text.lstrip(), text=True)
+                    emit(el.text.lstrip(WS), text=True)
             lastel = None
             lastopen = el
 
         elif ev == "end":
             if el.tag in ("para", "row", "sidebar", "book", "chapter"):
                 if lastel is not None and lastel.tail is not None:
-                    emit(lastel.tail.rstrip(), text=True)
+                    emit(lastel.tail.rstrip(WS), text=True)
                 emit("\n")
             elif lastel is not None and lastel.tail is not None:
                 emit(lastel.tail, text=True)
