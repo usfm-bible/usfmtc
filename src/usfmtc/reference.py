@@ -311,9 +311,13 @@ class Ref:
                 elif not hitlimit:
                     v = getattr(context.last, a, None)
                 setattr(self, a, v)
+            if not hasattr(self, 'strend'):
+                self.strend = context.strend
         else:
             for a in self._parmlist:
                 setattr(self, a, kw.get(a, None))
+            if not hasattr(self, 'strend'):
+                self.strend = 0
         if 'versification' in kw:
             self.versification = kw['versification']
 
@@ -650,6 +654,7 @@ class RefRange:
         self.strict = strict
         self.first = first.first
         self.last = last.last
+        self.strend = first.strend + 1 + last.strend
         if self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
         if isinstance(self.first, RefRange):
@@ -708,10 +713,6 @@ class RefRange:
         """ Tests for entire containment of r inside self """
         return r.first >= self.first and r.last <= self.last
 
-    @property
-    def strend(self):
-        return self.last.strend
-
     def expand(self):
         self.first = self.first.start()
         self.last = self.last.end()
@@ -756,7 +757,7 @@ class RefList(UserList):
                 strict: bool=True, **kw):
         if isinstance(content, (list, tuple, RefList)):
             super().__init__(content)
-        elif isinstance(content, Ref):
+        elif isinstance(content, (Ref, RefRange)):
             super().__init__([content])
         else:
             super().__init__()
