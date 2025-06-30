@@ -459,10 +459,10 @@ class Node:
         
 class IdNode(Node):
     def appendText(self, t):
-        m = regex.match(r"\s*(\S{3})(?:\s+(.*?))?(?:\n|$)", str(t))
+        m = regex.match(r"\s*(\S{3})(?:(.*?))?(?:\n|$)", str(t))
         if m:
             self.element.set('code', m.group(1))
-            self.element.text = m.group(2)
+            self.element.text = m.group(2).strip()
             if self.parser:
                 self.parser.numbers['id'] = m.group(1)
         self.parser.removeTag('id', absentok=True)
