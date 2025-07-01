@@ -255,21 +255,16 @@ class Ref:
     _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
 
     def __new__(cls, string: Optional[str] = None,
-                    context: Optional['Ref'] = None, start: int = 0, **kw):
-        if string is None or ("-" not in string and "," not in string):
+                    context: Optional['Ref'] = None, start: int = -1, **kw):
+        if string is None or start != -1:
             return super().__new__(cls)
-        if "," in string:
-            temp = RefList(string)
-            temp.simplify()
-            if len(temp) != 1:
-                raise SyntaxError(f"Non contiguous ranges in reference {string}")
-            return temp[0]
-        bits = string.split("-", 1)
-        start = Ref(bits[0], context, **kw)
-        if not bits[1]:
-            return start
-        end = Ref(bits[1], start, **kw)
-        return RefRange(start, end)
+        res = RefList(string, context=context, **kw)
+        res.simplify()
+        if len(res) != 1:
+            raise SyntaxError(f"Non contiguous ranges in reference {string}")
+        if res[0].__class__ != cls and not isinstance(res[0], RefRange):
+            return res[0].copy(cls=cls)
+        return res[0]
 
     @classmethod
     def fromBCV(cls, bcv: int) -> "Ref":
@@ -289,18 +284,17 @@ class Ref:
         cls.versification = cached_versification(fname)
         return cls.versification
 
-    def __init__(self, string: Optional[str]=None,
-                    context: Optional['Ref']=None, start:int=0, strict: bool=True, **kw):
+    def __init__(self, s: Optional[str]=None,
+                    context: Optional['Ref']=None, start:int=0, strict: bool=False, fullmatch: bool=False, **kw):
         if getattr(self, 'chapter', None) is not None:     # We were created in __new__ so skip __init__
             return
         self.strict = strict
         self.env = kw.get('env', None)
-        if string is not None:
-            s = string.strip()
-            if strict and not len(s):
+        if s is not None:
+            if fullmatch and not len(s):
                 raise SyntaxError(f"Empty reference string")
             self.parse(s, context=(context.last if context is not None else None), start=start, strict=strict, **kw)
-            if self.strend < len(s) and strict:
+            if self.strend < len(s) and fullmatch:
                 raise SyntaxError(f"Extra content after reference {s[0:self.strend]} | {s[self.strend:]}")
         elif context is not None:
             hitlimit = False
@@ -321,11 +315,11 @@ class Ref:
         if 'versification' in kw:
             self.versification = kw['versification']
 
-    def parse(self, s: str, context: Optional['Ref']=None, start: int=0, strict: bool=True, **kw):
+    def parse(self, s: str, context: Optional['Ref']=None, start: int=0, strict: bool=False, **kw):
         """ Parses a single scripture reference relative to context if given.
             start is an index into the string """
         self.strend = start
-        if s is None or not len(s) or "-" in s:
+        if s is None or not len(s):
             return 
         p = {}
         s = s.strip()
@@ -334,7 +328,7 @@ class Ref:
             p['product'] = m.group('transid') or None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
-            raise SyntaxError("Cannot parse {}".format(s))
+            raise SyntaxError("Cannot parse {}".format(s[start:]))
         gs = m.groupdict()
         p['chapter'] = intend(gs.get('chap', None))
         p['verse'] = intend(gs.get('verse1', gs.get('verse2', None)))
@@ -360,13 +354,13 @@ class Ref:
         if p.get('book', None) in oneChbooks and p['verse'] is None:
             p['verse'] = p['chapter']
             p['chapter'] = 1
-        self.__init__(None, context, **p)
+        self.__init__(None, context, strict=strict, **p)
 
     def parsebook(self, bk, strict:bool=True):
         if self.env is not None:
             return self.env.parsebook(bk)
         bk = bk.upper()     # be kind
-        if strict and not _bookre.match(bk):
+        if strict and not _bookre.match(bk) or len(bk) > 3:
             raise SyntaxError(f"Illegal book name: {bk}")
         return bk
 
@@ -530,12 +524,14 @@ class Ref:
     def last(self):
         return self
 
-    def copy(self):
+    def copy(self, cls=None):
+        if cls is None:
+            cls = self.__class__
         kw = {k: getattr(self, k) for k in self._parmlist}
         if kw.get('mrkrs', None) is not None:
             kw['mrkrs'] = [m.copy() for m in kw['mrkrs']]
         kw['versification'] = self.versification
-        return self.__class__(**kw)
+        return cls(**kw)
 
     def _setall(self, val):
         res = self.copy()
@@ -609,7 +605,7 @@ class Ref:
             if r.book not in books:
                 r.book = "GEN"
                 r.chapter = 1
-            elif r.chapter >= len(self.versification[r.book]):
+            elif self.versification is None or r.chapter >= len(self.versification[r.book]):
                 newbk = books[r.book] + 1
                 while newbk < len(allbooks) and allbooks[newbk] not in books:
                     newbk += 1
@@ -658,11 +654,13 @@ class RefRange:
             return first
         return super().__new__(cls)
 
-    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, strict: bool=True, **kw):
+    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, strict: bool=False, **kw):
         self.strict = strict
         self.first = first.first
         self.last = last.last
         self.strend = first.strend + 1 + last.strend
+        if getattr(self.last, 'book', None) is None:
+            self.last.book = self.first.book
         if self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
         if isinstance(self.first, RefRange):
@@ -748,8 +746,10 @@ class RefRange:
                 yield Ref(book=self.first.book, chapter=i)
             yield RefRange(Ref(book=self.last.book, chapter=self.last.chapter, verse=1), self.last)
 
-    def copy(self):
-        return self.__class__(self.first, self.last)
+    def copy(self, cls=None):
+        if cls is None or not issubclass(cls, RefRange):
+            cls = self.__class__
+        return cls(self.first, self.last)
 
 
 class RefRangeIter:
@@ -772,7 +772,7 @@ class RefRangeIter:
 class RefList(UserList):
     def __init__(self, content: Optional[str | List[Ref | RefRange]] = None,
                 context: Optional[Ref]=None, start: int=0, sep: Optional[str]=None, 
-                strict: bool=True, **kw):
+                strict: bool=False, **kw):
         if isinstance(content, (list, tuple, RefList)):
             super().__init__(content)
         elif isinstance(content, (Ref, RefRange)):
@@ -785,29 +785,29 @@ class RefList(UserList):
 
     def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
         res = []
-        if sep == ' ':
-            olds = 0
-            while len(s[start:].strip()):
-                r = Ref(s, start=start, strict=False)
-                res.append(r)
-                start = r.strend
-                start += len(s[start:]) - len(s[start:].lstrip())
-                while start < len(s) and s[start] in " ,;":
-                    start += 1
-                if start <= olds:
-                    break
-                olds = start
-            self.extend(res)
-            return
-        elif sep is None:
-            sep = ",;"
-        bits = re.split(r"\s*[{}]\s*".format(sep), s[start:].strip())
-        for b in bits:
-            if not len(b):
+        if sep is None or all(x in " ,;" for x in sep):
+            sep = " ,;"
+        start = 0
+        lastr = context
+        inrange = False
+        while start < len(s):
+            if s[start] in sep:
+                start += 1
                 continue
-            r = Ref(b, context=context, **kw)
-            res.append(r)
-            context = r
+            if s[start] == "-":
+                if not len(res) or isinstance(res[-1], RefRange) or res[-1].chapter is None:
+                    raise SyntaxError(f"Bad - in {s} ({s[start:]})")
+                inrange = True
+                start += 1
+                continue
+            r = Ref(s, context=lastr, start=start, fullmatch=False, **kw)
+            if inrange:
+                res[-1] = RefRange(res[-1], r, **kw)
+                inrange = False
+            else:
+                res.append(r)
+            lastr = r
+            start = r.strend
         self.extend(res)
 
     def __str__(self):
