@@ -4,14 +4,6 @@ import usfmtc
 import xml.etree.ElementTree as et
 import re, io
 
-def asusfm(root, grammar=None):
-    if grammar is None:
-        grammar = usfmtc.Grammar()
-    with io.StringIO() as fh:
-        usfmtc.usx2usfm(fh, root, grammar)
-        res = fh.getvalue()
-    return res
-
 def _dousfm(s, grammar=None, errors=False, version=None):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
     doc.canonicalise()
@@ -23,7 +15,7 @@ def _dousfm(s, grammar=None, errors=False, version=None):
         print("\n".join(["{0} at {2} pos {1}".format(*e) for e in doc.errors]))
         if not errors:
             fail("Unexpected parser errors encountered")
-    f = asusfm(r, grammar=grammar)
+    f = doc.outUsfm(None)
     print(f)
     return (doc, f)
 
