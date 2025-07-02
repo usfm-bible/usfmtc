@@ -236,6 +236,8 @@ class USX:
         return "\n".join(res)
 
     def reversify(self, srcvrs, tgtvrs, **kw):
+        """ Change versification of this text from the srcvrs object to the
+            tgtvrs object: e.g. Versification("eng.vrs") """
         if srcvrs is None:
             srcvrs, tgtvrs = tgtvrs, srcvrs
             rev = True
@@ -269,6 +271,7 @@ class USX:
             self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
 
     def canonicalise(self, version=None):
+        """ Canonicalises the text especially with regard to whitespace """
         canonicalise(self.getroot(), version=version)
 
     def addesids(self):
@@ -276,6 +279,8 @@ class USX:
         addesids(self.xml)
 
     def addindexes(self):
+        """ Creates self.chapter a list of chapter nodes and self.ids, a
+            dictionary of ids to nodes (e.g. "a.intro") """
         self.chapters, self.ids = addindexes(self.xml)
 
     @property
