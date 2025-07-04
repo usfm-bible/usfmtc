@@ -821,7 +821,7 @@ class RefList(UserList):
                     res.append(",")
                 else:
                     res.append("; ")
-            res.append(r.str(context, force=force, **kw))
+            res.append(r.str(context, force=force, env=env, **kw))
             context = r.last
         return "".join(res)
 
