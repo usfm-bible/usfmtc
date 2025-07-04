@@ -19,6 +19,9 @@ class Pos:
     def __repr__(self):
         return f"Pos({self.l}:{self.c})"
 
+    def copy(self):
+        return self.__class__(self.l, self.c, **self.kw)
+
 class Tag(str):
     def __new__(cls, s, l=0, c=0, **kw):
         isend = False
@@ -512,6 +515,8 @@ class NumberNode(Node):
             b = regex.split(r"\s+", str(t).lstrip(WS), 1)
             v = b[0].strip(WS)
             if v[0] not in "0123456789":
+                epos = self.element.pos.copy()
+                epos.c += 2
                 self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", self.element.pos)
             if len(v):
                 self.element.set('number', v)
@@ -662,7 +667,7 @@ class USFMParser:
     def error(self, e, msg, pos):
         self.errors.append((msg, pos, self.cvref()))
         if self.strict:
-            raise e(f"{self.cvref()}: {msg} at line {pos.l}, char {pos.c}")
+            raise e(f"{self.cvref()}: {msg} at line {pos.l + 1}, char {pos.c + 1}")
 
     def removeParser(self, n):
         if n in self.stack:
