@@ -203,3 +203,10 @@ def test_vp():
     if "number" in f:
         fail(f"Bad pubnumber in {f}")
 
+def test_badverse():
+    usfm = r"""\id MAT bad verse
+\c 1
+\p
+\v Here is the genealogy
+"""
+    doc, f = _dousfm(usfm, errors=True)

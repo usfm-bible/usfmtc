@@ -512,7 +512,7 @@ class NumberNode(Node):
             b = regex.split(r"\s+", str(t).lstrip(WS), 1)
             v = b[0].strip(WS)
             if v[0] not in "0123456789":
-                self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", self.pos)
+                self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", self.element.pos)
             if len(v):
                 self.element.set('number', v)
                 self.hasarg = True
