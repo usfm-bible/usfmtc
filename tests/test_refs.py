@@ -408,3 +408,9 @@ def test_reflistcomma():
     if len(r) != 4:
         fail(f"{r} should have 4 books in it")
 
+def test_refbidi():
+    r = Ref("GEN 1:22\u200F-23")
+    if r.sep != "\u200F-" or "\u200F" not in str(r):
+        fail(f"{r} should contain bidi control")
+
+

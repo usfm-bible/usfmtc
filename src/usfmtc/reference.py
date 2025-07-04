@@ -659,6 +659,8 @@ class RefRange:
         self.first = first.first
         self.last = last.last
         self.strend = first.strend + 1 + last.strend
+        if 'sep' in kw:
+            self.sep = kw['sep']
         if getattr(self.last, 'book', None) is None:
             self.last.book = self.first.book
         if self.last < self.first:
@@ -680,7 +682,7 @@ class RefRange:
 
     def str(self, context:Optional[Ref]=None, force:int=0, level:int=-1, env:Optional[Environment]=None):
         res = [self.first.str(context, force=force)]
-        res.append("-")
+        res.append(getattr(self, 'sep', "-"))
         res.append(self.last.str(self.first, force=force))
         return "".join(res)
 
@@ -794,15 +796,16 @@ class RefList(UserList):
             if s[start] in sep:
                 start += 1
                 continue
-            if s[start] == "-":
+            if (m := re.match("[\u200F\u200E]?-[\u200F\u200E]?", s[start:])):
+                rangesep = m.group(0)
                 if not len(res) or isinstance(res[-1], RefRange) or res[-1].chapter is None:
                     raise SyntaxError(f"Bad - in {s} ({s[start:]})")
                 inrange = True
-                start += 1
+                start += len(rangesep)
                 continue
             r = Ref(s, context=lastr, start=start, fullmatch=False, **kw)
             if inrange:
-                res[-1] = RefRange(res[-1], r, **kw)
+                res[-1] = RefRange(res[-1], r, sep=rangesep, **kw) if rangesep != "-" else RefRange(res[-1], r, **kw)
                 inrange = False
             else:
                 res.append(r)
