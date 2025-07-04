@@ -517,7 +517,7 @@ class NumberNode(Node):
             if v[0] not in "0123456789":
                 epos = self.element.pos.copy()
                 epos.c += 2
-                self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", self.element.pos)
+                self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", epos)
             if len(v):
                 self.element.set('number', v)
                 self.hasarg = True
