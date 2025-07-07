@@ -84,7 +84,7 @@ def iterels(el, events):
     if 'end' in events:
         yield ('end', el)
 
-def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes=""):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **kw):
     if grammar is None:
         attribmap = {}
         mcats = {}
