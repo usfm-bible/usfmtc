@@ -10,7 +10,8 @@ def usxtousj(input_usx):
     output: dict object as per the JSON schema'''
     output_json, _ = convert_usx(input_usx)
     output_json['type'] = SPEC_NAME
-    output_json['version'] = VERSION_NUM
+    if 'version' not in output_json:
+        output_json['version'] = VERSION_NUM
     return output_json
 
 def convert_usx(input_usx_elmt):
@@ -37,7 +38,7 @@ def convert_usx(input_usx_elmt):
     if tag:
         out_obj["marker"] = tag
     out_obj =  out_obj | attribs
-    if input_usx_elmt.text and input_usx_elmt.text.strip() != "":
+    if input_usx_elmt.text: # and input_usx_elmt.text.strip() != "":
         text = input_usx_elmt.text
     out_obj['content'] = []
     if text:
@@ -63,15 +64,22 @@ def usjtousx(adict, elfactory=None):
     if elfactory is None:
         elfactory = ParentElement       # Needed for adding esid_s. Or use lxml
     root = elfactory('usx')
-    root.set('version', '3.1')
+    # root.set('version', '3.1')
+    last_node = None
     for item in adict['content']:
-        convert_usj(item, root, elfactory)
+        if isinstance(item, str):
+            if last_node is None:
+                root.text = (root.text or "") + item
+            else:
+                last_node.tail = (last_node.tail or "") + item
+        else:
+            last_node = convert_usj(item, root, elfactory)
     return root
 
 def convert_usj(json_node, usx_head, elfactory):
     ntype = json_node['type'].replace('table:', '')
     new_node = elfactory(ntype, parent=usx_head)
-    parent.append(new_node)
+    usx_head.append(new_node)
     if 'marker' in json_node:
         new_node.set('style', json_node['marker'])
     for k, v in json_node.items():
@@ -86,3 +94,4 @@ def convert_usj(json_node, usx_head, elfactory):
                     new_node[-1].tail = item
             else:
                 convert_usj(item, new_node, elfactory)
+    return new_node

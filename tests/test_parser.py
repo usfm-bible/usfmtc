@@ -1,8 +1,9 @@
 import pytest
 from pytest import fail
 import usfmtc
+from usfmtc.usxmodel import etCmp
 import xml.etree.ElementTree as et
-import re, io
+import re, json
 
 def _dousfm(s, grammar=None, errors=False, version=None):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
@@ -15,6 +16,13 @@ def _dousfm(s, grammar=None, errors=False, version=None):
         print("\n".join(["{0} at {2} pos {1}".format(*e) for e in doc.errors]))
         if not errors:
             fail("Unexpected parser errors encountered")
+    j = doc.outUsj(None)
+    js = json.dumps(j, indent=2, ensure_ascii=False)
+    tj = usfmtc.readFile(js, informat="usj", grammar=grammar)
+    if not etCmp(r, tj.getroot(), verbose=True):
+        print(j)
+        breakpoint()
+        fail(f"USJ did not round trip")
     f = doc.outUsfm(None)
     print(f)
     return (doc, f)
