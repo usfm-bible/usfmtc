@@ -380,7 +380,7 @@ def main(hookcli=None, hookusx=None):
             args.outformat = _filetypes.get(ext.lower(), None)
     ingrammar = None
     outgrammar = None
-    if args.informat.startswith("usfm") or args.outformat.startswith("usfm"):
+    if (args.informat and args.informat.startswith("usfm")) or (args.outformat and args.outformat.startswith("usfm")):
         if args.validate and args.grammar is None:
             doerror(f"A validating parser generator requires a --grammar RNG file")
             return
