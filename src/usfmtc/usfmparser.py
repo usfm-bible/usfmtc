@@ -359,6 +359,7 @@ class Grammar:
         res = self.__class__(quick=True)
         for a in ('marker_categories', 'attribmap', 'attributes'):
             setattr(res, a, getattr(self, a))
+        return res
 
     def readmrkrs(self, fname):
         sfm = SFMFile(fname)
