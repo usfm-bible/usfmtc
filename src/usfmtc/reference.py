@@ -787,8 +787,8 @@ class RefList(UserList):
 
     def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
         res = []
-        if sep is None or all(x in " ,;" for x in sep):
-            sep = " ,;"
+        if sep is None or all(x in "\n\t\r ,;" for x in sep):
+            sep = "\n\r\t ,;"
         start = 0
         lastr = context
         inrange = False

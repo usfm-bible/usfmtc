@@ -162,6 +162,9 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **
             elif el.tag == "unmatched":
                 emit("\\" + el.get("style", " "))
             elif el.tag == "figure":
+                if (v := el.get("file", None)) is not None:
+                    del el.attrib["file"]
+                    el.set("src", v)
                 emit("\\{} ".format(s))
             elif el.tag == "cell":
                 if "colspan" in el.attrib:
