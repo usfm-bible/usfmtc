@@ -335,7 +335,9 @@ class Grammar:
 
     tagre = regex.compile(r"(^t[hc][cr]?\d+)[-_^].*|(.)[_^].*$")
 
-    def __init__(self):
+    def __init__(self, quick=False):
+        if quick:
+            return
         self.marker_categories = self.marker_categories.copy()
         self.attribmap = self.attribmap.copy()
         self.attributes = {}
@@ -352,6 +354,11 @@ class Grammar:
             if k in self.attributes and v in self.attributes[k]:
                 continue
             self.attributes.setdefault(k, []).append(v+"?")
+
+    def copy(self):
+        res = self.__class__(quick=True)
+        for a in ('marker_categories', 'attribmap', 'attributes'):
+            setattr(res, a, getattr(self, a))
 
     def readmrkrs(self, fname):
         sfm = SFMFile(fname)

@@ -328,7 +328,7 @@ class Ref:
             p['product'] = m.group('transid') or None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
-            raise SyntaxError("Cannot parse {}".format(s[start:]))
+            raise SyntaxError("Cannot parse reference '{}'".format(s[start:]))
         gs = m.groupdict()
         p['chapter'] = intend(gs.get('chap', None))
         p['verse'] = intend(gs.get('verse1', gs.get('verse2', None)))
