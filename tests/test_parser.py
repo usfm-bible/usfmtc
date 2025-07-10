@@ -218,3 +218,13 @@ def test_badverse():
 \v Here is the genealogy
 """
     doc, f = _dousfm(usfm, errors=True)
+
+def test_periph():
+    usfm = r"""\id FRT testing periph
+\periph Title Page|id="title"
+\p This is a test
+"""
+    doc, f = _dousfm(usfm)
+    if not doc.getroot()[1].get("id", None):
+        fail(f"Bad periph {f}")
+
