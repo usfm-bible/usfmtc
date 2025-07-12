@@ -680,10 +680,10 @@ class RefRange:
                 raise AttributeError(f"RefRange unequal values for {a}. {f} != {l}")
         raise AttributeError(f"RefRange unknown attribute {a}")
 
-    def str(self, context:Optional[Ref]=None, force:int=0, level:int=-1, env:Optional[Environment]=None):
-        res = [self.first.str(context, force=force)]
+    def str(self, context:Optional[Ref]=None, **kw):
+        res = [self.first.str(context, **kw)]
         res.append(getattr(self, 'sep', "-"))
-        res.append(self.last.str(self.first, force=force))
+        res.append(self.last.str(self.first, **kw))
         return "".join(res)
 
     def __str__(self):
