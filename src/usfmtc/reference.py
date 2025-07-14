@@ -533,18 +533,22 @@ class Ref:
         kw['versification'] = self.versification
         return cls(**kw)
 
-    def _setall(self, val):
+    def _setall(self, val, stopat=None):
         res = self.copy()
         for a in ('chapter', 'verse', 'word', 'char'):
             if getattr(self, a, None) is None:
                 setattr(res, a, val)
+            if a == stopat:
+                break
         return res
 
-    def end(self):
+    def end(self, verseonly=True):
+        ''' Returns the last reference in the given reference. verseonly limits
+            the result to the verse, otherwise goes to character '''
         if self.last is not self:
             self.last = self.last.end()
             return self.last
-        res = self._setall(-1)
+        res = self._setall(-1, stopat="verse" if verseonly else None)
         if res.chapter == -1:
             vrs = self.versification or Ref.loadversification()
             vbk = vrs[bk]
@@ -554,14 +558,17 @@ class Ref:
             res.verse = self._getmaxvrs(self.book, self.chapter)
         return res
 
-    def start(self):
+    def start(self, verseonly=True):
+        ''' Returns the first reference in the reference. verseonly limits
+            the result to the verse, otherwise goes to the chapter '''
         if self.first is not self:
             self.first = start(self.first)
             return self.first
-        return self._setall(1)
+        return self._setall(1, stopat="verse" if verseonly else None)
 
-    def expand(self):
-        return RefRange(self.start(), self.end())
+    def expand(self, verseonly=True):
+        ''' Returns a RefRange of the first and last in the reference '''
+        return RefRange(self.start(verseonly=verseonly), self.end(verseonly=verseonly))
 
     def _getmaxvrs(self, bk, chap):
         """ Returns the maximum verse for the book and chapter in this versification """
@@ -587,16 +594,16 @@ class Ref:
         book = vrs[self.book]
         if book is None or len(book) <= self.chapter:
             return False
-        if book[self.chapter] < self.verse:
+        if book[self.chapter] - book[self.chapter-1] < self.verse:
             return False
         # checking subverse, word and char involves having access to the document
         return True
 
-    def nextverse(self):
+    def nextverse(self, after=False):
         r = self.first.copy()
         maxvrs = self._getmaxvrs(r.book, r.chapter)
         if r.verse is None:
-            r.verse = 1
+            r.verse = maxvrs + 1 if after else 1
         else:
             r.verse += 1
         if r.verse > maxvrs:
@@ -849,7 +856,7 @@ class RefList(UserList):
                     r.last = Ref(book=r.first.book, chapter=r.first.chapter)
                 else:
                     r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter))
-            n = lastref.last.nextverse()
+            n = lastref.last.nextverse(after=True)
             if lastref.first < t <= lastref.last:
                 t = n
             if t > u:

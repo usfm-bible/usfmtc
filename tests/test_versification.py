@@ -37,7 +37,7 @@ def test_engmapr1():
         fail(f"{r} remaps to {res} instead of ISA 64:3")
 
 def test_maprange():
-    r = Ref("ISA 9:1-9:4")
+    r = Ref("ISA 9:1-4")
     res = engvrs.remap(r, None)
     if str(res) != "ISA 8:23-9:3":
         fail(f"{r} remaps to {res} instead of ISA 8:23-9:3")

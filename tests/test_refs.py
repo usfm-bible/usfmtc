@@ -413,4 +413,28 @@ def test_refbidi():
     if r.sep != "\u200F-" or "\u200F" not in str(r):
         fail(f"{r} should contain bidi control")
 
+def test_reflistref():
+    r = Ref("GEN 1:1-20,13,19")
+    print(r)
+    if r.last != Ref("GEN 1:20"):
+        fail(f"{r} is not GEN 1:1-20")
 
+def test_reflistsimplify():
+    r = RefList("JHN 3:16 GEN 1:1, PSA 23 ISA 53 PSA 23:1")
+    r.simplify()
+    print(r)
+    if len(r) != 4 or r[1].first.verse is not None or r[1].first != r[1].last:
+        fail(f"{r} is not simple")
+
+def test_isvalid():
+    r = Ref("PSA 23:10")
+    if r.isvalid():
+        fail(f"{r} should not be valid")
+
+def test_subdoc1():
+    res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True)
+    et.dump(res.xml)
+    f = res.outUsfm(None)
+    print(f)
+    if "Acts 27:13-26" not in f and "zsetref|JON 4:9" not in f:
+        fail(f"{f} does not contain section heads or the right material")

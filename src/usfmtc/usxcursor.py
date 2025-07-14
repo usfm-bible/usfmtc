@@ -239,8 +239,12 @@ class USXCursor:
         elref = ref.copy()
         if elref.mrkrs and len(elref.mrkrs):
             elref.mrkrs = elref.mrkrs[:mrkri]
-        elref.setword(None)
-        elref.setchar(None)
+        if atend:
+            elref.last.setword(None)
+            elref.last.setchar(None)
+        else:
+            elref.first.setword(None)
+            elref.first.setchar(None)
         word = ref.mrkrs[mrkri-1].word if mrkri > 0 else ref.word
         char = ref.mrkrs[mrkri-1].char if mrkri > 0 else ref.char
         if word is not None or char is not None:
@@ -268,7 +272,7 @@ class USXCursor:
             return v
         return None
 
-    def copy_range(self, root, b, addintro=False, skiptest=None):
+    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, grammar=None):
         ''' Returns a usx document containing paragraphs containing the content
             include a through not including b '''
         a = self
@@ -304,6 +308,16 @@ class USXCursor:
                 break
             # Got the first verse element
             elif curr is root and isin and eloc.tag not in ("para", "book", "sidebar"):
+                if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == 0:  # are we first?
+                    r = eloc.parent.parent  # should be root
+                    i = r.index(eloc.parent) - 1
+                    while i > 0 and r[i].tag == "para" \
+                            and grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara":
+                        i -= 1
+                    i += 1
+                    for j in range(i, r.index(eloc.parent)):
+                        newp = r[j].copy(deep=True, parent=currp, factory=factory)
+                        currp.append(newp)
                 newp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
                 if 'vid' not in eloc.parent.attrib and 'vid' in eloc.attrib:
                     newp.set('vid', eloc.get('vid', ''))
