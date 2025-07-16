@@ -135,6 +135,14 @@ def parse_wordref(s: str) -> Tuple[int, Optional[str]]:
     char = "+" + b[1] if len(b) > 1 else None
     return (word, char)
 
+def parseverse(s: str) -> Tuple[int, Optional[str]]:
+    if s is None:
+        return (None, None)
+    m = re.match(r"^(\d+)(\S*)$", s.strip())
+    if m is not None:
+        return (int(m.group(1)), m.group(2))
+    raise SyntaxError(f"Badly structured verse: {s}")
+
 _reindex = re.compile(r"([0-9a-z_-]+)(?:\[([0-9]+\]))?")
 def asmarkers(s: str, t: str) -> List[MarkerRef]:
     res = []
@@ -309,7 +317,12 @@ class Ref:
                 self.strend = context.strend
         else:
             for a in self._parmlist:
-                setattr(self, a, kw.get(a, None))
+                v = kw.get(a, None)
+                if a == "verse" and v is not None and not isinstance(v, int):
+                    (v, subverse) = parseverse(v)
+                    if subverse and kw.get('subverse', None) is None:
+                        kw['subverse'] = subverse
+                setattr(self, a, v)
             if not hasattr(self, 'strend'):
                 self.strend = 0
         if 'versification' in kw:
@@ -446,13 +459,13 @@ class Ref:
         return RefRangeIter(self)
 
     def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None,
-            level: Optional[int] = -1):
+            level: Optional[int] = -1, start:str = "book"):
         def neqa(c, s, a):
             if getattr(s, a, None) is None:
                 return False
             if getattr(c, a, None) is None:
                 return True
-            return getattr(c, a) != getattr(s, a)
+            return getattr(c, a) != getattr(s, a) or a == start
         if env is None:
             env = getattr(self, 'env', None)
         iniforce = force
@@ -480,6 +493,8 @@ class Ref:
         if getattr(self, 'verse', None) is not None and (force > 1 or neqa(context, self, 'verse')):
             if len(res):
                 res.append(sep)
+            elif start == "verse" and env:
+                res.append(env.verseid)
             res.append(env.localverse(getattr(self, 'verse', 0)) if env else strend(getattr(self, 'verse', 0)))
             res.append(getattr(self, 'subverse', '') or "")
             force = max(2, iniforce)
@@ -690,6 +705,7 @@ class RefRange:
     def str(self, context:Optional[Ref]=None, **kw):
         res = [self.first.str(context, **kw)]
         res.append(getattr(self, 'sep', "-"))
+        kw['start'] = ''
         res.append(self.last.str(self.first, **kw))
         return "".join(res)
 
@@ -823,16 +839,17 @@ class RefList(UserList):
     def __str__(self):
         return self.str()
 
-    def str(self, context: Optional[Ref] = None, force: int = 0, env: Optional['Environment'] = None, **kw):
+    def str(self, context: Optional[Ref] = None, force: int = 0, env: Optional['Environment'] = None, nosep=True, **kw):
         res = []
-        for r in self:
-            if context is not None:
+        for i, r in enumerate(self):
+            if (not nosep or i > 0) and context is not None:
                 if context.last.book == r.first.book and context.last.chapter == r.first.chapter:
                     res.append(",")
                 else:
                     res.append("; ")
             res.append(r.str(context, force=force, env=env, **kw))
             context = r.last
+            kw['start'] = ""
         return "".join(res)
 
     def __getattr__(self, a):
