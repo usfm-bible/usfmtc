@@ -430,7 +430,7 @@ def main(hookcli=None, hookusx=None):
         if reflist is not None:
             book = usxdoc.book
             bkrefs = [r for r in reflist if r.first.book == book]
-            usxdoc = usxdoc.getrefs(*bkrefs, addintro=args.intro)
+            usxdoc = usxdoc.getrefs(*bkrefs, addintro=args.intro, headers=True)
             
         if hookusx is not None:
             hookusx(usxdoc, args)

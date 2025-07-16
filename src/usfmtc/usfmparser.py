@@ -673,6 +673,8 @@ class USFMParser:
 
 
     def error(self, e, msg, pos):
+        if pos is None:
+            pos = Pos(-1, -1)
         self.errors.append((msg, pos, self.cvref()))
         if self.strict:
             raise e(f"{self.cvref()}: {msg} at line {pos.l + 1}, char {pos.c + 1}")

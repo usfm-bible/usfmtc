@@ -629,7 +629,7 @@ class Ref:
             if r.book not in books:
                 r.book = "GEN"
                 r.chapter = 1
-            elif self.versification is None or r.chapter >= len(self.versification[r.book]):
+            elif self.versification is None or r.chapter >= len(self.versification[r.book] or []):
                 newbk = books[r.book] + 1
                 while newbk < len(allbooks) and allbooks[newbk] not in books:
                     newbk += 1
