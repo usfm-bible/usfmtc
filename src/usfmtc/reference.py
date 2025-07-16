@@ -398,6 +398,8 @@ class Ref:
         return res
 
     def __contains__(self, o):
+        if o is None:
+            return False
         if isinstance(o, RefRange):
             end = self.end()
             return o.first >= self and o.last <= end
