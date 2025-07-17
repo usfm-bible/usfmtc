@@ -161,9 +161,10 @@ def _stripws(s, atend=False):
 
 def cleanup(node, parent=None):
     if node.tag == 'para':
-        # cleanup specials and spaces
+        # cleanup spaces at start and end of para
         i = -1
-        if len(node) and node[i].tag == 'verse' and node[i].get('eid', None) is not None:
+        # eid nodes are invisible for final space removal
+        if len(node) and node[i].tag == 'verse' and node[i].get('eid', None) is not None and isempty(node[i].tail):
             i -= 1
         node.text = _stripws(node.text)
         if len(node) >= -i:
@@ -185,10 +186,12 @@ def cleanup(node, parent=None):
                 if i < len(bits) and len(bits[i]):
                     node.set(a, bits[i].strip(WS))
             del node.attrib["_unknown_"]
+        # switch @src to @file for USX
         src = node.get("src", None)
         if src is not None:
             del node.attrib['src']
             node.set('file', src)
+    # convert cell range markers into colspans
     elif node.tag == "cell":
         s = node.get("style", "")
         if "-" in s:
@@ -201,6 +204,7 @@ def cleanup(node, parent=None):
         celltype = re.sub(r"^t(.*?)\d.*$", r"\1", s)
         node.set("align", alignments.get(celltype, "start"))
     elif node.tag == "char":
+        # \xt John 3:16|href="JHN 3:16"\xt* -> \ref John 3:16|loc="JHN 3:16" gen="true"\ref*
         if node.get('style', '') == "xt" and ('href' in node.attrib or 'link-href' in node.attrib) \
                 and (len(node) != 1 or node.text is not None or node[0].tag != 'ref'):
             refnode = node.__class__('ref', attrib=dict(loc=node.get('href', node.get('link-href', '')), gen="true"))
@@ -209,6 +213,7 @@ def cleanup(node, parent=None):
             node[:] = [refnode]
             node.text = None
             node = refnode
+    # strip character escapes
     for k, v in node.attrib.items():
         node.attrib[k] = re.sub(r"\\(.)", r"\1", v)
     for c in node:
@@ -226,7 +231,7 @@ unescapes = {
     "&amp;": '&',
     "&lt;": '<',
     "&gt;": '>',
-    "&quot;": '"',      #'
+    "&quot;": '"',      #' keep vim happy
     "&apos;": "'"
 }
 
@@ -319,8 +324,8 @@ def listWithoutChapterVerseEnds(node):
             nodeList.append(child)
     return nodeList
 
-def etCmp(a, b, at=None, bt=None, verbose=False, endofpara=False):
-    """ Compares two nodes for debug purposes """
+def etCmp(a, b, at=None, bt=None, verbose=False, endofpara=False, print=print):
+    """ Compares two nodes for debug purposes. Prints any differences of interest. """
     aattrib = attribnorm(a.attrib)
     battrib = attribnorm(b.attrib)
     if a.tag != b.tag or aattrib != battrib:
@@ -412,7 +417,7 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
                     return (started, True)
                 elif test(root, True):
                     yield root, True
-        roots = list(root) if parindex is None else root[parindex:]
+        roots = root[:] if parindex is None else root[parindex:]
         finished = False
         for c in roots:
             if not len(blocks) or ((category(c.get('style', '')) in blocks) ^ (not unblocks)):
@@ -664,7 +669,6 @@ def _insertoblink(linkloc, tag, linfo):
         newel.parent = el.parent
         el.parent.insert(el.parent.index(el)+1, newel)
 
-
 def _getref(e, book, lastchap=0):
     refstr = e.get("sid", None)
     if refstr is None:
@@ -792,5 +796,3 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
         root.remove(c)
     for c in results:
         root.append(c)
-
-

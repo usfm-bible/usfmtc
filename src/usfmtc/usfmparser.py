@@ -744,8 +744,8 @@ class USFMParser:
     def cvref(self):
         vals = [self.numbers.get(x, '') for x in ("id", "c", "v")]
         return "{} {}:{}".format(*vals)
-#### Event methods
 
+#### Event methods
     def _c(self, tag):
         self.removeType(paratypes, paratags)
         return self.addNode(NumberNode(self, "chapter", str(tag), ispara=True, pos=tag.pos))

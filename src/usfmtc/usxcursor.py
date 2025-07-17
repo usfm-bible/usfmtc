@@ -307,7 +307,7 @@ class USXCursor(ETCursor):
             res = cls(el, " text", -1 if atend else 0)
         return res
 
-    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, grammar=None, factory=None):
+    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, chapters=False, grammar=None, factory=None):
         ''' Returns a usx document root containing paragraphs containing the content
             up to but not including USXCursor b '''
         a = self
@@ -355,8 +355,8 @@ class USXCursor(ETCursor):
                     r = eloc.parent.parent  # should be root
                     i = r.index(eloc.parent) - 1
                     # scan back over section heads
-                    while i > 0 and r[i].tag == "para" \
-                            and grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara":
+                    while i > 0 and ((chapters and r[i].tag == "chapter") or \
+                            (r[i].tag == "para" and grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara")):
                         i -= 1
                     i += 1
                     # copy all the section heads
@@ -388,6 +388,11 @@ class USXCursor(ETCursor):
             last = res[-1]
             if last.tag in ("para", "book", "sidebar") and not len(last) and isempty(last.text):
                 res.remove(last)
+        for i in range(len(res) - 1, -1, -1):
+            if res[i].tag == "para" and grammar.marker_categories.get(res[i].get("style", None), "") == "sectionpara":
+                res.remove(res[i])
+            else:
+                break
         return res
 
     def copy_text(self, root, b):
@@ -406,3 +411,4 @@ class USXCursor(ETCursor):
             if t:
                 res.append(t)
         return "".join(res)
+

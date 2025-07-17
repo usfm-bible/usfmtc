@@ -231,3 +231,4 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **
                     emit("\\usfm {}\n".format(".".join([str(x) for x in version])))
             lastel = el
     return lastel
+

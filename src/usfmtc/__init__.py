@@ -16,7 +16,7 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
@@ -212,7 +212,7 @@ class USX:
             end = USXCursor.fromRef(r.last, self, atend=True, skiptest=skiptest)
             yield start, end, r
 
-    def getrefs(self, *refs, addintro=False, skiptest=None, headers=False):
+    def getrefs(self, *refs, addintro=False, skiptest=None, headers=False, chapters=False):
         """ Returns a doc containing paragraphs of the contents of each reference.
             skiptest is a fn to test whether text in the marker does not cause
             a word break. addintro includes material before chapter 1. headers includes
@@ -220,11 +220,13 @@ class USX:
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
         for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
-            subdoc = start.copy_range(root, end, addintro=(addintro and not i), headers=headers, grammar=self.grammar)
+            subdoc = start.copy_range(root, end, addintro=(addintro and not i), headers=headers, chapters=chapters, grammar=self.grammar)
             if len(subdoc):
                 subdoc[0].set("vid", str(r.first))
-                res.extend(list(subdoc))
-        return self.__class__(res)
+                for e in subdoc:
+                    e.parent = res
+                    res.append(e)
+        return self.__class__(res, grammar=self.grammar)
 
     def gettext(self, *refs, skiptest=None):
         """ Returns the text of each reference one per line. skiptest is a fn
@@ -235,6 +237,9 @@ class USX:
             text = start.copy_text(root, end)
             res.append(text)
         return "\n".join(res)
+
+    def iterusx(self, **kw):
+        return iterusx(self.getroot(), **kw)
 
     def reversify(self, srcvrs, tgtvrs, **kw):
         """ Change versification of this text from the srcvrs object to the
