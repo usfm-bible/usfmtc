@@ -128,7 +128,7 @@ def test_getrefs():
     res = jon_usfm.getrefs(*refs)
     root = res.getroot()
     print(res.outUsfm())
-    if len(root) != 14 or root[0].get("vid", "") != "JON 1:3":
+    if len(root) != 12 or root[0].get("vid", "") != "JON 1:3":
         fail(f"{len(root)=}")
 
 def test_textref1():
@@ -233,7 +233,7 @@ def test_multiple_ranges():
     root = res.getroot()
     et.dump(root)
 
-    if len(root) != 11 or root[0].get("vid", "") != "JON 1:1":
+    if len(root) != 9 or root[0].get("vid", "") != "JON 1:1":
         fail(f"Incorrect range extraction: {len(root)=}")
 
 def test_chapter_only_range():
@@ -437,3 +437,11 @@ def test_subdoc1():
     print(f)
     if "Acts 27:13-26" not in f and "zsetref|JON 4:9" not in f:
         fail(f"{f} does not contain section heads or the right material")
+
+def test_finalv():
+    res = jon_usfm.getrefs(Ref("JON 1:17"))
+    et.dump(res.xml)
+    f = res.outUsfm(None)
+    print(f)
+    if "\\c" in f:
+        fail(f"{f} contains more than text")

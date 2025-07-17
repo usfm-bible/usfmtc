@@ -145,6 +145,9 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             parindex += 1
         while parindex < len(root):
             n = root[parindex]
+            if n.tag == "chapter":
+                el = n
+                break
             el = _findel(n, "verse", {"number": lambda n:testverse(str(v), n)}, limits=("chapter",))
             if el is not None:
                 break
