@@ -2,7 +2,46 @@
 from usfmtc.usxmodel import iterusx, iterusxref
 from usfmtc.xmlutils import isempty
 from usfmtc.reference import MarkerRef
+from dataclasses import dataclass
+import xml.etree.ElementTree as et
+from typing import Optional
 import re
+
+@dataclass
+class ETCursor:
+    el: et.Element
+    attrib: str | bool
+    char: int
+
+    def istail(self):
+        ''' Are we referencing the tail text of the element? '''
+        return self.attrib == " tail"
+
+    def istext(self):
+        ''' Are we referencing the text in the element? '''
+        return self.attrib == " text"
+
+    def text(self, el):
+        ''' Returns the textual element of el of self, ignoring char '''
+        if self.istext():
+            return self.el.text
+        elif self.istail():
+            return self.el.tail
+        elif (v := self.el.get(self.attrib, None)) is not None:
+            return v
+        return None
+
+    def textin(self, other, eloc, isin):
+        ''' Returns the text between self and other (exclusive) given whether
+            the text is in or after element eloc '''
+        t = eloc.text if isin else eloc.tail
+        start = 0; end = len(t) if t else 0
+        if eloc == self.el and self.istext() == isin:
+            start = self.char
+        if eloc == other.el and other.istext() == isin:
+            end = other.char
+        return t[start:end] if t else t
+
 
 def testverse(v:str, verse:str) -> bool:
     if v == verse:
@@ -68,7 +107,8 @@ def _scanel(refmrkr, usx, parindex, rend=None, verseonly=False):
 def _findcvel(ref, usx, atend=False, parindex=0):
     ''' Returns an element and mrkr index for a reference in a document. If atend
         _findcvel will return the element containing the endpoint or if that is at
-        the end of the elment, the next element. '''
+        the end of the elment, the next element. parindex speeds up the hunt for the
+        chapter.'''
     resm = 0
     if ref.book:
         if ref.book is not None and usx.book != ref.book:
@@ -76,7 +116,9 @@ def _findcvel(ref, usx, atend=False, parindex=0):
     root = usx.getroot()
     c = ref.chapter
     foundend = False
-    if c is not None and c > 0:     # find a parindex for the given chapter
+
+    # find a parindex for the given chapter
+    if c is not None and c > 0:
         for pari, el in enumerate(root[parindex:], start=parindex):
             if el.tag == "chapter" and int(el.get('number', 0)) == c:
                 parindex = pari
@@ -92,7 +134,9 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             else:
                 parindex = len(root)
     v = ref.verse
-    if v is not None and v != "end" and vint(v) > 0:     # scan for verse
+
+    # scan for verse. Verses always have paragraphs as their parent
+    if v is not None and v != "end" and vint(v) > 0:
         if atend:
             parindex = startparindex + 1
             if not ref.mrkrs and ref.word is None and ref.char is None:
@@ -112,6 +156,8 @@ def _findcvel(ref, usx, atend=False, parindex=0):
                 parindex -= 1
                 el = root[parindex]
     else:
+        if parindex >= len(root):
+            breakpoint()
         el = root[parindex]
 
     # found el for basic C:V now for any !markers at the verse level
@@ -125,7 +171,7 @@ def _findcvel(ref, usx, atend=False, parindex=0):
                 catt = usx.grammar.marker_categories.get(t, "")
                 if catt == "sectionpara":       # we are looking for a sectionpara
                     parindex -= 1
-                    while parindex > 0:         # scan for start of sectionparas
+                    while parindex > 0:         # scan backwards for start of sectionparas
                         el = root[parindex]
                         if el.tag == "para":
                             s = el.get("style", "")
@@ -134,11 +180,11 @@ def _findcvel(ref, usx, atend=False, parindex=0):
                         else:
                             break
                         parindex -= 1
-                    # now scan forward for given para
+                    # now scan forwards for given para
                     el, parindex = _scanel(ref.mrkrs[resm], usx, parindex+1, rend=oparindex)
-                elif 'para' in catt or catt in ("introduction", "title"):
+                elif 'para' in catt or catt in ("introduction", "title"):   # introductions
                     el, parindex = _scanel(ref.mrkrs[resm], usx, parindex+1, verseonly=True)
-                elif catt in ("footnote", "crossreference", "char") and ref.word is None and ref.char is None:
+                elif catt in ("footnote", "crossreference", "char") and ref.word is None and ref.char is None:  # a note
                     tag = {"footnote": "note", "crossreference": "note", "char": "char"}[catt]
                     el = _findel(root, tag, {"style": t}, limits=("verse", "chapter"), parindex=parindex, count=ref.mrkrs[resm].index, start=el)
                 else:
@@ -152,9 +198,9 @@ def _findcvel(ref, usx, atend=False, parindex=0):
     return el, resm
 
 def _findtextref(ref, el, cls, atend=False, mrkri=-1, startref=None, skiptest=None):
-    ''' Given a verse element, searches within it for the word and char parts of
+    ''' Given an element containing the ref, searches within it for the word and char parts of
         a reference. ref can be a list of ref if mrkri==0. atend causes the return
-        to be to the last character of the reference. '''
+        to be one past the last character of the reference. '''
     if el is None:
         return el
     if mrkri > 0:
@@ -204,9 +250,9 @@ def _findtextref(ref, el, cls, atend=False, mrkri=-1, startref=None, skiptest=No
                 islast = True
         elif windex == len(b) - 1:
             islast = True
-        # print(f"{cref.first=}, {cref.last=}, {r=} {windex=}, {w=}, {c=}")
         res = cls(eloc, a, w+c)
-        # look for a following marker
+
+        # look for a following marker if there are any
         if ref.mrkrs is not None and len(ref.mrkrs) > mrkri:
             m = ref.mrkrs[mrkri]
             if not islast:
@@ -231,10 +277,14 @@ def _findtextref(ref, el, cls, atend=False, mrkri=-1, startref=None, skiptest=No
         return res
 
 
-class USXCursor:
+class USXCursor(ETCursor):
 
     @classmethod
     def fromRef(cls, ref, usx, atend=False, parindex=0, skiptest=None):
+        ''' Returns a cursor for the given ref in the usx file. atend indicates
+            that this is a final cursor, which is exclusive (so beyond the
+            given ref). parindex speeds up the hunt by skipping paragraphs.
+            skiptest is a function to say whether this element causes a word break. '''
         el, mrkri = _findcvel(ref, usx, atend=atend, parindex=parindex)
         elref = ref.copy()
         if elref.mrkrs and len(elref.mrkrs):
@@ -257,26 +307,12 @@ class USXCursor:
             res = cls(el, " text", -1 if atend else 0)
         return res
 
-    def __init__(self, el, attrib, char, pindex=None):
-        self.el = el
-        self.attrib = attrib
-        self.char = char
-        self.pindex = pindex
-
-    def text(self):
-        if self.attrib == " text":
-            return self.el.text
-        elif self.attrib == " tail":
-            return self.el.tail
-        elif (v := self.el.get(self.attrib, None)) is not None:
-            return v
-        return None
-
-    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, grammar=None):
-        ''' Returns a usx document containing paragraphs containing the content
-            include a through not including b '''
+    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, grammar=None, factory=None):
+        ''' Returns a usx document root containing paragraphs containing the content
+            up to but not including USXCursor b '''
         a = self
-        factory = root.__class__
+        if factory is None:
+            factory = root.__class__
         if a.el not in root:
             p = a.el.parent
             while p not in root:
@@ -289,7 +325,13 @@ class USXCursor:
         currp = res
         curr = root
         if addintro:
-            for eloc, isin in iterusx(root, until=lambda e:e.tag=="chapter"):
+            def ismaintext(e):
+                if e.tag == "chapter":
+                    return True
+                s = e.get("style", "")
+                return grammar.marker_categories.get(s, "") in ("versepara", "sectionpara")
+            # copy the tree up to the first chapter or verse text
+            for eloc, isin in iterusx(root, until=ismaintext):
                 if isin:
                     newp = factory(eloc.tag, attrib=eloc.attrib, parent=currp)
                     newp.text = eloc.text
@@ -306,35 +348,38 @@ class USXCursor:
         for eloc, isin in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
             if isin and eloc == b.el:
                 break
-            # Got the first verse element
-            elif curr is root and isin and eloc.tag not in ("para", "book", "sidebar"):
+            # at the start
+            elif isin and eloc == a.el and eloc.tag not in ("para", "book", "sidebar"):
+                # if we are at the start of the parent (para, since a verse is always only in a para) check for subheadings
                 if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == 0:  # are we first?
                     r = eloc.parent.parent  # should be root
                     i = r.index(eloc.parent) - 1
+                    # scan back over section heads
                     while i > 0 and r[i].tag == "para" \
                             and grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara":
                         i -= 1
                     i += 1
+                    # copy all the section heads
                     for j in range(i, r.index(eloc.parent)):
                         newp = r[j].copy(deep=True, parent=currp, factory=factory)
                         currp.append(newp)
-                newp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
+                outp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
                 if 'vid' not in eloc.parent.attrib and 'vid' in eloc.attrib:
-                    newp.set('vid', eloc.get('vid', ''))
-                currp.append(newp)
-                currp = newp
+                    outp.set('vid', eloc.get('vid', ''))
+                currp.append(outp)
+                currp = outp
                 curr = eloc
 
-            # copy the tree
+            # now always copy the element
             if isin:
                 newp = factory(eloc.tag, attrib=eloc.attrib, parent=currp)
-                newp.text = eloc.text
+                newp.text = a.textin(b, eloc, isin)
                 currp.append(newp)
                 currp = newp
                 curr = eloc
             # after the element so grab the tail and go up in the hierarchy
             elif eloc == curr:
-                currp.tail = eloc.tail
+                currp.tail = a.textin(b, eloc, isin)
                 currp = currp.parent
                 curr = curr.parent if curr is not None else root
             else:
@@ -346,7 +391,7 @@ class USXCursor:
         return res
 
     def copy_text(self, root, b):
-        ''' Returns a text string of all the main text between a and b '''
+        ''' Returns a text string of all the main text between self and b (exclusive)'''
         a = self
         res = []
         if a.el not in root:
@@ -357,26 +402,7 @@ class USXCursor:
             p = a.el
         i = list(root).index(p)
         for eloc, isin in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
-            if isin:
-                if not isempty(eloc.text):
-                    start = 0; end = len(eloc.text)
-                    if eloc == a.el:
-                        if a.attrib == " text":
-                            start = a.char
-                    if eloc == b.el:
-                        if b.attrib == " text":
-                            end = b.char
-                    res.append(eloc.text[start:end])
-            elif eloc == a.el and a.attrib == " tail":
-                res.append(eloc.tail[a.char:])
-            elif eloc == b.el and b.attrib == " tail":
-                pass
-            elif not isempty(eloc.tail):
-                res.append(eloc.tail)
-        if not len(res) and a.attrib == " tail":
-            start = a.char
-        else:
-            start = 0
-        if b.attrib == " tail":
-            res.append(b.el.tail[start:b.char])
+            t = a.textin(b, eloc, isin)
+            if t:
+                res.append(t)
         return "".join(res)

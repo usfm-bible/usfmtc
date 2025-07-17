@@ -417,10 +417,12 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
         for c in roots:
             if not len(blocks) or ((category(c.get('style', '')) in blocks) ^ (not unblocks)):
                 started, finished = yield from runiter(c, started=started)
-            if finished or (started and untilafter and untilfn(c)):
+            if finished:
                 return (started, True)
             if started and test(c, False):
                 yield c, False
+            if (started and untilafter and untilfn(c)):
+                return (started, True)
         return (started, False)
 
     yield from runiter(root, parindex=parindex, started=start is None)

@@ -136,7 +136,7 @@ def test_textref1():
     res = jon_usfm.gettext(r)
     print(res)
     if res != "who cling to":
-        fail(f"{res}")
+        fail(f"Text not found. Got '{res}'")
 
 def test_gen1():
     _t("GEN 1:1", _r("GEN", 1, 1))
@@ -314,21 +314,20 @@ def test_multiple_chapters():
 def test_partial_verse():
     r = Ref("JON 3:10!1-4")
     res = jon_usfm.gettext(r)
-
     if "God" not in res:
-        fail("Partial verse not extracted correctly")
+        fail(f"Partial verse not extracted correctly. Got '{res}'")
 
 def test_ref_with_extra_text():
     try:
         r = Ref("JON 3:10abc")
-        fail("Reference with extra text did not raise an error")
+        fail(f"Reference {r} with extra text did not raise an error")
     except SyntaxError:
         pass
 
 def test_range_with_negative_chapter():
     try:
         r = Ref("JON -1:5")
-        fail("Negative chapter did not raise an error")
+        fail(f"Negative chapter did not raise an error. Got {r}")
     except SyntaxError:
         pass
 
