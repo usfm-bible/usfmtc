@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=62.0", "wheel", "setuptools-scm>=8"]
+requires = ["setuptools>=62.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -37,6 +37,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 usfmtc = ["*.rng", "*.vrs"]
+
+#[tool.setuptools.data-files]
+#"" = ["tests/*.usfm"]
 
 [tool.setuptools.dynamic]
 # version = {attr = "usfmtc.version"}
