@@ -74,14 +74,14 @@ def _o(a, b, res):
     print("{} <-> {} ({})".format(x, y,restupd))
 
 def _do_findreftest(ref):
-    res = jon_usfm.getrefs(ref).xml
+    res = jon_usfm.getrefs(ref, titles=False).xml
     et.dump(res)
     print(asusfm(res))
     if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
         fail(f"{len(res)=}, {res[-1][-1].tail=}")
 
 def _type_test(srange, ref, text):
-    tdoc = jon_usfm.getrefs(srange)
+    tdoc = jon_usfm.getrefs(srange, titles=False)
     loc = USXCursor(ref, tdoc)
     tdoc.insert_text(loc, text)
     return tdoc
@@ -125,7 +125,7 @@ def test_findref2():
 
 def test_getrefs():
     refs = RefList("JON 1:3; 2:4-5; 3:9-end")
-    res = jon_usfm.getrefs(*refs)
+    res = jon_usfm.getrefs(*refs, titles=False)
     root = res.getroot()
     print(res.outUsfm())
     if len(root) != 12 or root[0].get("vid", "") != "JON 1:3":
@@ -229,7 +229,7 @@ def test_textref_boundary():
 
 def test_multiple_ranges():
     refs = RefList("JON 1:1-3; 2:4; 3:8-end")
-    res = jon_usfm.getrefs(*refs)
+    res = jon_usfm.getrefs(*refs, titles=False)
     root = res.getroot()
     et.dump(root)
 
@@ -431,7 +431,7 @@ def test_isvalid():
         fail(f"{r} should not be valid")
 
 def test_subdoc1():
-    res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True)
+    res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True, titles=False)
     et.dump(res.xml)
     f = res.outUsfm(None)
     print(f)
@@ -439,7 +439,7 @@ def test_subdoc1():
         fail(f"{f} does not contain section heads or the right material")
 
 def test_finalv():
-    res = jon_usfm.getrefs(Ref("JON 1:17"))
+    res = jon_usfm.getrefs(Ref("JON 1:17"), titles=False)
     et.dump(res.xml)
     f = res.outUsfm(None)
     print(f)

@@ -318,7 +318,7 @@ class USXCursor(ETCursor):
             res = cls(el, " text", -1 if atend else 0)
         return res
 
-    def copy_range(self, root, b, addintro=False, skiptest=None, headers=True, chapters=True, grammar=None, factory=None):
+    def copy_range(self, root, b, addintro=False, skiptest=None, titles=True, headers=True, chapters=True, grammar=None, factory=None):
         ''' Returns a usx document root containing paragraphs containing the content
             up to but not including USXCursor b '''
         a = self
@@ -335,14 +335,15 @@ class USXCursor(ETCursor):
         res = factory(root.tag, attrib=root.attrib)
         currp = res
         curr = root
-        if addintro:
-            def ismaintext(e):
+        if addintro or titles:
+            categories = ["versepara", "sectionpara"] + ["introduction"] if not addintro else []
+            def isendintro(e):
                 if e.tag == "chapter":
                     return True
                 s = e.get("style", "")
-                return grammar.marker_categories.get(s, "") in ("versepara", "sectionpara")
+                return grammar.marker_categories.get(s, "") in categories
             # copy the tree up to the first chapter or verse text
-            for eloc, isin in iterusx(root, until=ismaintext):
+            for eloc, isin in iterusx(root, until=isendintro):
                 if isin:
                     newp = factory(eloc.tag, attrib=eloc.attrib, parent=currp)
                     newp.text = eloc.text
