@@ -129,7 +129,7 @@ def test_getrefs():
     root = res.getroot()
     print(res.outUsfm())
     print(res.outUsx())
-    if len(root) != 17 or root[0].get("vid", "") != "JON 1:3":
+    if len(root) != 17 or root[5].get("vid", "") != "JON 1:3":
         fail(f"{len(root)=}")
 
 def test_textref1():
@@ -234,7 +234,7 @@ def test_multiple_ranges():
     root = res.getroot()
     et.dump(root)
 
-    if len(root) != 12 or root[0].get("vid", "") != "JON 1:1":
+    if len(root) != 12 or root[3].get("vid", "") != "JON 1:1":
         fail(f"Incorrect range extraction: {len(root)=}")
 
 def test_chapter_only_range():

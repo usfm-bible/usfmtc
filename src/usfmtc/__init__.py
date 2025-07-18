@@ -214,7 +214,7 @@ class USX:
             end = USXCursor.fromRef(r.last, self, atend=True, skiptest=skiptest)
             yield start, end, r
 
-    def getrefs(self, *refs, addintro=False, titles=True, skiptest=None, headers=True, chapters=True):
+    def getrefs(self, *refs, addintro=False, titles=True, skiptest=None, headers=True, chapters=True, vid=None):
         """ Returns a doc containing paragraphs of the contents of each reference.
             skiptest is a fn to test whether text in the marker does not cause
             a word break. addintro includes material before chapter 1. headers includes
@@ -225,10 +225,9 @@ class USX:
         books = set()
         for i, (start, end, r) in enumerate(self._procrefs(*refs, skiptest=skiptest)):
             subdoc = start.copy_range(root, end, addintro=(addintro and r.first.book not in books),
-                                      titles=titles and not i, headers=headers,
+                                      titles=titles and not i, headers=headers, vid=r.first,
                                       chapters=chapters, grammar=self.grammar)
             if len(subdoc):
-                subdoc[0].set("vid", str(r.first))
                 for e in subdoc:
                     e.parent = res
                     res.append(e)

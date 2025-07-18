@@ -318,7 +318,8 @@ class USXCursor(ETCursor):
             res = cls(el, " text", -1 if atend else 0)
         return res
 
-    def copy_range(self, root, b, addintro=False, skiptest=None, titles=True, headers=True, chapters=True, grammar=None, factory=None):
+    def copy_range(self, root, b, addintro=False, skiptest=None, titles=True, headers=True,
+                                  chapters=True, vid=None, grammar=None, factory=None):
         ''' Returns a usx document root containing paragraphs containing the content
             up to but not including USXCursor b '''
         a = self
@@ -370,8 +371,8 @@ class USXCursor(ETCursor):
                         newp = r[j].copy(deep=True, parent=currp, factory=factory)
                         currp.append(newp)
                 outp = factory(eloc.parent.tag, attrib=eloc.parent.attrib, parent=currp)
-                if 'vid' not in eloc.parent.attrib and 'vid' in eloc.attrib:
-                    outp.set('vid', eloc.get('vid', ''))
+                if 'vid' not in eloc.parent.attrib:
+                    outp.set('vid', eloc.get('vid', vid.str() if vid is not None else ''))
                 currp.append(outp)
                 currp = outp
                 curr = eloc
