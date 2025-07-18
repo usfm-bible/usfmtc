@@ -124,11 +124,12 @@ def test_findref2():
     _do_findreftest(ref)
 
 def test_getrefs():
-    refs = RefList("JON 1:3; 2:4-5; 3:9-end")
-    res = jon_usfm.getrefs(*refs, titles=False)
+    refs = list(RefList("JON 1:3; 2:4-5; 3:9-end"))
+    res = jon_usfm.getrefs(*refs)
     root = res.getroot()
     print(res.outUsfm())
-    if len(root) != 12 or root[0].get("vid", "") != "JON 1:3":
+    print(res.outUsx())
+    if len(root) != 17 or root[0].get("vid", "") != "JON 1:3":
         fail(f"{len(root)=}")
 
 def test_textref1():

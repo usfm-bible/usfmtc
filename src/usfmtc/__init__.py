@@ -222,14 +222,17 @@ class USX:
             says whether to include preceding chapter at the start of a range if v 1. """
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
-        for (start, end, r) in self._procrefs(*refs, skiptest=skiptest):
-            subdoc = start.copy_range(root, end, addintro=(addintro and r.first.chapter == 1),
-                                      titles=titles, headers=headers, chapters=chapters, grammar=self.grammar)
+        books = set()
+        for i, (start, end, r) in enumerate(self._procrefs(*refs, skiptest=skiptest)):
+            subdoc = start.copy_range(root, end, addintro=(addintro and r.first.book not in books),
+                                      titles=titles and not i, headers=headers,
+                                      chapters=chapters, grammar=self.grammar)
             if len(subdoc):
                 subdoc[0].set("vid", str(r.first))
                 for e in subdoc:
                     e.parent = res
                     res.append(e)
+            books.add(r.first.book)
         return self.__class__(res, grammar=self.grammar)
 
     def gettext(self, *refs, skiptest=None):

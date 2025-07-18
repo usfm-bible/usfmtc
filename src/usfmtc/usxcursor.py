@@ -336,24 +336,18 @@ class USXCursor(ETCursor):
         currp = res
         curr = root
         if addintro or titles:
-            categories = ["versepara", "sectionpara"] + ["introduction"] if not addintro else []
+            categories = ["versepara", "sectionpara"] + ["title", "introduction"] if not addintro else []
             def isendintro(e):
                 if e.tag == "chapter":
                     return True
                 s = e.get("style", "")
                 return grammar.marker_categories.get(s, "") in categories
             # copy the tree up to the first chapter or verse text
-            for eloc, isin in iterusx(root, until=isendintro):
-                if isin:
-                    newp = factory(eloc.tag, attrib=eloc.attrib, parent=currp)
-                    newp.text = eloc.text
-                    currp.append(newp)
-                    currp = newp
-                    curr = eloc.parent
-                elif eloc == curr:
-                    currp.tail = eloc.tail
-                    currp = currp.parent
-                    curr = curr.parent if curr is not None else root
+            for eloc in root:
+                if isendintro(eloc):
+                    break
+                newp = eloc.copy(deep=True, parent=currp, factory=factory)
+                currp.append(newp)
             curr = root
             currp = res
 
