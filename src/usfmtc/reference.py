@@ -38,10 +38,10 @@ _allbooks = ["FRT", "INT",
             "MAT", "MRK", "LUK", "JHN", "ACT", "ROM", "1CO", "2CO", "GAL", "EPH", "PHP",
             "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM", "HEB", "JAS", "1PE", "2PE",
             "1JN", "2JN", "3JN", "JUD", "REV", 
-            "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG", "XXS",
+            "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG", "XXM", "XXS",
             "GLO", "TDX", "NDX", "CNC", "OTH", "BAK"]
 
-nonScriptureBooks = ["FRT", "INT", "GLO", "TDX", "NDX", "CNC", "OTH", "BAK", "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG"]
+nonScriptureBooks = ["FRT", "INT", "GLO", "TDX", "NDX", "CNC", "OTH", "BAK", "XXA", "XXB", "XXC", "XXD", "XXE", "XXF", "XXG", "XXM", "XXS"]
 
 def booknum(bookcode):
     if len(bookcode):
