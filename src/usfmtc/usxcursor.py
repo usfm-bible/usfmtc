@@ -165,9 +165,10 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             else:
                 parindex -= 1
                 el = root[parindex]
+    elif parindex >= len(root):
+        el = root[-1]
+        return el, 0
     else:
-        if parindex >= len(root):
-            breakpoint()
         el = root[parindex]
 
     # found el for basic C:V now for any !markers at the verse level
@@ -317,7 +318,7 @@ class USXCursor(ETCursor):
             res = cls(el, " text", -1 if atend else 0)
         return res
 
-    def copy_range(self, root, b, addintro=False, skiptest=None, headers=False, chapters=False, grammar=None, factory=None):
+    def copy_range(self, root, b, addintro=False, skiptest=None, headers=True, chapters=True, grammar=None, factory=None):
         ''' Returns a usx document root containing paragraphs containing the content
             up to but not including USXCursor b '''
         a = self

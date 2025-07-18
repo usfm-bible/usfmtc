@@ -4,7 +4,7 @@ import io
 from usfmtc import readFile, usx2usfm
 from usfmtc.usxmodel import getlinkages, insertlinkages
 from usfmtc.usfmparser import Grammar
-from usfmtc.reference import Ref
+from usfmtc.reference import Ref, RefList
 import xml.etree.ElementTree as et
 
 grammar = Grammar()
@@ -132,4 +132,36 @@ def test_link_intro():
                 ('002', 'unk') : "PHM 0!im[3]!10",
                 ('003', 'unk') : "PHM 0!io1[2]!1-3"
                   })
+
+def test_getrefspsa():
+    usfm = r'''\id PSA - Pukapuka Bible
+\c 43
+\s E tatakunga ki te Atua i te vāia tūngayala
+\r (Te wakayawenga o te Talamo 42)
+\q1
+\v 1 E toku Atua ē, wakatika mai koe kāe oku takayala,
+\q2 wakamamata koe i toku tū tautonu ki te wenua atuakole nei.
+\q2 Wakaola ake au mai te kau vativati ma te waiva kikino nei.
+\c 44
+\s E tatakunga kē paletuangia te wenua
+\d Ki te wakayaele yīmene, ko nā tama a \w Kola\w* na watua.
+\q1
+\v 1 E te Atua ē, na langona e o~mātou talinga,
+\q2 na tala mai oki e o~mātou mātutua tupuna
+\q1 au wī yanga nā wai i tō lātou vāia,
+\q2 i nā ayo o \w Uwikelé|Uwikele\w*.
+\c 45
+\s E yīmene wakaaonga nō te aliki
+\d Ki te wakayaele yīmene, ko nā tama a \w Kola\w* na watua ki te tiūnu, “Ko nā tiale lili.”
+\q1
+\v 1 Na kamuloa toku ngākau ngalepu wua i te manatunga lelei nei
+\q2 kē watu au e yikunga yīmene mō te aliki;
+\q1 ko toku alelo nei kaina loa te pēni a te kovi na mākalo e te tuti.
+'''
+    usxdoc = readFile(usfm, informat="usfm")
+    refs = RefList("GEN 1; PSA 44-45")
+    subdoc = usxdoc.getrefs(*refs)
+    f = subdoc.outUsfm(None)
+    if "\\d" not in f:
+        fail(f"Missing \\d in {f}")
 

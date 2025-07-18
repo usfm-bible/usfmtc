@@ -233,7 +233,7 @@ def test_multiple_ranges():
     root = res.getroot()
     et.dump(root)
 
-    if len(root) != 9 or root[0].get("vid", "") != "JON 1:1":
+    if len(root) != 12 or root[0].get("vid", "") != "JON 1:1":
         fail(f"Incorrect range extraction: {len(root)=}")
 
 def test_chapter_only_range():
