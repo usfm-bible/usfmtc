@@ -34,6 +34,13 @@ class ETCursor:
     def textin(self, other, eloc, isin):
         ''' Returns the text between self and other (exclusive) given whether
             the text is in or after element eloc '''
+        if not self.attrib.startswith(" "):
+            t = eloc.get(self.attrib, "")
+            start = self.char
+            end = len(t)
+            if other.attrib == self.attrib:
+                end = other.char
+            return t[start:end]
         t = eloc.text if isin else eloc.tail
         start = 0; end = len(t) if t else 0
         if eloc == self.el and self.istext() == isin:
