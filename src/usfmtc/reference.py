@@ -616,7 +616,7 @@ class Ref:
         # checking subverse, word and char involves having access to the document
         return True
 
-    def nextverse(self, after=False):
+    def nextverse(self, after=False, thisbook=False):
         r = self.first.copy()
         maxvrs = self._getmaxvrs(r.book, r.chapter)
         if r.verse is None:
@@ -629,7 +629,7 @@ class Ref:
             if r.book not in books:
                 r.book = "GEN"
                 r.chapter = 1
-            elif self.versification is None or r.chapter >= len(self.versification[r.book] or []):
+            elif not thisbook and (self.versification is None or r.chapter >= len(self.versification[r.book] or [])):
                 newbk = books[r.book] + 1
                 while newbk < len(allbooks) and allbooks[newbk] not in books:
                     newbk += 1
@@ -778,6 +778,22 @@ class RefRange:
             cls = self.__class__
         return cls(self.first, self.last)
 
+    def expandBooks(self):
+        ''' Return a list of Refs and RefRanges such that no result spans more
+            than one book '''
+        def nextbook(bk):
+            try:
+                return allbooks[books[bk]+1]
+            except IndexError:
+                return None
+
+        book = self.first.book
+        res = [self.__class__(self.first, self.first.__class__(book=book, chapter=chaps[book], verse=-1))]
+        while book is not None and book != self.last.book:
+            res.append(self.first.__class__(book=book))
+        res.append(self.__class__(self.first.__class__(book=book, chapter=1, verse=1), self.last))
+        return res
+
 
 class RefRangeIter:
 
@@ -829,8 +845,12 @@ class RefList(UserList):
                 start += len(rangesep)
                 continue
             r = Ref(s, context=lastr, start=start, fullmatch=False, **kw)
+            if r.first.book != r.last.book:
+                res.extend(r.expandBooks())
             if inrange:
                 res[-1] = RefRange(res[-1], r, sep=rangesep, **kw) if rangesep != "-" else RefRange(res[-1], r, **kw)
+                if res[-1].first.book != res[-1].last.book:
+                    res[-1:] = res[-1].expandBooks()
                 inrange = False
             else:
                 res.append(r)
@@ -861,7 +881,7 @@ class RefList(UserList):
             return getattr(self[0], a)
         raise AttributeError(f"Bad attribute {a} or missing references [{len(self)}]")
 
-    def simplify(self, sort=True):
+    def simplify(self, sort=True, bookranges=False):
         res = []
         lastref = Ref()
         temp = []
@@ -875,7 +895,7 @@ class RefList(UserList):
                     r.last = Ref(book=r.first.book, chapter=r.first.chapter)
                 else:
                     r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter))
-            n = lastref.last.nextverse(after=True)
+            n = lastref.last.nextverse(after=True, thisbook = not bookranges)
             if lastref.first < t <= lastref.last:
                 t = n
             if t > u:
