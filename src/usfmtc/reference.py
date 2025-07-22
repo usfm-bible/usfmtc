@@ -59,7 +59,7 @@ books = dict((b.split("|")[0], i) for i, b in enumerate(_bookslist.split()) if b
 bookcodes = dict((b.split("|")[0], "{:02d}".format(i+1)) for i, b in enumerate(_bookslist.split()[:99]) if b[-2:] != "|0")
 bookcodes.update(_endBkCodes)
 booknumbers = {k: booknum(v) for k, v in bookcodes.items()}
-chaps = dict(b.split("|") for b in _bookslist.split())
+chaps = {b.split("|")[0]:int(b.split("|")[1]) for b in _bookslist.split()}
 oneChbooks = [b.split("|")[0] for b in _bookslist.split() if b[-2:] == "|1"]
 
 
