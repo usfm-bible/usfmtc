@@ -9,7 +9,7 @@ from collections import UserList
 _bookslist = """GEN|50 EXO|40 LEV|27 NUM|36 DEU|34 JOS|24 JDG|21 RUT|4 1SA|31
         2SA|24 1KI|22 2KI|25 1CH|29 2CH|36 EZR|10 NEH|13 EST|10 JOB|42 PSA|150
         PRO|31 ECC|12 SNG|8 ISA|66 JER|52 LAM|5 EZK|48 DAN|12 HOS|14 JOL|3 AMO|9
-        OBA|1 JON|4 MIC|7 NAM|3 HAB|3 ZEP|3 HAG|2 ZEC|14 MAL|4 
+        OBA|1 JON|4 MIC|7 NAM|3 HAB|3 ZEP|3 HAG|2 ZEC|14 MAL|4 ZZZ|0
         MAT|28 MRK|16 LUK|24 JHN|21 ACT|28 ROM|16 1CO|16 2CO|13 GAL|6 EPH|6 PHP|4
         COL|4 1TH|5 2TH|3 1TI|6 2TI|4 TIT|3 PHM|1 HEB|13 JAS|5 1PE|5 2PE|3 1JN|5
         2JN|1 3JN|1 JUD|1 REV|22
@@ -54,7 +54,7 @@ def booknum(bookcode):
 
 _allbkmap = {k: i for i, k in enumerate(_allbooks)} 
 
-allbooks = [b.split("|")[0] for b in _bookslist.split()] # if b != "ZZZ|0"]
+allbooks = [b.split("|")[0] for b in _bookslist.split() if b != "ZZZ|0"]
 books = dict((b.split("|")[0], i) for i, b in enumerate(_bookslist.split()) if b[-2:] != "|0")
 bookcodes = dict((b.split("|")[0], "{:02d}".format(i+1)) for i, b in enumerate(_bookslist.split()[:99]) if b[-2:] != "|0")
 bookcodes.update(_endBkCodes)
@@ -217,6 +217,7 @@ class Environment:
     end: str = "end"
     nobook: bool = False
     nochap: bool = False
+    titlecase: bool = True
     __allfields__ = "booksep chapsep versesep cvsep bookspace rangemk sep verseid end nobook nochap".split()
 
     def __init__(self, **kw):
@@ -224,7 +225,7 @@ class Environment:
             setattr(self, k, v)
 
     def localbook(self, bk: str, level: Optional[int] = -1) -> str:
-        return bk
+        return bk.title()
 
     def localchapter(self, c: int) -> str:
         return str(c)
@@ -617,6 +618,10 @@ class Ref:
         return True
 
     def nextverse(self, after=False, thisbook=False):
+        """ Returns the reference following this. If after is set then return
+            the reference after the known value (e.g. "GEN" returns "EXO 1:1")
+            otherwise return the first ref in reference (GEN 1:1). thisbook
+            being set means not to return a reference outside this book. """
         r = self.first.copy()
         maxvrs = self._getmaxvrs(r.book, r.chapter)
         if r.verse is None:
@@ -624,7 +629,11 @@ class Ref:
         else:
             r.verse += 1
         if r.verse > maxvrs:
-            r.chapter = (r.chapter + 1) if r.chapter is not None else 1
+            if not self.versification or self.versification == "Loading":
+                maxchap = 200
+            else:
+                maxchap = len(self.versification[r.book] or [])
+            r.chapter = (r.chapter + 1) if r.chapter is not None else maxchap+1 if after else 1
             r.verse = 1
             if r.book not in books:
                 r.book = "GEN"
@@ -791,6 +800,7 @@ class RefRange:
         res = [self.__class__(self.first, self.first.__class__(book=book, chapter=chaps[book], verse=-1))]
         while book is not None and book != self.last.book:
             res.append(self.first.__class__(book=book))
+            book = nextbook(book)
         res.append(self.__class__(self.first.__class__(book=book, chapter=1, verse=1), self.last))
         return res
 
@@ -826,7 +836,7 @@ class RefList(UserList):
                 self.parse(content, context, start=start, sep=sep, strict=strict, **kw)
         self.strict = strict
 
-    def parse(self, s: str, context: Optional[Ref] = None, start: int = 0, sep: Optional[str] = None, **kw):
+    def parse(self, s: str, context:Ref=None, start:int=0, sep:str=None, bookranges:bool=False, **kw):
         res = []
         if sep is None or all(x in "\n\t\r ,;" for x in sep):
             sep = "\n\r\t ,;"
@@ -845,11 +855,11 @@ class RefList(UserList):
                 start += len(rangesep)
                 continue
             r = Ref(s, context=lastr, start=start, fullmatch=False, **kw)
-            if r.first.book != r.last.book:
+            if not bookranges and r.first.book != r.last.book:
                 res.extend(r.expandBooks())
             if inrange:
                 res[-1] = RefRange(res[-1], r, sep=rangesep, **kw) if rangesep != "-" else RefRange(res[-1], r, **kw)
-                if res[-1].first.book != res[-1].last.book:
+                if not bookranges and res[-1].first.book != res[-1].last.book:
                     res[-1:] = res[-1].expandBooks()
                 inrange = False
             else:

@@ -211,7 +211,7 @@ def test_invalid_ref():
         pass
 
 def test_cross_book_range():
-    r = Ref("JON 3:10 - MIC 1:2")
+    r = Ref("JON 3:10 - MIC 1:2", bookranges=True)
     if not check_ref(r.first, None, "JON", 3, 10):
         fail(f"{r.first} is not JON 3:10")
     if not check_ref(r.last, None, "MIC", 1, 2):
@@ -446,3 +446,12 @@ def test_finalv():
     print(f)
     if "\\c" in f:
         fail(f"{f} contains more than text")
+
+def test_booklist():
+    r = RefList("GEN EXO LEV NUM PSA")
+    r.simplify()
+    if len(r) != 5:
+        fail(f"{r} doesn't have 19 books")
+    r.simplify(bookranges=True)
+    if len(r) != 2:
+        fail(f"{r} should have 2 elements")
