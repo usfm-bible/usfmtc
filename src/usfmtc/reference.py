@@ -217,7 +217,7 @@ class Environment:
     end: str = "end"
     nobook: bool = False
     nochap: bool = False
-    titlecase: bool = True
+    titlecase: bool = False
     __allfields__ = "booksep chapsep versesep cvsep bookspace rangemk sep verseid end nobook nochap".split()
 
     def __init__(self, **kw):
@@ -225,7 +225,7 @@ class Environment:
             setattr(self, k, v)
 
     def localbook(self, bk: str, level: Optional[int] = -1) -> str:
-        return bk.title()
+        return bk.title() if self.titlecase else bk
 
     def localchapter(self, c: int) -> str:
         return str(c)
