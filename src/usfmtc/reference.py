@@ -797,6 +797,8 @@ class RefRange:
                 return None
 
         book = self.first.book
+        if book is None:
+            return [self]
         res = [self.__class__(self.first, self.first.__class__(book=book, chapter=chaps[book], verse=-1))]
         while book is not None and book != self.last.book:
             res.append(self.first.__class__(book=book))
