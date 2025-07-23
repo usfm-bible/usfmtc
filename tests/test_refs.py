@@ -455,3 +455,9 @@ def test_booklist():
     r.simplify(bookranges=True)
     if len(r) != 2:
         fail(f"{r} should have 2 elements")
+
+def test_rangebooks():
+    r = RefList("2JN 1-3JN 14")
+    r.simplify()
+    if len(r) != 2:
+        fail(f"{r} should have 2 elements")

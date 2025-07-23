@@ -55,7 +55,7 @@ def booknum(bookcode):
 _allbkmap = {k: i for i, k in enumerate(_allbooks)} 
 
 allbooks = [b.split("|")[0] for b in _bookslist.split() if b != "ZZZ|0"]
-books = dict((b.split("|")[0], i) for i, b in enumerate(_bookslist.split()) if b[-2:] != "|0")
+books = dict((b.split("|")[0], i) for i, b in enumerate([bk for bk in _bookslist.split() if bk[-2:] != "|0"]))
 bookcodes = dict((b.split("|")[0], "{:02d}".format(i+1)) for i, b in enumerate(_bookslist.split()[:99]) if b[-2:] != "|0")
 bookcodes.update(_endBkCodes)
 booknumbers = {k: booknum(v) for k, v in bookcodes.items()}
@@ -800,6 +800,7 @@ class RefRange:
         if book is None:
             return [self]
         res = [self.__class__(self.first, self.first.__class__(book=book, chapter=chaps[book], verse=-1))]
+        book = nextbook(book)
         while book is not None and book != self.last.book:
             res.append(self.first.__class__(book=book))
             book = nextbook(book)
