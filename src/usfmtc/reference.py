@@ -793,7 +793,7 @@ class RefRange:
         def nextbook(bk):
             try:
                 return allbooks[books[bk]+1]
-            except IndexError:
+            except (IndexError, KeyError):
                 return None
 
         book = self.first.book

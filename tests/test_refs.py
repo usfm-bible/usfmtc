@@ -451,7 +451,7 @@ def test_booklist():
     r = RefList("GEN EXO LEV NUM PSA")
     r.simplify()
     if len(r) != 5:
-        fail(f"{r} doesn't have 19 books")
+        fail(f"{r} doesn't have 5 books")
     r.simplify(bookranges=True)
     if len(r) != 2:
         fail(f"{r} should have 2 elements")
