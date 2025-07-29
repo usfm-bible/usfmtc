@@ -228,3 +228,10 @@ def test_periph():
     if not doc.getroot()[1].get("id", None):
         fail(f"Bad periph {f}")
 
+def test_ver31():
+    usfm = r"""\id MAT or somewhere
+\p Some text
+"""
+    doc, f = _dousfm(usfm)
+    if 'usfm' not in f:
+        fail(f"Missing usfm header in {f}")

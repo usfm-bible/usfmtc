@@ -265,7 +265,7 @@ class Ref:
 
     def __new__(cls, string: Optional[str] = None,
                     context: Optional['Ref'] = None, start: int = -1, **kw):
-        if string is None or start != -1:
+        if string is None or not len(string) or start != -1:
             return super().__new__(cls)
         res = RefList(string, context=context, **kw)
         res.simplify()
@@ -493,6 +493,7 @@ class Ref:
                 res.append(sep)
             res.append(env.localchapter(getattr(self, 'chapter', 0)) if env else str(getattr(self, 'chapter', 0)))
             sep = env.cvsep if env else ':'
+            start = "verse"
         if getattr(self, 'verse', None) is not None and (force > 1 or neqa(context, self, 'verse')):
             if len(res):
                 res.append(sep)

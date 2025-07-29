@@ -285,6 +285,8 @@ class USX:
     def canonicalise(self, version=None):
         """ Canonicalises the text especially with regard to whitespace """
         canonicalise(self.getroot(), version=version)
+        if version is not None:
+            self.version = version
 
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
