@@ -281,7 +281,10 @@ class Ref:
         v = bcv % 1000
         b = int(bcv / 1000000)
         c = int((bcv - b * 1000000) / 1000)
-        bk = allbooks[b-1]
+        try:
+            bk = allbooks[b-1]
+        except IndexError:
+            return None
         return cls(book=bk, chapter=c, verse=v)
 
     @classmethod
