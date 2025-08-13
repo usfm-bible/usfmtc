@@ -656,6 +656,8 @@ def insertlinkages(usx, links):
 
 def _insertoblink(linkloc, tag, linfo):
     el = linkloc.el
+    if el is None:
+        return
     newel = el.makeelement("ms", {"style": tag, "aid": linfo[3]})
     if linfo[4] != "unk":
         newel.set("type", linfo[4])

@@ -139,8 +139,7 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             if not atend:
                 raise ValueError("Chapter reference {} out of range".format(ref))
             else:
-                return None, 0
-                # parindex = len(root)
+                parindex = len(root)
     v = ref.verse
 
     # scan for verse. Verses always have paragraphs as their parent
@@ -167,7 +166,7 @@ def _findcvel(ref, usx, atend=False, parindex=0):
                 parindex -= 1
                 el = root[parindex]
     elif parindex >= len(root):
-        el = root[-1]
+        el = None
         return el, 0
     else:
         el = root[parindex]
