@@ -139,7 +139,8 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             if not atend:
                 raise ValueError("Chapter reference {} out of range".format(ref))
             else:
-                parindex = len(root)
+                return None, 0
+                # parindex = len(root)
     v = ref.verse
 
     # scan for verse. Verses always have paragraphs as their parent
@@ -297,6 +298,8 @@ class USXCursor(ETCursor):
             given ref). parindex speeds up the hunt by skipping paragraphs.
             skiptest is a function to say whether this element causes a word break. '''
         el, mrkri = _findcvel(ref, usx, atend=atend, parindex=parindex)
+        if el is None:
+            return cls(None, "", 0)
         elref = ref.copy()
         if elref.mrkrs and len(elref.mrkrs):
             elref.mrkrs = elref.mrkrs[:mrkri]

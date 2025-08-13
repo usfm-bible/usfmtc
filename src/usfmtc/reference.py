@@ -269,8 +269,10 @@ class Ref:
             return super().__new__(cls)
         res = RefList(string, context=context, **kw)
         res.simplify()
-        if len(res) != 1:
-            raise SyntaxError(f"Non contiguous ranges in reference {string}")
+        if len(res) == 0:
+            raise SyntaxError(f"Empty reference: '{string}'")
+        elif len(res) != 1:
+            raise SyntaxError(f"Non contiguous ranges in reference: '{string}'")
         if res[0].__class__ != cls and not isinstance(res[0], RefRange):
             return res[0].copy(cls=cls)
         return res[0]
