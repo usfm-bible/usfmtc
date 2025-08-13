@@ -163,11 +163,9 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             if not atend:
                 raise ValueError("Reference verse {} out of range".format(ref))
             else:
-                parindex -= 1
-                el = root[parindex]
+                return None, 0
     elif parindex >= len(root):
-        el = None
-        return el, 0
+        return None, 0
     else:
         el = root[parindex]
 
