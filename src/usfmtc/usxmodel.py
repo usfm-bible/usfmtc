@@ -47,8 +47,10 @@ def _addvids(lastp, endp, base, v, endv, atend=False):
         if len(res):
             while len(lastr[-1]):
                 lastr = lastr[-1]
+        endv.parent = lastr
         lastr.append(endv)
     else:
+        endv.parent = res
         res.append(endv)
     return res
 
@@ -91,8 +93,8 @@ def addesids(root, force=False):
             lastev.set('eid', eid or "")
             lastev = None
         else:
-            ev = v.makeelement('verse', {'eid': eid or ""})
             pv = v.getparent()
+            ev = pv.makeelement('verse', {'eid': eid or ""})
             pl = lastv.getparent()
             if id(pv) == id(pl):
                 v.addprevious(ev) 

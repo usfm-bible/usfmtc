@@ -82,11 +82,13 @@ class ParentElement(et.Element):
         ''' Inserts el before the current element in the same parent '''
         i, parent = self._getindex()
         if parent is not None:
+            el.parent = parent
             parent.insert(i, el)
 
     def addnext(self, el):
         i, parent = self._getindex()
         if parent is not None:
+            el.parent = parent
             parent.insert(i+1, el)
 
     def getparent(self):
