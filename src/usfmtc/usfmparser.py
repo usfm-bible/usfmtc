@@ -589,6 +589,8 @@ class MsNode(Node):
 class UnknownNode(Node):
     pass
 
+class FallBackError(Exception):
+    pass
 
 paratypes = ('header', 'introduction', 'list', 'otherpara', 'sectionpara', 'versepara', 'title', 'chapter', 'ident')
 paratags = ('rem', ' table', 'sidebar')
@@ -650,14 +652,18 @@ class USFMParser:
         for t in self.lexer:
             if isinstance(t, Tag):
                 tag = self.grammar.parsetag(t.basestr())
-                if hasattr(self, "_"+tag):
-                    tagtype = "_" + tag
+                if t.basestr() == "":
+                    cattype = "milestone"
                 else:
-                    tagtype = self.grammar.marker_categories.get(tag, 'internal')
-                    if t.basestr() == "":
-                        tagtype = "milestone"
-                fn = getattr(self, tagtype, self.unknown)
-                self.parent = fn(t)
+                    cattype = self.grammar.marker_categories.get(tag, 'internal')
+                for tagtype in ("_"+tag, cattype):
+                    fn = getattr(self, tagtype, None)
+                    if fn is not None:
+                        try:
+                            self.parent = fn(t)
+                        except FallBackError:
+                            continue
+                        break
                 continue
             if self.parent is None:
                 continue
@@ -772,6 +778,8 @@ class USFMParser:
         return self.addNode(PeriphNode(self, "periph", str(tag), notag=True, pos=tag.pos))
 
     def _ref(self, tag):
+        if self.grammar.marker_categories[tag] != "internal":
+            raise FallBackError
         if tag.isend:
             return self.removeTag(str(tag))
         return self.addNode(Node(self, 'ref', tag.basestr(), notag=True, pos=tag.pos))
