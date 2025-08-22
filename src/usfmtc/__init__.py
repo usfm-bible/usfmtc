@@ -58,7 +58,7 @@ def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None, 
 
 _filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj", ".usj": "usj"}
 
-def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], altparser=False, strict=False, keepparser=False, **kw):
+def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=None, altparser=False, strict=False, keepparser=False, **kw):
     """ Reads a USFM file of a given type or inferred from the filename
         extension. extfiles allows for extra markers.ext files to extend the grammar"""
     if informat is None:
@@ -68,6 +68,8 @@ def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=[], a
         intype = informat
     if intype is None:
         return None
+    if extfiles is None:
+        extfiles = []
 
     if altparser and grammar is None:
         if gramfile is None:

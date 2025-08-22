@@ -227,7 +227,7 @@ class Lexer:
         resi = curri
         while (m := self.attribsre.match(self.txt[curri:])):
             if "\r" in m.group(2) or "\n" in m.group(2):
-                self.error(SyntaxError, f"Newlines not allowed in attributes: {m.group(0)}", self.currpos())
+                self.error(SyntaxError, f"Newlines not allowed in attributes: '{m.group(0)}'", self.currpos())
             res[m.group(1)] = self.usvre.sub(lambda x:chr(int(x.group(1) or x.group(2), 16)), m.group(2))    # tests say not to strip()
             if m.end() == 0:
                 break
@@ -418,14 +418,14 @@ class Node:
                 txt.addToNode(self.element[-1], 'tail', lstrip=self.ispara and isfirstText(self.element))
             else:
                 self.parser.error(SyntaxError,
-                            f"Follow on tail {txt} in element {self.element[-1].tag}[{self.element[-1].get('style','')}]",
+                            f"Unexpected extra text '{txt}' following '{self.element[-1].tail}' following element {self.element[-1].tag}[{self.element[-1].get('style','')}]",
                             self.element[-1].pos)
                 txt.addToNode(self.element[-1], 'tail')
         elif self.element.text is None or self.element.text == "":
             txt.addToNode(self.element, 'text', lstrip=True)
         else:
             self.parser.error(SyntaxError,
-                            f"Follow on text {txt} in element {self.element.tag}[{self.element.get('style','')}]",
+                            f"Unexpected extra text '{txt}' following '{self.element.text}' in element {self.element.tag}[{self.element.get('style','')}]",
                             self.element.pos)
             txt.addToNode(self.element, 'text')
         self.clearAttribNodes()
@@ -494,7 +494,7 @@ class AttribNode(Node):
         self.attribnodes = []
         if len(only) and self.parent.tag not in only:
             self.parser.error(SyntaxError,
-                    f"Attrib marker {tag} found after {self.parent.tag} but may only follow {', '.join(only)}",
+                    f"Attrib marker '{tag}' found after '{self.parent.tag}' but may only follow '{', '.join(only)}'",
                     pos)
         self.parent.addAttribNode(self)
 
@@ -522,10 +522,10 @@ class NumberNode(Node):
         if not self.hasarg:
             b = regex.split(r"\s+", str(t).lstrip(WS), 1)
             v = b[0].strip(WS)
-            if v[0] not in "0123456789":
+            if not len(v) or v[0] not in "0123456789":
                 epos = self.element.pos.copy()
                 epos.c += 2
-                self.parser.error(SyntaxError, f"Bad verse or chapter number: {v}", epos)
+                self.parser.error(SyntaxError, f"Bad verse or chapter number: '{v}'", epos)
             if len(v):
                 self.element.set('number', v)
                 self.hasarg = True
@@ -546,7 +546,7 @@ class NumberNode(Node):
 
     def close(self):
         if not self.hasarg:
-            self.parser.error(SyntaxError, f"Missing number in {self.tag}", self.element.pos)
+            self.parser.error(SyntaxError, f"Missing number argument in '{self.tag}'", self.element.pos)
         super().close()
 
 class NoteNode(Node):
@@ -664,6 +664,8 @@ class USFMParser:
                         except FallBackError:
                             continue
                         break
+                else:
+                    self.parent = self.unknown(t)
                 continue
             if self.parent is None:
                 continue
@@ -708,7 +710,7 @@ class USFMParser:
         else:
             self.stack = oldstack
             if not absentok:
-                self.error(SyntaxError, f"Closing {tag} with no opening", self.lexer.currpos())
+                self.error(SyntaxError, f"Closing '{tag}' with no corresponding opening", self.lexer.currpos())
         return self.stack[-1]
 
     def removeType(self, t, tags=[]):
@@ -902,9 +904,9 @@ class USFMParser:
         return self.stack[-1]
 
     def unknown(self, tag):
-        msg = f"Unknown tag {tag}"
+        msg = f"Unknown tag '{tag}'"
         if len(self.stack):
-            msg += f" in {self.stack[-1].tag}"
+            msg += f" in '{self.stack[-1].tag}'"
         self.error(SyntaxError, msg, tag.pos)
         return self.standalone(tag)
 
