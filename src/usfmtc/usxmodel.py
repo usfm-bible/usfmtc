@@ -292,8 +292,8 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
                 ft = node.makeelement("char", {"style": replace})
                 node.insert(i + inserted + 1, ft)
                 inserted += 1
-                ft.text = c.tail
-                c.tail = None
+                ft.text = c.tail.lstrip()
+                c.tail = c.tail[:len(c.tail)-len(ft.text)]
         for i, c in enumerate(list(node)):
             if c.get('style', '') not in notechars[0 if replace == "ft" else 1]:
                 if len(node) == 1:
