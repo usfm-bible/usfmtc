@@ -53,3 +53,4 @@ universal = true
 [project.scripts]
 usfmconv = "usfmtc:main"
 usfmreversify = "usfmtc.versification:main"
+urnc2rng = "usfmtc.rnc2rng:main"
