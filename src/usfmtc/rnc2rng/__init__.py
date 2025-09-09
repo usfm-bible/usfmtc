@@ -13,18 +13,22 @@ def dumps(root, indent=None):
     return serializer.XMLSerializer(indent).toxml(root)
 
 def main():
-    import sys
+    import sys, argparse
 
-    args = sys.argv[1:]
-    input = open(args[0]) if len(args) > 0 else sys.stdin
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("infile",help="Input rnc file to convert, - for stdin")
+    argparser.add_argument("outfile",nargs="?",help="Output rng file to generate")
+    args = argparser.parse_args()
+
+    input = open(args.infile) if args.infile != "-" else sys.stdin
     try:
         xml = serializer.XMLSerializer().toxml(parser.parse(f=input))
     except parser.ParseError as e:
         print('parse error ' + e.msg)
         sys.exit(1)
 
-    if len(args) > 1:
-        open(sys.argv[2], 'w').write(xml + '\n')
+    if args.outfile:
+        open(args.outfile, 'w').write(xml + '\n')
     else:
         print(xml)
 

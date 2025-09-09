@@ -270,7 +270,7 @@ class Lexer:
 
 class Grammar:
     category_markers = {
-        "attribute": "cp vp usfm ca va cat",
+        "attribute": "cp vp usfm ca va cat vid",
         "cell": "th1 th2 th3 th4 th5 th6 th7 th8 th9 th10 th11 th12 tc1 tc2 tc3 tc4 tc5 tc6 tc7 tc8 tc9 tc10 tc11 tc12 tcr1 tcr2 tcr3 tcr4 tcr5 tcr6 tcr7 tcr8 tcr9 tcc1 tcc2 tcc3 tcc4 tcc5 tcc6 tcc7 tcc8 tcc9 tcc10 tcc11 tcc12 thc1 thc2 thc3 thc4 thc5 thc6 thc7 thc8 thc9 thc10 thc11 tch12 thr1 thr2 thr3 thr4 thr5 thr6 thr7 thr8 thr9 thr10 thr11 thr12",
         "char": "qac qs add addpn bk dc efm fm fv k nd ndx ord png pn pro qt rq sig sls tl wg wh wa wj jmp no it bdit bd em sc sup w rb",
         "crossreference": "ex x",
@@ -302,7 +302,7 @@ class Grammar:
 
     attribmap = { 'jmp' : 'href', 'k' : 'key', 'qt-s': 'who', 'qt1-s': 'who', 'qt2-s': 'who',
         'qt3-s': 'who', 'qt4-s': 'who', 'qt5-s': 'who', 'rb': 'gloss', 't-s': 'sid', 'ts-s': 'sid',
-        'w': 'lemma', 'ref': 'loc', 'xt': 'href' }
+        'w': 'lemma', 'ref': 'loc', 'xt': 'href', 'vid': 'ref' }
 
     attribtags = { 'cp': 'pubnumber', 'ca': 'altnumber', 'vp': 'pubnumber',
         'va': 'altnumber', 'cat': 'category', 'usfm': 'version'}
@@ -330,7 +330,8 @@ class Grammar:
         "cell": "colspan? align? content?",
         "xt": "href?",
         "ref": "gen? loc",
-        "jmp": "title? id?"
+        "jmp": "title? id?",
+        "vid": "ref h?"
     }
 
     tagre = regex.compile(r"(^t[hc][cr]?\d+)[-_^].*|(.)[_^].*$")
@@ -513,6 +514,31 @@ class AttribNode(Node):
         attrib = self.parent.parser.grammar.attribtags[self.tag]
         self.parent.element.attrib.pop(attrib, None)
 
+class FwdAttribNode(Node):
+    fwdattribmap = {"ref", "vid"}
+    def __init__(self, parser, parent, tag, pos=None, only=[], **kw):
+        self.parser = parser
+        self.parent = parent
+        self.tag = tag
+        self.pos = pos
+        self.attribs = {}
+
+    def applyto(self, node):
+        for k, v in self.attribs.items():
+            if k in fwdattribmap:
+                node.set(fwdattribmap[k], v)
+
+    def addDefaultAttribute(self, t):
+        defattrib = self.parser.grammar.attribmap.get(self.tag, None)
+        if defattrib is None and self.tag is not None and self.tag.endswith("-e"):
+            defattrib = 'eid'
+        if defattrib is None:
+            defattrib = "_unknown_"
+        self.attribs[defattrib] = str(t)
+
+    def addAttributes(self, d):
+        self.attribs.update(d)
+
 class NumberNode(Node):
     def __init__(self, parser, usxtag, tag, ispara=False, pos=None, **kw):
         super().__init__(parser, usxtag, tag, ispara=ispara, pos=pos, **kw)
@@ -694,6 +720,10 @@ class USFMParser:
             self.parent = self.stack[-1] if len(self.stack) else None
 
     def addNode(self, node):
+        if len(self.stack):
+            if isinstance(self.stack[-1], FwdAttribNode):
+                anode = self.stack.pop()
+                anode.applyto(node)
         self.stack.append(node)
         return node
 
@@ -849,6 +879,9 @@ class USFMParser:
 
     def _ca(self, tag):
         return self.attribute(tag, only=["c"])
+
+    def _vid(self, tag):
+        return self.addNode(FwdAttribNode(self, 'ms', tag.basestr(), pos=tag.pos))
 
     def cell(self, tag):
         self.removeType('cell', tags=["row"])

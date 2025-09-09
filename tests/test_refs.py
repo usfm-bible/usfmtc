@@ -437,7 +437,7 @@ def test_subdoc1():
     et.dump(res.xml)
     f = res.outUsfm(None)
     print(f)
-    if "Acts 27:13-26" not in f and "zsetref|JON 4:9" not in f:
+    if "Acts 27:13-26" not in f and "vid|JON 4:9" not in f:
         fail(f"{f} does not contain section heads or the right material")
 
 def test_finalv():

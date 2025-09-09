@@ -172,7 +172,7 @@ def test_footnote4():
 \v 1 This is a test\f + \fr 1:1 \ft And a note in the \+fq test\+fq* for \xt John 3:16|href="JHN 3:16"\xt*\f*
 """
     doc, f = _dousfm(usfm)
-    if r"\fq test\ft " not in f:
+    if r"\fq test \ft " not in f:
         fail(f"nested fq not converted")
 
 def test_unknown():

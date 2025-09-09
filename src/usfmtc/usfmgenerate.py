@@ -138,9 +138,9 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **
             elif el.tag in ("row", "para"):
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
-                    if cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
-                                    or cref.verse != r.first.verse:
-                        emit(f"\\zsetref|{r}\\*\n")
+                    if version < [3, 2] and (cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
+                                                          or cref.verse != r.first.verse):
+                        emit(f"\\vid|{r}\\*\n")
                     cref = r.last
                 if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):
                     emit("\\{0}\n".format(s))
