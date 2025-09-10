@@ -522,13 +522,14 @@ class FwdAttribNode(Node):
         self.tag = tag
         self.pos = pos
         self.attribs = {}
+        self.element = None
 
     def applyto(self, node):
         for k, v in self.attribs.items():
             if k in fwdattribmap:
                 node.set(fwdattribmap[k], v)
 
-    def addDefaultAttribute(self, t):
+    def addDefaultAttrib(self, t):
         defattrib = self.parser.grammar.attribmap.get(self.tag, None)
         if defattrib is None and self.tag is not None and self.tag.endswith("-e"):
             defattrib = 'eid'
@@ -538,6 +539,7 @@ class FwdAttribNode(Node):
 
     def addAttributes(self, d):
         self.attribs.update(d)
+
 
 class NumberNode(Node):
     def __init__(self, parser, usxtag, tag, ispara=False, pos=None, **kw):
@@ -733,7 +735,7 @@ class USFMParser:
         while len(self.stack):
             curr = self.stack.pop()
             curr.close()
-            if curr.tag == tag or tag == "" and curr.element.tag == "ms":
+            if curr.tag == tag or tag == "" and (isinstance(curr, FwdAttribNode) or curr.element.tag == "ms"):
                 if getattr(curr, 'element', "") == "unk":
                     curr.element.tag = "char"
                 break

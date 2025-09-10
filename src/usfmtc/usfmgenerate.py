@@ -84,7 +84,7 @@ def iterels(el, events):
     if 'end' in events:
         yield ('end', el)
 
-def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **kw):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, **kw):
     if grammar is None:
         attribmap = {}
         mcats = {}
@@ -139,7 +139,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", **
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
                     if version < [3, 2] and (cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
-                                                          or cref.verse != r.first.verse):
+                                                          or cref.verse != r.first.verse) and (forcevid or el.text or len(el) and el[0].tag != "verse"):
                         emit(f"\\vid|{r}\\*\n")
                     cref = r.last
                 if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):

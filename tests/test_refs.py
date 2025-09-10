@@ -435,7 +435,7 @@ def test_isvalid():
 def test_subdoc1():
     res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True, titles=False)
     et.dump(res.xml)
-    f = res.outUsfm(None)
+    f = res.outUsfm(None, forcevid=True)
     print(f)
     if "Acts 27:13-26" not in f and "vid|JON 4:9" not in f:
         fail(f"{f} does not contain section heads or the right material")
@@ -443,7 +443,7 @@ def test_subdoc1():
 def test_finalv():
     res = jon_usfm.getrefs(Ref("JON 1:17"), titles=False)
     et.dump(res.xml)
-    f = res.outUsfm(None)
+    f = res.outUsfm(None, forcevid=True)
     print(f)
     if "\\c" in f:
         fail(f"{f} contains more than text")
