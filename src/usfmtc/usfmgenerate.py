@@ -84,6 +84,12 @@ def iterels(el, events):
     if 'end' in events:
         yield ('end', el)
 
+def _isnextref(cref, ref, e):
+    if ref.chapter == cref.chapter:
+        return ref.verse == cref.verse or ref.verse == cref.verse + 1
+    else:
+        return ref.chapter == cref.chapter + 1 and ref.verse == 1
+
 def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, **kw):
     if grammar is None:
         attribmap = {}
@@ -138,8 +144,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
             elif el.tag in ("row", "para"):
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
-                    if version < [3, 2] and (cref is None or (cref.chapter != r.first.chapter and cref.chapter != r.last.chapter+1) \
-                                                          or cref.verse != r.first.verse) and (forcevid or el.text or len(el) and el[0].tag != "verse"):
+                    if version < [3, 2] and (cref is None or forcevid or _isnextref(cref, r, el)):
                         emit(f"\\vid|{r}\\*\n")
                     cref = r.last
                 if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):

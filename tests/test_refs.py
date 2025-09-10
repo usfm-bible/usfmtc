@@ -438,7 +438,9 @@ def test_subdoc1():
     f = res.outUsfm(None, forcevid=True)
     print(f)
     if "Acts 27:13-26" not in f and "vid|JON 4:9" not in f:
-        fail(f"{f} does not contain section heads or the right material")
+        fail(f"{f} does not contain section heads or the right vid markers")
+    if f.count('vid') != 2:
+        fail(f"{f} wrong number of \\vid in the text")
 
 def test_finalv():
     res = jon_usfm.getrefs(Ref("JON 1:17"), titles=False)
