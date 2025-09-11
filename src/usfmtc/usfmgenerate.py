@@ -134,11 +134,23 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     cref.verse = 0
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ", escapes, version)
-                n = el.get("number", 0)
+                v = el.get("number", 0)
+                m = re.match(r"^(\d+)(\S+?)$", v)
+                if m:
+                    n = int(m.group(1))
+                    s = m.group(2) or None
+                else:
+                    try:
+                        n = int(v)
+                        s = None
+                    except ValueError:
+                        n = 1
+                        s = v
                 if cref is None:
-                    cref = Ref(verse=n)
+                    cref = Ref(verse=n, subverse=s)
                 else:
                     cref.verse = n
+                    cref.subverse = None
             elif el.tag == "book":
                 emit("\\{0} {1}".format(s, el.get("code")))
                 prespace = True
