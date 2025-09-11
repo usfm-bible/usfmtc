@@ -417,14 +417,14 @@ class Node:
         if len(self.element):
             if self.element[-1].tail is None or self.element[-1].tail == "":
                 txt.addToNode(self.element[-1], 'tail', lstrip=self.ispara and isfirstText(self.element))
-            else:
+            elif txt.strip() != "":
                 self.parser.error(SyntaxError,
                             f"Unexpected extra text '{txt}' following '{self.element[-1].tail}' following element {self.element[-1].tag}[{self.element[-1].get('style','')}]",
                             self.element[-1].pos)
                 txt.addToNode(self.element[-1], 'tail')
         elif self.element.text is None or self.element.text == "":
             txt.addToNode(self.element, 'text', lstrip=True)
-        else:
+        elif txt.strip() != "":
             self.parser.error(SyntaxError,
                             f"Unexpected extra text '{txt}' following '{self.element.text}' in element {self.element.tag}[{self.element.get('style','')}]",
                             self.element.pos)
