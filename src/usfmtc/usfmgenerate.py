@@ -134,7 +134,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     cref.verse = 0
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ", escapes, version)
-                v = el.get("number", 0)
+                v = el.get("number", "0")
                 m = re.match(r"^(\d+)(\S+?)$", v)
                 if m:
                     n = int(m.group(1))
