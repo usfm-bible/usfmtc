@@ -835,9 +835,9 @@ class RefList(UserList):
     def __init__(self, content: Optional[str | List[Ref | RefRange]] = None,
                 context: Optional[Ref]=None, start: int=0, sep: Optional[str]=None, 
                 strict: bool=False, **kw):
-        if isinstance(content, (list, tuple, RefList)):
+        if issubclass(content.__class__, (list, tuple, RefList)):
             super().__init__(content)
-        elif isinstance(content, (Ref, RefRange)):
+        elif issubclass(content.__class__, (Ref, RefRange)):
             super().__init__([content])
         else:
             super().__init__()
@@ -845,7 +845,8 @@ class RefList(UserList):
                 self.parse(content, context, start=start, sep=sep, strict=strict, **kw)
         self.strict = strict
 
-    def parse(self, s: str, context:Ref=None, start:int=0, sep:str=None, bookranges:bool=False, **kw):
+    def parse(self, s: str, context:Ref=None, start:int=0, sep:str=None, bookranges:bool=False, 
+                            factory=Ref, rangefactory=RefRange, **kw):
         res = []
         if sep is None or all(x in "\n\t\r ,;" for x in sep):
             sep = "\n\r\t ,;"
@@ -858,16 +859,16 @@ class RefList(UserList):
                 continue
             if (m := re.match("[\u200F\u200E]?-[\u200F\u200E]?", s[start:])):
                 rangesep = m.group(0)
-                if not len(res) or isinstance(res[-1], RefRange) or res[-1].chapter is None:
+                if not len(res) or issubclass(res[-1].__class__, RefRange) or res[-1].chapter is None:
                     raise SyntaxError(f"Bad - in {s} ({s[start:]})")
                 inrange = True
                 start += len(rangesep)
                 continue
-            r = Ref(s, context=lastr, start=start, fullmatch=False, **kw)
+            r = factory(s, context=lastr, start=start, fullmatch=False, **kw)
             if not bookranges and r.first.book != r.last.book:
                 res.extend(r.expandBooks())
             if inrange:
-                res[-1] = RefRange(res[-1], r, sep=rangesep, **kw) if rangesep != "-" else RefRange(res[-1], r, **kw)
+                res[-1] = rangefactory(res[-1], r, sep=rangesep, **kw) if rangesep != "-" else rangefactory(res[-1], r, **kw)
                 if not bookranges and res[-1].first.book != res[-1].last.book:
                     res[-1:] = res[-1].expandBooks()
                 inrange = False
