@@ -334,9 +334,11 @@ class Ref:
         if 'versification' in kw:
             self.versification = kw['versification']
 
-    def parse(self, s: str, context: Optional['Ref']=None, start: int=0, strict: bool=False, **kw):
+    def parse(self, s: str, context: Optional['Ref']=None, start: int=0, strict: bool=False, single: bool=True, **kw):
         """ Parses a single scripture reference relative to context if given.
-            start is an index into the string """
+            start is an index into the string
+            strict requires at least a book and chapter
+            single sets chapter to 1 for single chapter books"""
         self.strend = start
         if s is None or not len(s):
             return 
@@ -370,7 +372,7 @@ class Ref:
         self.strend = m.end(0) + start
         if p.get('mrkrs', None) == []:
             p['mrkrs'] = None
-        if p.get('book', None) in oneChbooks and p['verse'] is None:
+        if single and p.get('book', None) in oneChbooks and p['verse'] is None:
             p['verse'] = p['chapter']
             p['chapter'] = 1
         self.__init__(None, context, strict=strict, **p)

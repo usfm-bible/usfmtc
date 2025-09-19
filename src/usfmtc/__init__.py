@@ -219,8 +219,9 @@ class USX:
     def getrefs(self, *refs, addintro=False, titles=True, skiptest=None, headers=True, chapters=True, vid=None):
         """ Returns a doc containing paragraphs of the contents of each reference.
             skiptest is a fn to test whether text in the marker does not cause
-            a word break. addintro includes material before chapter 1. headers includes
-            and section headers occurring immediately before a reference. chapters
+            a word break. addintro includes material before chapter 1, including titles.
+            titles includes material up to the first introductory material. headers includes
+            any section headers occurring immediately before a reference. chapters
             says whether to include preceding chapter at the start of a range if v 1. """
         root = self.getroot()
         res = root.__class__(root.tag, attrib=root.attrib)
