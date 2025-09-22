@@ -235,3 +235,14 @@ def test_ver31():
     doc, f = _dousfm(usfm)
     if 'usfm' not in f:
         fail(f"Missing usfm header in {f}")
+
+def test_regularise():
+    usfm = r"""\id MRK
+\c 1
+\p \v 1 This is a verse\v 2 this is one too
+"""
+    doc, f = _dousfm(usfm)
+    doc.regularise()
+    if not doc.getroot()[2][0].tail.endswith(" "):
+        fail(f"Missing inserted space before v2 in {f}")
+

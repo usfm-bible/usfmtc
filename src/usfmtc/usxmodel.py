@@ -315,6 +315,16 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
         node[0].tail = node.tail
         node.parent.remove(node)
 
+def regularise(node):
+    ''' Fix common faults in USFM files, not necessary for all files:
+            - Ensure space before a verse
+    '''
+    for i, c in enumerate(node):
+        if c.tag == "verse":
+            if i > 0 and (node[i-1].tail is None or not node[i-1].tail.endswith(" ")):
+                node[i-1].tail = (node[i-1].tail or "") + " "
+        regularise(c)
+
 def attribnorm(d):
     banned = ('closed', 'status', 'vid', 'version')
     return {k: strnormal(v, None) for k, v in d.items() if k not in banned and not k.startswith(" ") and v is not None and len(v)}

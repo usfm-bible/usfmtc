@@ -16,7 +16,7 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, regularise
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
@@ -290,6 +290,12 @@ class USX:
         canonicalise(self.getroot(), version=version)
         if version is not None:
             self.version = version
+
+    def regularise(self):
+        """ Further edits to fix common mistakes that may not need fixing in all files:
+                - Ensure space before verse
+        """
+        regularise(self.getroot())
 
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
