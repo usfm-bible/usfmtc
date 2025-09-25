@@ -550,13 +550,14 @@ class Ref:
     def last(self):
         return self
 
-    def copy(self, cls=None):
+    def copy(self, cls=None, **kws):
         if cls is None:
             cls = self.__class__
         kw = {k: getattr(self, k) for k in self._parmlist}
         if kw.get('mrkrs', None) is not None:
             kw['mrkrs'] = [m.copy() for m in kw['mrkrs']]
         kw['versification'] = self.versification
+        kw.update(kws)
         return cls(**kw)
 
     def _setall(self, val, stopat=None):

@@ -16,7 +16,7 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, regularise
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, regularise, addorncv
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
@@ -135,7 +135,7 @@ class USX:
             xml = result.asEt(elfactory=elfactory)
 
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
-        res = cls(xml, grammar, errors=p.errors)
+        res = cls(xml, grammar, errors=p.errors if p else None)
         if keepparser:
             res.parser = p
         return res
@@ -248,6 +248,12 @@ class USX:
         return "\n".join(res)
 
     def iterusx(self, **kw):
+        """ Iterates the doc root yielding a node and whether we are in or after (isin) the node. Once until is hit,
+            iteration stops. The node matching until is entered if untilafter is True
+            otherwise it is not yielded.  blocks prunes any node whose
+            style has a category listed in blocks. The test is inverted if unblocks is True.
+            filt is a list of functions that all must pass for the value to be yielded.
+            until may be a function that tests a node for it being the last node. """
         return iterusx(self.getroot(), **kw)
 
     def reversify(self, srcvrs, tgtvrs, **kw):
@@ -300,6 +306,13 @@ class USX:
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
         addesids(self.xml)
+
+    def addorncv(self):
+        """ Adds CV info to node.pos throughout the doc """
+        if getattr(self, "addorned", False):
+            return
+        self.bridges = addorncv(self.getroot(), grammar=self.grammar)
+        self.addorned = True
 
     def addindexes(self):
         """ Creates self.chapter a list of chapter nodes and self.ids, a

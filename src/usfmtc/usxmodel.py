@@ -1,7 +1,7 @@
 
 import re
 from dataclasses import dataclass
-from usfmtc.xmlutils import isempty
+from usfmtc.xmlutils import isempty, ParentElement
 from usfmtc.usfmparser import Grammar, WS
 from usfmtc.reference import Ref, RefRange, MarkerRef
 import xml.etree.ElementTree as et
@@ -115,6 +115,94 @@ def addesids(root, force=False):
     if lastc is not None:
         root.append(lastc.makeelement('chapter', {'eid': lastc.get('sid', '')}))
     return root
+
+class RefPos:
+    def __init__(self, pos, ref):
+        self.l = pos.l if pos is not None else 0
+        self.c = pos.c if pos is not None else 0
+        self.kw = pos.kw if pos is not None else {}
+        self.ref = ref
+
+def addorncv(root, grammar=None, curr=None, factory=ParentElement):
+    if grammar is None:
+        grammar = Grammar
+
+    def istype(s, t):
+        if isinstance(t, str):
+            t = [t]
+        return grammar.marker_categories.get(s, "") in t
+
+    def _addorncv_hierarchy(e, curr):
+        e.pos = RefPos(e.pos, curr)
+        for c in e:
+            _addorncv_hierarchy(c, curr)
+
+    def get_ref(bk, currc, currv):
+        try:
+            curr = Ref(f"{bk} {currc}:{currv}")
+        except SyntaxError:
+            currv = re.sub(r"[^0-9-]", "", currv)
+            if not len(currv):
+                currv = "0"
+            try:
+                curr = Ref(f"{bk} {currc}:{currv}")
+            except SyntaxError:
+                currv = "0"
+                curr = Ref(f"{bk} {currc}:{currv}")
+        return curr
+
+    bridges = {}
+    if not len(root):
+        logger.warn(f"root is empty!")
+        return
+    bk = root[0].get('code') or "UNK"
+    factory = factory
+    sections = []
+    i = -1
+    currpi = None
+    for x, isin in iterusx(root):
+        if not isin:
+            continue
+        if x.tag == 'para':
+            currp = x
+        p = x
+        if x.parent == root:
+            i += 1
+        if p.tag == "chapter":
+            try:
+                currc = int(p.get("number", 0))
+            except ValueError:
+                currc = re.sub(r"\D", "", p.get("number", "0"))
+                currc = int(currc) if len(currc) else 0
+            curr = Ref(book=bk, chapter=currc, verse=0)
+        elif p.tag == "para":
+            if istype(p.get("style", ""), ('sectionpara', 'title')):
+                sections.append(p)
+            else:
+                if isempty(p.text) and len(p) and p[0].tag == "verse":
+                    currv = p[0].get("number", curr.last.verse if curr is not None else None)
+                    currc = curr.first.chapter if curr is not None else 0
+                    curr = get_ref(bk, currc, currv)
+                    if curr.first != curr.last and curr.last.verse is not None and curr.last.verse < 200 and curr.first not in bridges:
+                        for r in curr:
+                            bridges[r] = curr
+                _addorncv_hierarchy(p, curr)
+                for s in sections:
+                    _addorncv_hierarchy(s, curr)
+                sections = []
+        elif p.tag == "verse":
+            if curr is not None:
+                currv = p.get("number", curr.last.verse)
+                currc = curr.first.chapter if curr is not None else 0
+                curr = get_ref(bk, currc, currv)
+                if curr.first != curr.last and curr.last.verse is not None and curr.last.verse < 200 and curr.first not in bridges:
+                    for r in curr:
+                        bridges[r] = curr
+        if curr is not None:
+            p.pos = RefPos(p.pos, curr)
+    for s in sections:
+        _addorncv_hierarchy(s, curr)
+    return bridges
 
 def addindexes(root):
     chapters = [0]
