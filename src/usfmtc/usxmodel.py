@@ -411,6 +411,8 @@ def regularise(node):
         if c.tag == "verse":
             if i > 0 and (node[i-1].tail is None or not node[i-1].tail.endswith(" ")):
                 node[i-1].tail = (node[i-1].tail or "") + " "
+            elif i == 0 and (node.text is None or not node.text.endswith(" ")):
+                node.text = (node.text or "") + " "
         regularise(c)
 
 def attribnorm(d):
