@@ -24,6 +24,8 @@ from usfmtc.usfmgenerate import usx2usfm
 from usfmtc.reference import RefList
 import xml.etree.ElementTree as et
 
+version="0.3.17"
+
 def _grammarDoc(gsrc, extensions=[], factory=et):
     data = readsrc(gsrc)
     if isinstance(data, (str, bytes)):
