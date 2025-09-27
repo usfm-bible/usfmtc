@@ -403,17 +403,76 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
         node[0].tail = node.tail
         node.parent.remove(node)
 
-def regularise(node):
+def regularise(node, ptx=False, grammar=None):
     ''' Fix common faults in USFM files, not necessary for all files:
             - Ensure space before a verse
     '''
-    for i, c in enumerate(node):
+    if grammar is None:
+        grammar = Grammar
+    if not len(node):
+        return
+    c = node[0]
+    while c is not None:
+        node = c.parent
         if c.tag == "verse":
-            if i > 0 and (node[i-1].tail is None or not node[i-1].tail.endswith(" ")):
-                node[i-1].tail = (node[i-1].tail or "") + " "
-            elif i == 0 and (node.text is None or not node.text.endswith(" ")):
+            if node.tag != "para":      # verses must be in paras
+                n = node
+                lastn = c
+                newc = None
+                currc = None
+                currn = None
+                #if c.get("number", "") == "12":
+                #    breakpoint()
+                while n.tag != "para":
+                    currn = n
+                    j = n.index(lastn)
+                    if j == 0 and (n.text is None or not len(n.text)):
+                        n.parent.remove(n)
+                        nc = n
+                    else:
+                        nc = n.copy(parent=n.parent, children=False)
+                    if newc is None:
+                        newc = nc
+                    if j > 0 and j < len(n) - 1:
+                        for ne in n[j+1:-1]:
+                            n.remove(ne)
+                            nc.append(ne)
+                            ne.parent = nc
+                    nc.tail = n.tail
+                    n.tail = None
+                    if currc is not None:
+                        nc.insert(0, currc)
+                        currc.parent = nc
+                    currc = nc
+                    lastn = n
+                    n = n.parent
+                newc.text = c.tail
+                c.tail = None
+                try:
+                    j = n.index(currn)
+                except ValueError:
+                    j = -1
+                    lastc = None
+                node.remove(c)
+                c.parent = n
+                n.insert(j+1, c)
+                n.insert(j+2, currc)
+                currc.parent = n
+            lastc = c.getprevious()
+            if lastc is not None and (lastc.tail is None or not lastc.tail.endswith(" ")):
+                lastc.tail = (lastc.tail or "") + " "
+            elif lastc is None and (node.text is None or not node.text.endswith(" ")):
                 node.text = (node.text or "") + " "
-        regularise(c)
+        s = c.get("style", None)
+        if ptx:
+            if grammar.marker_categories.get(s, None) in ("footnotechar", "crossreferencechar"):
+                c.set("closed", "false")
+            if c.tag == "ref":
+                c.set("gen", "true")
+        regularise(c, ptx=ptx, grammar=grammar)
+        c = c.getnext()
+    # if ptx: Add @closed=false to note structural char styles; add gen="1" to refs
+    # Don't allow \wj across \v. Should this be in something higher
 
 def attribnorm(d):
     banned = ('closed', 'status', 'vid', 'version')

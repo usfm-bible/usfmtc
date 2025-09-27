@@ -26,13 +26,14 @@ class ParentElement(et.Element):
         return "{}/{}".format(p, str(self))
 
 
-    def copy(self, deep=False, parent=None, factory=None):
+    def copy(self, deep=False, parent=None, factory=None, children=True):
         tf = factory or self.__class__
         res = tf(self.tag, attrib=self.attrib, parent=parent, pos=self.pos)
         res.text = self.text
         res.tail = self.tail
-        for e in self:
-            res.append(e.copy(deep=deep, parent=res, factory=factory) if deep else e)
+        if children:
+            for e in self:
+                res.append(e.copy(deep=deep, parent=res, factory=factory) if deep else e)
         return res
 
     def _getindex(self):

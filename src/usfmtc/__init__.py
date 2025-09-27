@@ -299,11 +299,14 @@ class USX:
         if version is not None:
             self.version = version
 
-    def regularise(self):
+    def regularise(self, ptx=False):
         """ Further edits to fix common mistakes that may not need fixing in all files:
                 - Ensure space before verse
+                - Ensure verses have a paragraph as parent by closing and opening
+                  the char styles
+                - if ptx, then set refs to gen="1" and closed="false" on note char styles
         """
-        regularise(self.getroot())
+        regularise(self.getroot(), ptx=ptx, grammar=self.grammar)
 
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
