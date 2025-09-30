@@ -403,7 +403,10 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
         node[0].tail = node.tail
         node.parent.remove(node)
 
-def regularise(node, ptx=False, grammar=None):
+def _sp(s, o):
+    return (s or "") + (o or "")
+
+def regularise(node, ptx=False, grammar=None, info={}):
     ''' Fix common faults in USFM files, not necessary for all files:
             - Ensure space before a verse
     '''
@@ -414,65 +417,74 @@ def regularise(node, ptx=False, grammar=None):
     c = node[0]
     while c is not None:
         node = c.parent
+        if c.tag == "chapter":
+            info['c'] = c.get("number")
         if c.tag == "verse":
+            info['v'] = c.get("number")
             if node.tag != "para":      # verses must be in paras
                 n = node
                 lastn = c
-                newc = None
-                currc = None
-                currn = None
-                #if c.get("number", "") == "12":
-                #    breakpoint()
                 while n.tag != "para":
-                    currn = n
                     j = n.index(lastn)
-                    if j == 0 and (n.text is None or not len(n.text)):
-                        n.parent.remove(n)
-                        nc = n
-                    else:
-                        nc = n.copy(parent=n.parent, children=False)
-                    if newc is None:
-                        newc = nc
-                    if j > 0 and j < len(n) - 1:
-                        for ne in n[j+1:-1]:
-                            n.remove(ne)
-                            nc.append(ne)
-                            ne.parent = nc
+                    k = n.parent.index(n)
+                    nc = n.copy(parent=n.parent, children=False)
+                    nc.text = lastn.tail
                     nc.tail = n.tail
                     n.tail = None
-                    if currc is not None:
-                        nc.insert(0, currc)
-                        currc.parent = nc
-                    currc = nc
+                    lastn.tail = None
+                    for ne in n[j+1:]:
+                        n.remove(ne)
+                        nc.append(ne)
+                        ne.parent = nc
+                    n.remove(lastn)
+                    n.parent.insert(k+1, lastn)
+                    lastn.parent = n.parent
+                    n.parent.insert(k+2, nc)
                     lastn = n
                     n = n.parent
-                newc.text = c.tail
-                c.tail = None
-                try:
-                    j = n.index(currn)
-                except ValueError:
-                    j = -1
-                    lastc = None
-                node.remove(c)
-                c.parent = n
-                n.insert(j+1, c)
-                n.insert(j+2, currc)
-                currc.parent = n
+                node = c.parent
             lastc = c.getprevious()
             if lastc is not None and (lastc.tail is None or not lastc.tail.endswith(" ")):
-                lastc.tail = (lastc.tail or "") + " "
+                lastc.tail = _sp(lastc.tail, " ")
             elif lastc is None and (node.text is None or not node.text.endswith(" ")):
-                node.text = (node.text or "") + " "
+                node.text = _sp(node.text, " ")
         s = c.get("style", None)
         if ptx:
             if grammar.marker_categories.get(s, None) in ("footnotechar", "crossreferencechar"):
                 c.set("closed", "false")
             if c.tag == "ref":
                 c.set("gen", "true")
-        regularise(c, ptx=ptx, grammar=grammar)
+        regularise(c, ptx=ptx, grammar=grammar, info=info)
+        if c not in c.parent:
+            break
         c = c.getnext()
-    # if ptx: Add @closed=false to note structural char styles; add gen="1" to refs
-    # Don't allow \wj across \v. Should this be in something higher
+            
+def clear_empties(node, ptx=None, grammar=None):
+    if not len(node):
+        return
+    c = node[0]
+    while c is not None:
+        node = c.parent
+        cn = c.getnext()
+        nextisb = (cn is not None and cn.get("style", "") == "b") or c.get("style", "") == "b"
+        if c.tag in ("char", "para") and not len(c) and isempty(c.text) and not any(1 for k in c.attrib.keys() if k not in ("style", "closed")) and not nextisb:
+            if c.tail is not None:
+                p = c.getprevious()
+                if p is None:
+                    node.text = _sp(node.text, c.tail)
+                else:
+                    p.tail = _sp(p.tail, c.tail)
+            n = c.getnext()
+            node.remove(c)
+            c = n
+            if c is None:
+                break
+        else:
+            clear_empties(c, ptx=ptx, grammar=grammar)
+            if c not in c.parent:
+                break
+            c = c.getnext()
+
 
 def attribnorm(d):
     banned = ('closed', 'status', 'vid', 'version')

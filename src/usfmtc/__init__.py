@@ -16,7 +16,8 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, regularise, addorncv
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, \
+                            regularise, clear_empties, addorncv
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
 from usfmtc.usfmparser import USFMParser, Grammar
@@ -305,8 +306,10 @@ class USX:
                 - Ensure verses have a paragraph as parent by closing and opening
                   the char styles
                 - if ptx, then set refs to gen="1" and closed="false" on note char styles
+                - clear out empty char styles and par styles
         """
         regularise(self.getroot(), ptx=ptx, grammar=self.grammar)
+        clear_empties(self.getroot(), ptx=ptx, grammar=self.grammar)
 
     def addesids(self):
         """ Add esids to USX object (eid, sids, vids) """
