@@ -76,6 +76,13 @@ class Emitter:
             s = escaped(s, self.escapes)
         self.outf.write(s)
 
+    def tag(self, e, sep=" "):
+        s = e.get('style', '')
+        if s is not None and len(s):
+            if "colspan" in e.attrib:
+                s = "{}-{}".format(s, e.get('colspan'))
+            self("\\{0}{1}".format(s, sep))
+
 def iterels(el, events):
     if 'start' in events:
         yield ('start', el)
@@ -105,7 +112,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
         version = [100]
     if version < [3, 2]:
         escapes = ""
-    emit = Emitter(outf, escapes)
+    emit = kw.get('emitter', Emitter)(outf, escapes)
     paraelements = ("chapter", "para", "row", "sidebar")
     cref = None
     innote = None
@@ -152,7 +159,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     cref.verse = n
                     cref.subverse = None
             elif el.tag == "book":
-                emit("\\{0} {1}".format(s, el.get("code")))
+                emit.tag(el)
+                emit(el.get("code"))
                 prespace = True
             elif el.tag in ("row", "para"):
                 if 'vid' in el.attrib:
@@ -161,13 +169,13 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                         emit(f"\\vid|{r}\\*\n")
                     cref = r.last
                 if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):
-                    emit("\\{0}\n".format(s))
+                    emit.tag(el, sep="\n")
                 else:
-                    emit("\\{0} ".format(s))
+                    emit.tag(el)
             elif el.tag in ("link", "char"):
-                emit("\\{0} ".format(s))
+                emit.tag(el)
             elif el.tag in ("note", "sidebar"):
-                emit("\\{0}".format(s))
+                emit.tag(el, sep="")
                 if version >= [3, 2] and el.tag != "ms":
                     append_attribs(el, emit, attribmap=attribmap, init=True)
                 if el.tag != "sidebar":
@@ -178,21 +186,18 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     emit("\\cat {0}\\cat*".format(el.get("category")))
                 innote = mcats.get(s, "") if el.tag == "note" else None
             elif el.tag == "unmatched":
-                emit("\\" + el.get("style", " "))
+                emit.tag(el, sep="")
             elif el.tag == "figure":
                 if (v := el.get("file", None)) is not None:
                     del el.attrib["file"]
                     el.set("src", v)
-                emit("\\{} ".format(s))
+                emit.tag(el)
             elif el.tag == "cell":
-                if "colspan" in el.attrib:
-                    emit("\\{0}-{1} ".format(s, el.get("colspan")))
-                else:
-                    emit("\\{} ".format(s))
+                emit.tag(el)
             elif el.tag == "optbreak":
                 emit("//")
             elif el.tag == "ms":
-                emit("\\{}".format(s))
+                emit.tag(el, sep="")
                 isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 1
                 append_attribs(el, emit, attribmap=attribmap)
                 emit("\\*" if not isbare else ("" if el.tail and el.tail[0] in " \n" else " ")) # protective space
