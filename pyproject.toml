@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "usfmtc"
-#version = "0.3.16"
+version = "0.3.16"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
 readme = "README.md"
 license = "MIT"
@@ -16,7 +16,7 @@ classifiers = [
    "Topic :: Text Processing :: Markup"
    ]
 requires-python = ">=3.8"
-dynamic = ["version"]
+#dynamic = ["version"]
 
 dependencies = [
 "rply",
@@ -41,8 +41,8 @@ usfmtc = ["*.rng", "*.vrs"]
 #[tool.setuptools.data-files]
 #"" = ["tests/*.usfm"]
 
-[tool.setuptools.dynamic]
-version = {attr = "usfmtc.version"}
+#[tool.setuptools.dynamic]
+#version = {attr = "usfmtc.version"}
 
 #[tool.setuptools]
 #packages = ["usfmtc"]
