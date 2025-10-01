@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
-import re
+import re, glob
 from subprocess import call, check_output
 from datetime import datetime
 
@@ -78,9 +78,8 @@ def git(*a, **kw):
 def dch(*a, **kw):
     _dch(*a, dryrun=args.noaction, **kw)
 def syscmd(*a, **kw):
-    if args.noaction:
-        print(" ".join(a))
-    else:
+    print(" ".join(a))
+    if not args.noaction:
         call(a, **kw)
 
 
@@ -96,4 +95,5 @@ git("push", "--tag")
 git("push")
 
 syscmd("python3", "-m", "build")
-syscmd("twine", "upload", "dist/*-"+args.version+"*", shell=True)
+pypyfiles = glob.glob("dist/*-"+args.version+"*")
+syscmd("twine", "upload", *pypyfiles)
