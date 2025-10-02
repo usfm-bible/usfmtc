@@ -2,7 +2,7 @@
 
 import re
 import logging
-import lxml.etree as et
+import xml.etree as et
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +89,8 @@ class UsfmGrammarParser:
 
     def proc_children(self, e, res, skip=True, start=0, parent=None, index=0, **kw):
         for i, c in enumerate(sorted(e, key=lambda x:self.getorder(x))):
-            if i < start or isinstance(c, et._Comment):
+            if i < start or not isinstance(c.tag, str):
                 continue
-            if not isinstance(c.tag, str):
-                breakpoint()
             t = re.sub(r"^\{.*\}", "", c.tag)
             if c.tag.startswith(usfmns) and t in self.aliases:
                 base = self.aliases[t]
