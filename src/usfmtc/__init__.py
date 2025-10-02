@@ -25,7 +25,7 @@ from usfmtc.usfmgenerate import usx2usfm
 from usfmtc.reference import RefList
 import xml.etree.ElementTree as et
 
-version = "0.3.18"
+version = "0.3.19"
 
 def _grammarDoc(gsrc, extensions=[], factory=et):
     data = readsrc(gsrc)
@@ -291,7 +291,7 @@ class USX:
             if outtype == "usfm3.0":
                 outtype = "usfm"
                 if version is None:
-                    version = "0.3.18"
+                    version = "0.3.19"
             self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
 
     def canonicalise(self, version=None):
@@ -337,7 +337,7 @@ class USX:
     @version.setter
     def version(self, version):
         if isinstance(version, (list, tuple)):
-            version = "0.3.18".join([str(x) for x in version])
+            version = "0.3.19".join([str(x) for x in version])
         if version is not None:
             self.getroot().set('version', str(version))
 
