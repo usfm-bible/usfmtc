@@ -7,7 +7,7 @@ name = "usfmtc"
 version = "0.3.19"
 authors = [{name = "USFM Technical Committee", email = "fonts@sil.org"}]
 readme = "README.md"
-license = "MIT"
+license = { text = "MIT" }
 description = "USFM reference parser"
 classifiers = [
    "Environment :: Console",
