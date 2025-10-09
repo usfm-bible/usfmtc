@@ -24,7 +24,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-git = [
+dev = [
+"rply",
+"regex",
+"lxml",
+"xmlutils"
 ]
 
 [project.urls]
