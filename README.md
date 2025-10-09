@@ -32,12 +32,27 @@ print(newdoc.outUsfm(None))     # A new doc of just PSA 23:2-4
 The internal representation of the data is as an ElementTree structure
 conforming to the USX standard.
 
-See the tests/test_\*.py files for more examples. See also pydoc usfmtc.
+See the `tests/test_\*.py` files for more examples. See also `pydoc usfmtc`.
 
 ## Utilities
 
 usfmtc comes with a few utilities:
 
-- usfmconv. Converts from one serialisation to another
-- usfmreversify. Change the versification of a file to something different
+- usfmconv: Converts from one serialisation to another
+- usfmreversify: Change the versification of a file to something different
+- urnc2rng: Convert to relax-NG
+
+## Installation
+
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install .
+```
+
+To install the dev profile with extra optional dependencies:
+
+```
+pip install .[dev]
+```
 
