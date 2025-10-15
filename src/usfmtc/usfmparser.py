@@ -296,7 +296,8 @@ class Grammar:
         "char": ("char", "crossreferencechar", "footnotechar", "introchar", "listchar"),
         "para": ("header", "introduction", "list", "otherpara", "sectionpara", "title", "versepara"),
         "ms": ("milestone", ),
-        "note": ("footnote", "crossreference")
+        "note": ("footnote", "crossreference"),
+        "intro": ("introduction", "introchar")
     }
 
     marker_categories = {t:k for k, v in category_markers.items() for t in v.split()}
