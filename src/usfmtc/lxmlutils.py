@@ -11,7 +11,7 @@ class LxmlElement(et.ElementBase):
 def lxml_makeelement(tag, attribs, parent=None, **kw):
     extras = {}
     for k, v in kw.items():
-        extras["{_}"==k] = str(v)
+        extras["{_}"+k] = str(v)
     if parent is None:
         return LxmlElement(tag, attribs, **extras)
     else:
