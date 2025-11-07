@@ -470,6 +470,10 @@ def main(hookcli=None, hookusx=None):
         if len(infiles) == 1 and usxdoc is None:
             doerror(f"Unable to read in {args.infile}")
 
+        if usxdoc.errors is not None and len(usxdoc.errors):
+            for m, p, r in usxdoc.errors:
+                doerror(f"{r} ({p}): {m}", False)
+
         if reflist is not None:
             book = usxdoc.book
             bkrefs = [r for r in reflist if r.first.book == book]
