@@ -382,18 +382,42 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
                 inserted += 1
                 ft.text = c.tail.lstrip()
                 c.tail = c.tail[:len(c.tail)-len(ft.text)]
-        for i, c in enumerate(list(node)):
+        nodes = list(node)
+        i = 0
+        while i < len(nodes):
+            c = nodes[i]
             if c.get('style', '') not in notechars[0 if replace == "ft" else 1]:
-                if len(node) == 1:
+                if i > 0 and c.getprevious().get('style', '') == replace:
+                    prev = c.getprevious()
+                    prev.append(c)
+                    c.parent = prev
+                    if len(prev) > 1:
+                        prev[-2].tail = (prev[-2].tail or "") + (prev.tail or "")
+                    elif prev.tail is not None:
+                        prev.text += prev.tail
+                    prev.tail = c.tail
+                    c.tail = None
+                    if i < len(nodes) - 1 and nodes[i+1].get('style', '') == replace:
+                        # merge the nodes
+                        c.tail = prev.tail + nodes[i+1].text
+                        for n in nodes[i+1]:
+                            prev.append(n)
+                            n.parent = prev
+                        prev.tail = nodes[i+1].tail
+                        node.remove(nodes[i+1])
+                        i += 1
+                elif i < len(nodes) - 1 and nodes[i+1].get('style', '') == replace:
+                    nodes[i+1].insert(0, c)
+                    c.tail = nodes[i+1].text
+                    nodes[i+1].text = None
+                    c.parent = nodes[i+1]
+                else:
                     ft = node.makeelement("char", {"style": replace})
                     ft.append(c)
                     c.parent = ft
-                elif i == 0:
-                    node[1].insert(0, c)
-                else:
-                    node[i-1].append(c)
+                    node.insert(node.find(c), ft)
                 node.remove(c)
-                break
+            i += 1
     if [int(x) for x in version.split(".")] >= [3, 1] and node.tag == "char" and node.get("style", "") == "xt" \
                 and len(node) == 1 and isempty(node.text) and isempty(node[0].tail) and node[0].tag == "ref":
         i = node.parent.index(node)

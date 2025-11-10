@@ -246,3 +246,13 @@ def test_regularise():
     if not doc.getroot()[2][0].tail.endswith(" "):
         fail(f"Missing inserted space before v2 in {f}")
 
+def test_canonicalxt():
+    usfm = r"""\id JHN SLU
+\c 6
+\p
+\v 53 Lemadendye Yesuske tyanuk ti sir ma byohe, \wj “Nam kutanuk ti e ne mlay: kolnye ei neke lema mi Irkye Ananke tenanke,\wj*\f + \fr 6:53 \ft Ti ayat ne Yesuske byohe, \fq Irkye Ananke\fq*, neke Yesuske yal ma lyosu I a myesan bo. Kola ne ti ayat \xt 6:27\xt*ke ode \xt 6:62\xt*ke dakun. (Matos ti \xt Dan. 7:13-14\xt*.)\f* \wj ode lema myenw a larake, desikeo ana mormyorif manal nini namke lema kimin a e.\wj*
+\v 54 \wj Klala esei desike nya tenakkwe ode yenw a larakkwe, desikeo i desike mormyorif manal nini namke kimin a i ti kiba knaru ne, ode ana kaorif a i ti sew a nuske ktem ne ana kilodur ne.\wj*
+"""
+    doc, f = _dousfm(usfm)
+    if len(doc.getroot()[2][2]) != 4 or len(doc.getroot()[2][2][3]) != 3:
+        fail(f"Bad footnote canonicalising in {f}")
