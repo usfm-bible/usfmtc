@@ -226,16 +226,19 @@ def addindexes(root):
     return chapters, ids
 
 escapes = {
-    '\\' : '\\',
-    'n': '\n'
+    r'\n': '\n',
+    r'\~': '~',
+    r'\|': '|',
+    r'\\' : '\\',
+    '~': '\u00A0'
 }
 
+escapere = re.compile(r"(\\[n~\\|]|~)")
+print(escapere)
 def add_specials(t, node, parent, istext=False):
     if t is None:
         return t
-    t = re.sub(r'\\(.)', lambda m: escapes.get(m.group(1), "\\"+m.group(1)), t)
-    if "~" in t:
-        t = t.replace("~", "\u00A0")
+    t = escapere.sub(lambda m: escapes.get(m.group(1), m.group(1)[1:]), t)
     return t
 
 alignments = {
@@ -249,6 +252,7 @@ def _stripws(s, atend=False):
         return None
     return _wsere.sub("", s) if atend else _wssre.sub("", s)
 
+backre = re.compile(r"\\([\\~|])")
 def cleanup(node, parent=None):
     if node.tag == 'para':
         # cleanup spaces at start and end of para
@@ -305,7 +309,11 @@ def cleanup(node, parent=None):
             node = refnode
     # strip character escapes
     for k, v in node.attrib.items():
-        node.attrib[k] = re.sub(r"\\(.)", r"\1", v)
+        node.attrib[k] = backre.sub(r"\1", v)
+    #if node.text is not None:
+    #    node.text = backre.sub(r"\1", node.text)
+    #if node.tail is not None:
+    #    node.tail = backre.sub(r"\1", node.tail)
     for c in node:
         cleanup(c, parent=node)
 

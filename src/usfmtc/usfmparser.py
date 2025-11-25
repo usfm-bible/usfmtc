@@ -117,11 +117,11 @@ class Lexer:
 
     tokenre = regex.compile(r'''    # the next token in text
         ((?: [^\\|/\r\n]            # string component consists of: normal characters
-           | \\ (?:[\\|] | \r?\n)           # escaped specials
+           | \\ (?:[\\|~] | \r?\n)           # escaped specials
            | / (?!/)                        # / sequence, not //
           )+                            # one or more of these
         )
-        | ( [\\|] | \r?\n | // )    # then specials: tag start or attributes start, newline, //   
+        | ( [\\|~] | \r?\n | // )    # then specials: tag start or attributes start, newline, //   
     ''', regex.X)
     tagre = regex.compile(r'''
         (?: \+? [a-zA-Z_][a-zA-Z_0-9^-]* )?  # optional + then the usfm tag spec

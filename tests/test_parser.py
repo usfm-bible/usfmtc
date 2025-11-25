@@ -256,3 +256,15 @@ def test_canonicalxt():
     doc, f = _dousfm(usfm)
     if len(doc.getroot()[2][2]) != 4 or len(doc.getroot()[2][2][3]) != 3:
         fail(f"Bad footnote canonicalising in {f}")
+
+def test_specialchars():
+    usfm = r"""\id JHN test
+\c 4
+\p
+\v 1 This tests \| pipe, \~ tilde and \\ backslash. Notice the hard~space
+"""
+    print(usfm)
+    doc, f = _dousfm(usfm)
+    if '\\\\\\' in f or '~' not in f:
+        fail(f"Bad character escaping in {f}")
+

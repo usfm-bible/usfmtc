@@ -10,7 +10,7 @@ def usvout(m):
     else:
         return "\\u{:04X}".format(u)
 
-_reesc = re.compile(r'([\\|]|//)')
+_reesc = re.compile(r'([\\|~]|//)')
 _reatt = re.compile(r'([\\|"])')
 def attribescaped(s, escapes):
     return escaped(s, escapes, reg=_reatt)
