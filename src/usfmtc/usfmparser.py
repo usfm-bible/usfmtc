@@ -207,9 +207,9 @@ class Lexer:
             elif n == '|':
                 t, curri = self.readAttrib(curri)
                 if not len(t):
-                    res = String("", l=self.lindex, c=curri-self.lpos)
-                    continue
-                res = t
+                    res = AttribText("", l=self.lindex, c=curri-self.lpos)
+                else:
+                    res = t
                 break
             elif n == '//':
                 res = OptBreak(l=self.lindex, c=curri-self.lpos)

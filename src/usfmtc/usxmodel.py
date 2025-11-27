@@ -234,7 +234,6 @@ escapes = {
 }
 
 escapere = re.compile(r"(\\[n~\\|]|~)")
-print(escapere)
 def add_specials(t, node, parent, istext=False):
     if t is None:
         return t

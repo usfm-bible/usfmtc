@@ -268,3 +268,12 @@ def test_specialchars():
     if '\\\\\\' in f or '~' not in f:
         fail(f"Bad character escaping in {f}")
 
+def test_emptyattrib():
+    usfm = r"""\id JHN empty attributes
+\p
+\v 1 \rb normal|good\rb* \rb test|\rb* \rb |empty\rb*
+"""
+    doc, f = _dousfm(usfm)
+    if 'test' not in f or 'empty' not in f:
+        fail("{f} is missing data")
+
