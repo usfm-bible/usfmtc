@@ -362,7 +362,7 @@ class Grammar:
     def copy(self):
         res = self.__class__(quick=True)
         for a in ('marker_categories', 'attribmap', 'attributes'):
-            setattr(res, a, getattr(self, a))
+            setattr(res, a, getattr(self, a).copy())
         return res
 
     def readmrkrs(self, fname):

@@ -696,7 +696,7 @@ class RefRange:
             return first
         return super().__new__(cls)
 
-    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, strict: bool=False, **kw):
+    def __init__(self, first: Optional[Ref]=None, last: Optional[Ref]=None, strict: bool=False, test: bool=True,  **kw):
         self.strict = strict
         self.first = first.first
         self.last = last.last
@@ -705,7 +705,7 @@ class RefRange:
             self.sep = kw['sep']
         if getattr(self.last, 'book', None) is None:
             self.last.book = self.first.book
-        if self.last < self.first:
+        if test and self.last < self.first:
             raise ValueError(f"{first=} is after {last=}")
         if isinstance(self.first, RefRange):
             raise ValueError(f"Nested RefRange({self.first})")

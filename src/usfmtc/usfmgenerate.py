@@ -94,6 +94,8 @@ def iterels(el, events):
 def _isnextref(cref, ref, e):
     if ref.chapter == cref.chapter:
         return ref.verse == cref.verse or ref.verse == cref.verse + 1
+    elif cref.chapter is None:
+        return False
     else:
         return ref.chapter == cref.chapter + 1 and ref.verse == 1
 
