@@ -446,8 +446,8 @@ def test_subdoc2():
     et.dump(res.getroot())
     f = res.outUsfm(None, forcevid=True)
     print(f)
-    if len(res.getroot()) != 10:
-        fail(f"{f} has {len(res.getroot())} children and not 10")
+    if len(res.getroot()) != 7:
+        fail(f"{f} has {len(res.getroot())} children and not 7")
 
 def test_finalv():
     res = jon_usfm.getrefs(Ref("JON 1:17"), titles=False)
@@ -478,3 +478,28 @@ def test_rangeseq():
     print(r.str())
     if "19-2" in str(r):
         fail(f"{r} has {len(r)} refs: {r[0]}, {r[1]}")
+
+def test_subsetemptyfinal():
+    usfm = r"""\id ISA test
+\c 4
+\q1 \v 4 Ka wakava some other text
+\q2 This is a secondary line
+\q1 Now another line of poetry:
+\q2 with its secondary.
+\q1 More lines of poetry:
+\q2 with its secondary again.
+\b
+\q1
+\v 5 The start of another verse
+\q2 And the secondary line for this verse
+\s A subheading leading forward
+\q1
+\v 6 Another verse
+\q2 with its secondary
+"""
+    doc = readFile(usfm, informat="usfm")
+    doc.canonicalise()
+    subdoc = doc.getrefs(Ref("ISA 4:4-5"))
+    f = subdoc.outUsfm(None)
+    if '\\s' in f:
+        fail(f"{f} has a final section")

@@ -331,11 +331,12 @@ class USXCursor(ETCursor):
                 p = p.parent
         else:
             p = a.el
-        i = list(root).index(p)
+        #i = list(root).index(p)
         allnew = {}
         res = factory(root.tag, attrib=root.attrib)
         currp = res
         curr = root
+        start = 0
         if addintro or titles:
             categories = ["versepara", "sectionpara"] + ["title", "introduction"] if not addintro else []
             def isendintro(e):
@@ -344,21 +345,22 @@ class USXCursor(ETCursor):
                 s = e.get("style", "")
                 return grammar.marker_categories.get(s, "") in categories
             # copy the tree up to the first chapter or verse text
-            for eloc in root:
+            for i, eloc in enumerate(root):
                 if isendintro(eloc):
+                    start = i
                     break
                 newp = eloc.copy(deep=True, parent=currp, factory=factory)
                 currp.append(newp)
             curr = root
             currp = res
 
-        for eloc, isin in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib)):
+        for eloc, isin in iterusx(root, parindex=start, start=a.el, until=b.el, untilafter=bool(b.attrib)):
             if isin and eloc == b.el:
                 break
             # at the start
-            elif isin and eloc == a.el and eloc.tag not in ("para", "book", "sidebar"):
+            elif isin and eloc == a.el and eloc.tag not in ("para", "book", "sidebar", "chapter"):
                 # if we are at the start of the parent (para, since a verse is always only in a para) check for subheadings
-                if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == 0:  # are we first?
+                if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == start:  # are we first?
                     r = eloc.parent.parent  # should be root
                     i = r.index(eloc.parent) - 1
                     # scan back over section heads
