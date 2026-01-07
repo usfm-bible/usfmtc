@@ -9,7 +9,7 @@
 #     nuitka-project: --output-filename=usfmconv.bin
 
 import os, json, io
-from usfmtc.utils import readsrc
+from usfmtc.utils import readsrc, getSrcName
 from usfmtc.validating.usfmparser import parseusfm, UsfmParserBackend
 from usfmtc.validating.rngparser import NoParseError
 from usfmtc.extension import Extensions
@@ -126,7 +126,12 @@ class USX:
             Raise usfmtc.parser.NoParseError on error.
             elfactory must take parent and pos named parameters not as attributes
         """
-        data = readsrc(src)
+        readerr = None
+        try:
+            data = readsrc(src, errors='strict')
+        except UnicodeError as e:
+            readerr = f"In file {getSrcName(src)}: {e}"
+            data = readsrc(src)
 
         if not altparser:
             p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, **kw)
@@ -137,6 +142,8 @@ class USX:
             result = parseusfm(data, grammar, timeout=timeout, isdata=True, **kw)
             xml = result.asEt(elfactory=elfactory)
 
+        if p and readerr is not None:
+            p.errors.insert(0, (readerr,))
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
         res = cls(xml, grammar, errors=p.errors if p else None)
         if keepparser:
@@ -145,7 +152,7 @@ class USX:
 
     @classmethod
     def fromUsj(cls, src, elfactory=None, grammar=None, **kw):
-        data = readsrc(src)
+        data = readsrc(src, errors=kw.get("errors", "replace"))
         djson = json.loads(data)
         xml = usjtousx(djson, elfactory=elfactory)
         return cls(xml, grammar)
