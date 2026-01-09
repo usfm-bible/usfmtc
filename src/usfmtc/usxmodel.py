@@ -5,7 +5,7 @@ from usfmtc.xmlutils import isempty, ParentElement
 from usfmtc.usfmparser import Grammar, WS
 from usfmtc.reference import Ref, RefRange, MarkerRef
 import xml.etree.ElementTree as et
-from typing import Optional
+from typing import Optional, Dict, List, Any, Tuple, Type, Union
 
 # This should be read from usx.rng
 allpartypes = {
@@ -887,7 +887,7 @@ def _getref(e, book, lastchap=0):
         ref = Ref(refstr)
     return ref
 
-def _list_insert(arr, k, v, default=0):
+def _list_insert(arr: List[int], k: int, v: int, default: int=0):
     if k >= len(arr):
         arr += [default] * (k - len(arr) + 1)
     arr[k] = v

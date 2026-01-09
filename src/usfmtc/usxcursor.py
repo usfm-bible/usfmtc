@@ -117,9 +117,8 @@ def _findcvel(ref, usx, atend=False, parindex=0):
         the end of the elment, the next element. parindex speeds up the hunt for the
         chapter.'''
     resm = 0
-    if ref.book:
-        if ref.book is not None and usx.book != ref.book:
-            raise ValueError("Reference book {} != text book {}".format(ref, usx.book))
+    if ref.book is not None and usx.book != ref.book:
+        raise ValueError("Reference book {} != text book {}".format(ref, usx.book))
     root = usx.getroot()
     c = ref.chapter
     foundend = False

@@ -4,26 +4,32 @@ import regex
 import xml.etree.ElementTree as et
 from usfmtc.extension import SFMFile
 from collections import UserDict, UserString
+from typing import Optional, Dict, Any, List, Type, Union
 
 WS = "\t\n\r "   # \v\f\u001C\u001D\u001E\u001F "  full python ASCII WS
 
 class Pos:
-    def __init__(self, l, c, **kw):
+    def __init__(self, l: int, c: int, **kw) -> None:
         self.l = l
         self.c = c
         self.kw = kw
 
-    def __str__(self):
+    def __str__(self) ->str:
         return f"{self.l}:{self.c}"
 
     def __repr__(self):
         return f"Pos({self.l}:{self.c})"
 
-    def copy(self):
+    def copy(self) -> 'Pos':
         return self.__class__(self.l, self.c, **self.kw)
 
 class Tag(str):
-    def __new__(cls, s, l=0, c=0, **kw):
+    pos: Pos
+    isplus: bool
+    isend: bool
+    attribs: Optional[Dict[str, str]]
+
+    def __new__(cls, s: str, l: int = 0, c: int = 0, **kw: Any) -> "Tag":
         isend = False
         isplus = False
         if s.startswith("+"):
@@ -55,7 +61,7 @@ class Tag(str):
         res += "*" if self.isend else ""
         return res
 
-    def basestr(self):
+    def basestr(self) -> str:
         """ Returns marker with no final *, etc. """
         return super().__str__()
 
@@ -80,7 +86,10 @@ class OptBreak:
         return "//"
 
 class String(UserString):
-    def __init__(self, s, l=0, c=0, **kw):
+    pos: Pos
+    kw: Dict[str, Any]
+
+    def __init__(self, s: str, l: int=0, c: int=0, **kw: Any) -> None:
         super().__init__(s)
         self.pos = Pos(l, c)
         self.kw = kw
@@ -91,7 +100,7 @@ class String(UserString):
     def be(self, s):
         return String(str(s), l=self.pos.l, c=self.pos.c, **self.kw)
 
-    def addToNode(self, node, position, lstrip=False):
+    def addToNode(self, node: et.Element, position: str, lstrip: bool=False) -> None:
         cp = self.pos.c
         s = str(self)
         if lstrip:
@@ -114,6 +123,10 @@ class Attribs(UserDict):
         self.kw = kw
 
 class Lexer:
+    txt: str
+    cindex: int
+    lindex: int
+    nexts: List[Union[Tag, String, 'Attribs', 'OptBreak']]
 
     tokenre = regex.compile(r'''    # the next token in text
         ((?: [^\\|/\r\n]            # string component consists of: normal characters
@@ -139,14 +152,15 @@ class Lexer:
     afterattribs = regex.compile(r'\s*\\')
     usvre = regex.compile(r'(?:\\u([0-9a-fA-F]{4})|\\U([0-9a-fA-F]{8}))')
 
-    def __init__(self, txt, parser, expanded=False, strict=False, tagger=Tag):
+    def __init__(self, txt: str, parser: "USFMParser", expanded: bool=False,
+                        strict: bool=False, tagger: Type[Tag]=Tag):
         self.txt = txt
         self.expanded = expanded
         self.strict = strict
         self.parser = parser
         self.tagger = tagger
 
-    def __iter__(self):
+    def __iter__(self) -> "Lexer":
         self.nexts = []
         self.cindex = 0
         self.lindex = 0
@@ -155,7 +169,7 @@ class Lexer:
         self.currxpand = None
         return self
 
-    def __next__(self):
+    def __next__(self) -> Union[Tag, String, "Attribs", "AttribText", "OptBreak"]:
         if len(self.nexts):
             return self.nexts.pop(0)
         curri = self.cindex
@@ -181,7 +195,7 @@ class Lexer:
                     u = self.usvre.match(self.txt[m.end():])
                     if u:
                         c = chr(int((m.group(1) or m.group(2)), 16))
-                        s += c
+                        res += c
                         curri += u.end()
                         continue
                 t = self.tagre.match(self.txt[m.end():])
@@ -299,6 +313,9 @@ class Grammar:
         "note": ("footnote", "crossreference"),
         "intro": ("introduction", "introchar")
     }
+    node_depths = {"usx": 1, "book": 2, "periph": 3, "sidebar": 4, "chapter": 5, "para": 5, "table": 5,
+        "row": 6, "cell": 7, "char": 8, "optbreak": 8, "figure": 8, "ref": 8, "link": 8, "verse": 8,
+        "note": 9, "ms": 10} 
 
     marker_categories = {t:k for k, v in category_markers.items() for t in v.split()}
     marker_tags = {t:k for k, v in category_tags.items() for t in v}
@@ -393,7 +410,7 @@ def isfirstText(e):
     return True
 
 class Node:
-    def __init__(self, parser, usxtag, tag, ispara=False, notag=False, pos=None, **kw):
+    def __init__(self, parser, usxtag, tag, *, ispara=False, notag=False, pos=None, **kw):
         self.parser = parser
         self.tag = tag
         self.ispara = ispara
@@ -495,7 +512,7 @@ class USXNode(Node):
         self.element.set('version', str(t).strip(WS))
 
 class AttribNode(Node):
-    def __init__(self, parser, parent, tag, pos=None, only=[], **kw):
+    def __init__(self, parser, parent, tag, *, pos=None, only=[], **kw):
         self.parser = parser
         self.parent = parent
         self.tag = tag
@@ -550,7 +567,7 @@ class FwdAttribNode(Node):
 
 
 class NumberNode(Node):
-    def __init__(self, parser, usxtag, tag, ispara=False, pos=None, **kw):
+    def __init__(self, parser, usxtag, tag, *, ispara=False, pos=None, **kw):
         super().__init__(parser, usxtag, tag, ispara=ispara, pos=pos, **kw)
         self.hasarg = False
 
@@ -631,9 +648,10 @@ class FallBackError(Exception):
 paratypes = ('header', 'introduction', 'list', 'otherpara', 'sectionpara', 'versepara', 'title', 'chapter', 'ident')
 paratags = ('rem', ' table', 'sidebar')
 
+
 class USFMParser:
 
-    def __init__(self, txt, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, **kw):
+    def __init__(self, txt, *, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, **kw):
         if factory is None:
             def makeel(tag, attrib, **extras):
                 attrib.update({" "+k:v for k, v in extras.items()})
@@ -753,7 +771,7 @@ class USFMParser:
                 self.error(SyntaxError, f"Closing '{tag}' with no corresponding opening", self.lexer.currpos())
         return self.stack[-1]
 
-    def removeType(self, t, tags=[]):
+    def removeType(self, t, tags=[], node=None):
         if isinstance(t, str):
             t = [t]
         oldstack = self.stack[:]
@@ -761,7 +779,8 @@ class USFMParser:
             curr = self.stack.pop()
             if hasattr(curr, 'element'):
                 e = curr.element
-                if e.tag in ("usx", "periph") or e.tag in tags:
+                if self.grammar.node_depths.get(e.tag, 10) < self.grammar.node_depths.get(node, 4) \
+                            or e.tag in tags:
                     self.stack.append(curr)
                     break
                 curr.close()
@@ -786,7 +805,7 @@ class USFMParser:
             elif e.tag in tags or cat in t:
                 break
         else:
-            self.stack = oldstack
+            self.stack = oldstack       # what about everything we closed on getting here?
         return self.stack[-1] if len(self.stack) else None
 
     def cvref(self):
@@ -795,7 +814,7 @@ class USFMParser:
 
 #### Event methods
     def _c(self, tag):
-        self.removeType(paratypes, paratags)
+        self.removeType(paratypes, paratags, node="chapter")
         return self.addNode(NumberNode(self, "chapter", tag, ispara=True, pos=tag.pos))
 
     def _cp(self, tag):
@@ -809,7 +828,7 @@ class USFMParser:
         return parent
 
     def _esb(self, tag):
-        self.removeType(paratypes, paratags)
+        self.removeType(paratypes, paratags, node="sidebar")
         return self.addNode(Node(self, "sidebar", tag, pos=tag.pos))
 
     def _esbe(self, tag):
@@ -831,7 +850,7 @@ class USFMParser:
             return self.otherpara(tag)
         if tag.isend:
             return self.removeTag(str(tag))
-        self.removeType(paratypes, paratags)
+        self.removeType(paratypes, paratags, node="para")
         res = self.addNode(Node(self, 'para', tag, ispara=True, pos=tag.pos))
         self.lexer.readLine()
         self.lexer.appendtag("rem*")
@@ -840,7 +859,7 @@ class USFMParser:
     def _tr(self, tag):
         self.removeTag('tr', absentok=True)
         if not len(self.stack) or self.stack[-1].element.tag != "table":
-            self.removeType(paratypes,)
+            self.removeType(paratypes, node="table")
             self.addNode(Node(self, 'table', ' table', notag=True, pos=tag.pos))
         return self.addNode(Node(self, 'row', 'tr', pos=tag.pos))
 
@@ -865,7 +884,7 @@ class USFMParser:
     def _xt(self, tag):
         removed = False
         if self.grammar.marker_categories.get(self.stack[-1].tag, "") == "crossreferencechar":
-            res = self.removeType('crossreferencechar')
+            res = self.removeType('crossreferencechar', node="char")
             removed = True
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag, pos=tag.pos))
@@ -894,7 +913,7 @@ class USFMParser:
         return self.addNode(FwdAttribNode(self, 'ms', tag, pos=tag.pos))
 
     def cell(self, tag):
-        self.removeType('cell', tags=["row"])
+        self.removeType('cell', tags=["row"], node="cell")
         if not tag.isend:
             return self.addNode(Node(self, 'cell', tag, pos=tag.pos))
         return self.parent
@@ -916,7 +935,7 @@ class USFMParser:
         return self.addNode(NoteNode(self, 'note', tag, pos=tag.pos))
 
     def crossreferencechar(self, tag):
-        res = self.removeType('crossreferencechar', tags=["note"])
+        res = self.removeType('crossreferencechar', tags=["note"], node="char")
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag, pos=tag.pos))
         return res
@@ -927,7 +946,7 @@ class USFMParser:
         return self.addNode(NoteNode(self, 'note', tag, pos=tag.pos))
 
     def footnotechar(self, tag):
-        res = self.removeType('footnotechar', tags=["note"])
+        res = self.removeType('footnotechar', tags=["note"], node="char")
         if not tag.isend:
             res = self.addNode(Node(self, 'char', tag, pos=tag.pos))
         return res
@@ -963,7 +982,7 @@ class USFMParser:
 
 def main():
     import sys
-    p = USFMParser(sys.argv[1])
+    p = USFMParser(open(sys.argv[1], encoding="utf-8").read())
     e = p.parse()
     et.indent(e)
     et.dump(e)
