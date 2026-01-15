@@ -36,7 +36,7 @@ def test_hardspaces():
     t = e.text
     if not t.endswith("\u00A0"):
         fail("No hard space after fr in usx")
-    if not re.search("\u00A0\\\\ft", f):
+    if not re.search("~\\\\ft", f):
         fail("No hard space after fr in usfm")
 
 def test_glossary():
@@ -277,3 +277,11 @@ def test_emptyattrib():
     if 'test' not in f or 'empty' not in f:
         fail("{f} is missing data")
 
+def test_tilde():
+    usfm = r"""\id JHN with tildes
+\p
+\v 1 This is a~test
+"""
+    doc, f = _dousfm(usfm)
+    if "~" not in f or "\u00A0" not in doc.getroot()[1][0].tail:
+        fail("{f} has bad hard space")
