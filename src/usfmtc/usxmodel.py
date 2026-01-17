@@ -263,10 +263,8 @@ def cleanup(node, parent=None):
         if len(node) >= -i:
             if node[i].tail is not None:
                 node[i].tail = _stripws(node[i].tail, atend=True)
-                node[i].tail = add_specials(node[i].tail, node, parent)
-        elif node.text is not None:
-            node.text = _stripws(node.text, atend=True)
-            node.text = add_specials(node.text, node, parent, istext=True)
+        else:
+            node.text = _stripws(node.text)
     elif node.tag in ('chapter', 'verse'):
         node.text = None
     elif node.tag == "figure":
@@ -313,8 +311,10 @@ def cleanup(node, parent=None):
     #    node.text = backre.sub(r"\1", node.text)
     #if node.tail is not None:
     #    node.tail = backre.sub(r"\1", node.tail)
+    node.text = add_specials(node.text, node, parent)
     for c in node:
         cleanup(c, parent=node)
+    node.tail = add_specials(node.tail, node, parent)
 
 _attribre = re.compile(r'(["=|\\~/])')
 _textre = re.compile(r'([=|\\~/])')
