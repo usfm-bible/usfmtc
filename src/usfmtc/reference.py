@@ -942,11 +942,11 @@ class RefList(UserList):
 
     @property
     def first(self):
-        return self[0] if len(self) else None
+        return self[0].first if len(self) else None
 
     @property
     def last(self):
-        return self[-1] if len(self) else None
+        return self[-1].last if len(self) else None
 
     def allrefs(self):
         for r in self:

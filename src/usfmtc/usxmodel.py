@@ -652,7 +652,8 @@ def _sectionref(el, cref, grammar):
         v = p[0]
         if v.tag != "verse":
             return cref
-        cref.verse = int(v.get("number", 0))
+        n = re.sub(r"-.*$", "", v.get("number", 0))
+        cref.verse = int(n)
         cref.word = None
         cref.char = None
         return cref
@@ -727,7 +728,8 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
         if isin:
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
-                setattr(curr, eloc.tag, int(eloc.get("number", 0)))
+                n = re.sub(r"-.*$", "", eloc.get("number", 0))
+                setattr(curr, eloc.tag, int(n))
                 curr.word = 0
                 curr.char = 0
                 curr.mrkrs = None
@@ -768,9 +770,9 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
                     curr.setword(w + 1)
                     curr.setchar(0)
                 _extendlen(curr, eloc.text, atfirst=True)
-                cref = RefRange(lastref.last, curr)
+                cref = RefRange(lastref.last, curr, test=False)
             elif curr is not None:
-                cref = RefRange(lastref.last, curr)
+                cref = RefRange(lastref.last, curr, test=False)
             else:
                 cref = lastref.last
         else:
