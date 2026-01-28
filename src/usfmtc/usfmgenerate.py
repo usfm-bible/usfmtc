@@ -147,7 +147,10 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 proc_start_ms(el, "verse", "v", emit, " ", escapes, version)
                 v = el.get("number", "0")
                 if cref is not None:
-                    cref = Ref(f"{cref.book or ''} {cref.chapter}:{v}")
+                    try:
+                        cref = Ref(f"{cref.book or ''} {cref.chapter or 0}:{v}")
+                    except SyntaxError:
+                        cref = Ref(v)
                 else:
                     cref = Ref(v)
             elif el.tag == "book":
