@@ -217,7 +217,11 @@ def test_badverse():
 \p
 \v Here is the genealogy
 """
-    doc, f = _dousfm(usfm, errors=True)
+    try:
+        doc, f = _dousfm(usfm, errors=True)
+    except SyntaxError:
+        return
+    fail(f"Bad verse parsed in {usfm}")
 
 def test_periph():
     usfm = r"""\id FRT testing periph

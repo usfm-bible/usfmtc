@@ -298,7 +298,7 @@ def cleanup(node, parent=None):
         # \xt John 3:16|href="JHN 3:16"\xt* -> \ref John 3:16|loc="JHN 3:16" gen="true"\ref*
         if node.get('style', '') == "xt" and ('href' in node.attrib or 'link-href' in node.attrib) \
                 and (len(node) != 1 or node.text is not None or node[0].tag != 'ref'):
-            refnode = node.__class__('ref', attrib=dict(loc=node.get('href', node.get('link-href', '')), gen="true"))
+            refnode = node.__class__('ref', attrib=dict(loc=node.get('href', node.get('link-href', '')), gen="true"), parent=node)
             refnode.text = node.text
             refnode[:] = node[:]
             node[:] = [refnode]
@@ -652,7 +652,7 @@ def _sectionref(el, cref, grammar):
         v = p[0]
         if v.tag != "verse":
             return cref
-        n = re.sub(r"-.*$", "", v.get("number", 0))
+        n = re.sub("[\u200f\u200e-].*$", "", v.get("number", 0))
         cref.verse = int(n)
         cref.word = None
         cref.char = None
@@ -728,7 +728,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
         if isin:
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
-                n = re.sub(r"-.*$", "", eloc.get("number", 0))
+                n = re.sub("[\u200e\u200f-].*$", "", eloc.get("number", 0))
                 setattr(curr, eloc.tag, int(n))
                 curr.word = 0
                 curr.char = 0

@@ -432,6 +432,12 @@ def test_isvalid():
     if r.isvalid():
         fail(f"{r} should not be valid")
 
+def test_bidi():
+    r = Ref("GEN 1\u200F:23 \u200F- 24")
+    print(r)
+    if not r.isvalid():
+        fail(f"{r} should be valid")
+
 def test_subdoc1():
     res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True, titles=False)
     f = res.outUsfm(None, forcevid=True)
@@ -503,3 +509,4 @@ def test_subsetemptyfinal():
     f = subdoc.outUsfm(None)
     if '\\s' in f:
         fail(f"{f} has a final section")
+

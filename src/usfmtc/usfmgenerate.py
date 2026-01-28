@@ -100,7 +100,7 @@ def _isnextref(cref, ref, e):
     else:
         return ref.chapter == cref.chapter + 1 and ref.verse == 1
 
-def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, **kw):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, cref=None, **kw):
     if grammar is None:
         attribmap = {}
         mcats = {}
@@ -117,7 +117,6 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
         escapes = ""
     emit = kw.get('emitter', Emitter)(outf, escapes)
     paraelements = ("chapter", "para", "row", "sidebar")
-    cref = None
     innote = None
     for (ev, el) in iterels(root, ("start", "end")):
         s = el.get("style", "")
@@ -134,33 +133,23 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 emit(lastel.tail, text=True)
             lastel = None
             prespace = False
+            if el.tag == "book":
+                bk = el.get("code", None)
             if el.tag == "chapter":
                 proc_start_ms(el, "chapter", "c", emit, "", escapes, version)
                 n = int(el.get("number", 0))
                 if cref is None:
-                    cref = Ref(chapter=n, verse=0)
+                    cref = Ref(book=bk, chapter=n, verse=0)
                 else:
                     cref.chapter = n
                     cref.verse = 0
             elif el.tag == "verse":
                 proc_start_ms(el, "verse", "v", emit, " ", escapes, version)
                 v = el.get("number", "0")
-                m = re.match(r"^(\d+)(\S+?)$", v)
-                if m:
-                    n = int(m.group(1))
-                    s = m.group(2) or None
+                if cref is not None:
+                    cref = Ref(f"{cref.book or ''} {cref.chapter}:{v}")
                 else:
-                    try:
-                        n = int(v)
-                        s = None
-                    except ValueError:
-                        n = 1
-                        s = v
-                if cref is None:
-                    cref = Ref(verse=n, subverse=s)
-                else:
-                    cref.verse = n
-                    cref.subverse = None
+                    cref = Ref(v)
             elif el.tag == "book":
                 emit.tag(el)
                 emit(el.get("code"))
@@ -168,7 +157,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
             elif el.tag in ("row", "para"):
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
-                    if version < [3, 2] and (cref is None or forcevid or _isnextref(cref, r, el)):
+                    if version < [3, 2] and (cref is None or forcevid or not _isnextref(cref, r, el)):
                         emit(f"\\vid|{r}\\*\n")
                     cref = r.last
                 if (el.text is None or not el.text.strip(WS)) and (len(el) and el[0].tag in paraelements):
@@ -256,5 +245,5 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 if version >= [3, 1]:
                     emit("\\usfm {}\n".format(".".join([str(x) for x in version])))
             lastel = el
-    return lastel
+    return lastel, cref
 

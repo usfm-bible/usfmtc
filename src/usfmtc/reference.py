@@ -194,10 +194,11 @@ _regexes = {
     "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",
     "verse2": r"(?P<verse2>[0-9]+|end)(?P<subv2>[a-z]?)",
     "chapter": r"(?:(?P<chap>[0-9]+|end))",
-    "chap": r"{chapter}(?![a-zA-Z])(?:[:.]{verse1})?{wordref1}?",
+    "chap": r"{chapter}(?![a-zA-Z])(?:{bidi}?[:.]{verse1})?{wordref1}?",
     "context": r"""(?:{chap}
                     | {verse2}{wordref2}? | {wordrefonly}(?P<mrkn3>{mrkref}*)
-                    | (?P<char3>{charref})(?P<mrkn4>{mrkref}*))(?=[-;,\s]|$)"""
+                    | (?P<char3>{charref})(?P<mrkn4>{mrkref}*))(?=[-;,\s]|$)""",
+    "bidi": "[\u200E\u200F]"
     }
 
 regexes = _regexes
@@ -860,8 +861,8 @@ class RefList(UserList):
             if s[start] in sep:
                 start += 1
                 continue
-            if (m := re.match("[\u200F\u200E]?-[\u200F\u200E]?", s[start:])):
-                rangesep = m.group(0)
+            if (m := re.match("\\s*[\u200F\u200E]?-[\u200F\u200E]?\\s*", s[start:])):
+                rangesep = m.group(0).strip()
                 if not len(res) or issubclass(res[-1].__class__, RefRange) or res[-1].chapter is None:
                     raise SyntaxError(f"Bad - in {s} ({s[start:]})")
                 inrange = True
