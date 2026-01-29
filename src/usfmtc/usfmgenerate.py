@@ -100,7 +100,7 @@ def _isnextref(cref, ref, e):
     else:
         return ref.chapter == cref.chapter + 1 and ref.verse == 1
 
-def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, cref=None, **kw):
+def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", forcevid=False, cref=None, book=None, **kw):
     if grammar is None:
         attribmap = {}
         mcats = {}
@@ -134,12 +134,12 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
             lastel = None
             prespace = False
             if el.tag == "book":
-                bk = el.get("code", None)
+                book = el.get("code", None)
             if el.tag == "chapter":
                 proc_start_ms(el, "chapter", "c", emit, "", escapes, version)
                 n = int(el.get("number", 0))
                 if cref is None:
-                    cref = Ref(book=bk, chapter=n, verse=0)
+                    cref = Ref(book=book, chapter=n, verse=0)
                 else:
                     cref.chapter = n
                     cref.verse = 0
@@ -154,7 +154,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 if cref is None:
                     m = re.match(r"^(\d+)(.*?)$", v)
                     if m:
-                        cref = Ref(book=bk, chapter=0, verse=int(m.group(1)), subverse=m.group(2) or None)
+                        cref = Ref(book=book, chapter=0, verse=int(m.group(1)), subverse=m.group(2) or None)
                     else:
                         cref = Ref()
             elif el.tag == "book":
