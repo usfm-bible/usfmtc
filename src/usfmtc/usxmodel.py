@@ -728,7 +728,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
         if isin:
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
-                n = re.sub("[\u200e\u200fa-zA-Z-].*$", "", eloc.get("number", 0))
+                n = re.sub("[\u200e\u200fa-zA-Z,-].*$", "", eloc.get("number", 0))
                 setattr(curr, eloc.tag, int(n))
                 curr.word = 0
                 curr.char = 0

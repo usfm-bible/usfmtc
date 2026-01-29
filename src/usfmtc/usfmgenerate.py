@@ -150,9 +150,13 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     try:
                         cref = Ref(f"{cref.book or ''} {cref.chapter or 0}:{v}")
                     except SyntaxError:
-                        cref = Ref(v)
-                else:
-                    cref = Ref(v)
+                        cref = None
+                if cref is None:
+                    m = re.match(r"^(\d+)(.*?)$", v)
+                    if m:
+                        cref = Ref(book=bk, chapter=0, verse=int(m.group(1)), subverse=m.group(2) or None)
+                    else:
+                        cref = Ref()
             elif el.tag == "book":
                 emit.tag(el)
                 emit(el.get("code"))

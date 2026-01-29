@@ -221,7 +221,10 @@ def test_badverse():
         doc, f = _dousfm(usfm, errors=True)
     except SyntaxError:
         return
-    fail(f"Bad verse parsed in {usfm}")
+    ve = doc.getroot().find(".//verse")
+    v = ve.get("number", "")
+    if v != "Here":
+        fail(f"Bad verse parsed in {usfm}")
 
 def test_periph():
     usfm = r"""\id FRT testing periph
