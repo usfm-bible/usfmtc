@@ -172,7 +172,7 @@ def addorncv(root, grammar=None, curr=None, factory=ParentElement):
             try:
                 currc = int(p.get("number", 0))
             except ValueError:
-                currc = re.sub(r"\D", "", p.get("number", "0"))
+                currc = revnum.sub(r"\1", p.get("number", "0"))
                 currc = int(currc) if len(currc) else 0
             curr = Ref(book=bk, chapter=currc, verse=0)
         elif p.tag == "para":
@@ -287,7 +287,7 @@ def cleanup(node, parent=None):
         s = node.get("style", "")
         if "-" in s:
             start, end = s.split("-")
-            startn = int(re.sub(r"^\D+", "", start))
+            startn = int(re.sub(r"\D", "", start))
             endn = int(end)
             span = endn - startn + 1
             node.set("colspan", str(span))
@@ -652,7 +652,7 @@ def _sectionref(el, cref, grammar):
         v = p[0]
         if v.tag != "verse":
             return cref
-        n = re.sub("[\u200f\u200e-].*$", "", v.get("number", 0))
+        n = revnum.sub(r"\1", v.get("number", 0))
         cref.verse = int(n)
         cref.word = None
         cref.char = None
@@ -704,6 +704,8 @@ def _extendlen(curr, txt, atfirst=False):
         curr.setchar(c)
         # print(f"{sc} -> {curr}")
 
+revnum = re.compile(r"^\D*(\d+)(\D.*?)$")       # return the first number
+
 def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw):
     """ Iterates root as per iterusx yielding a RefRange that expresses the start
         and end of the text (text or tail) for the eloc. Yields eloc, ref """ 
@@ -728,7 +730,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
         if isin:
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
-                n = re.sub("[\u200e\u200fa-zA-Z,-].*$", "", eloc.get("number", 0))
+                n = revnum.sub(r"\1", eloc.get("number", 0))
                 setattr(curr, eloc.tag, int(n))
                 curr.word = 0
                 curr.char = 0
