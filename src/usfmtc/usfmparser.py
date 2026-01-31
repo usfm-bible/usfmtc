@@ -412,10 +412,11 @@ def isfirstText(e):
 class Node:
     def __init__(self, parser, usxtag, tag, *, ispara=False, notag=False, pos=None, **kw):
         self.parser = parser
-        self.tag = tag
+        self.tag = tag.basestr() if hasattr(tag, 'basestr') else tag
         self.ispara = ispara
         parent = parser.stack[-1] if len(parser.stack) else None
         attribs = kw
+        attribs.update(getattr(tag, 'attrib', {}))
         if not notag and tag is not None:
             if issubclass(type(tag), Tag):
                 attribs['style'] = tag.basestr()
@@ -679,7 +680,7 @@ class USFMParser:
                 def dotype(self, tag):
                     if tag.isend:
                         return self.removeTag(str(tag))
-                    return self.addNode(Node(self, t, tag.basestr(), pos=tag.pos))
+                    return self.addNode(Node(self, t, tag, pos=tag.pos))
                 return dotype
             setattr(clsself, a[0], maketype(*a))
         # implicit closed paras
@@ -687,11 +688,11 @@ class USFMParser:
             if expanded:
                 def dotype(self, tag):
                     self.removeType(paratypes, paratags)
-                    return self.addNode(Node(self, 'para', str(tag), pos=tag.pos, ispara=True, xpand=tag.xp))
+                    return self.addNode(Node(self, 'para', tag, pos=tag.pos, ispara=True, xpand=tag.xp))
             else:
                 def dotype(self, tag):
                     self.removeType(paratypes, paratags)
-                    return self.addNode(Node(self, 'para', str(tag), pos=tag.pos, ispara=True))
+                    return self.addNode(Node(self, 'para', tag, pos=tag.pos, ispara=True))
             if not hasattr(clsself, a):
                 setattr(clsself, a, dotype)
 
