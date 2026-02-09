@@ -16,7 +16,8 @@ from usfmtc.extension import Extensions
 from usfmtc.xmlutils import ParentElement, prettyxml, writexml
 from usfmtc.validating.usxparser import USXConverter
 from usfmtc.validating.usfmgrammar import UsfmGrammarParser
-from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, iterusx, \
+from usfmtc.usxmodel import addesids, cleanup, canonicalise, reversify, \
+                            iterusx, iterusxref, \
                             regularise, clear_empties, addorncv
 from usfmtc.usxcursor import USXCursor
 from usfmtc.usjproc import usxtousj, usjtousx
@@ -259,14 +260,16 @@ class USX:
             res.append(text)
         return "\n".join(res)
 
-    def iterusx(self, **kw):
-        """ Iterates the doc root yielding a node and whether we are in or after (isin) the node. Once until is hit,
+    def iterusx(self, refs=False, **kw):
+        """ Iterates the doc root yielding a node and whether we are in or after (isin) the node.
+            If refs is True also yield a third value of a current reference. Once until is hit,
             iteration stops. The node matching until is entered if untilafter is True
             otherwise it is not yielded.  blocks prunes any node whose
             style has a category listed in blocks. The test is inverted if unblocks is True.
             filt is a list of functions that all must pass for the value to be yielded.
             until may be a function that tests a node for it being the last node. """
-        return iterusx(self.getroot(), **kw)
+        f = iterusxref if refs else iterusx
+        return f(self.getroot(), **kw)
 
     def reversify(self, srcvrs, tgtvrs, **kw):
         """ Change versification of this text from the srcvrs object to the
