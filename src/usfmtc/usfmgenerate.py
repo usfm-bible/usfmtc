@@ -13,11 +13,12 @@ def usvout(m):
 _reesc = re.compile(r'([\\|~]|//)')
 _reatt = re.compile(r'([\\|"])')
 def attribescaped(s, escapes):
-    return escaped(s, escapes, reg=_reatt)
+    return escaped(s, escapes, reg=_reatt, notilde=True)
 
 def escaped(s, escapes, reg=None, notilde=False):
     res = (reg or _reesc).sub(r'\\\1', s)
-    res = res.replace("\u00A0", "~")
+    if not notilde:
+        res = res.replace("\u00A0", "~")
     if escapes:
         res = re.sub(r'([{}])'.format(escapes), usvout, res)
     return res

@@ -5,7 +5,7 @@ from usfmtc.usxmodel import etCmp
 import xml.etree.ElementTree as et
 import re, json
 
-def _dousfm(s, grammar=None, errors=False, version=None):
+def _dousfm(s, grammar=None, errors=False, version=None, **kw):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
     doc.canonicalise()
     doc.version = version or "3.1"
@@ -23,7 +23,7 @@ def _dousfm(s, grammar=None, errors=False, version=None):
         print(j)
         breakpoint()
         fail(f"USJ did not round trip")
-    f = doc.outUsfm(None)
+    f = doc.outUsfm(None, **kw)
     print(f)
     return (doc, f)
 
@@ -282,7 +282,7 @@ def test_emptyattrib():
 """
     doc, f = _dousfm(usfm)
     if 'test' not in f or 'empty' not in f:
-        fail("{f} is missing data")
+        fail(f"{f} is missing data")
 
 def test_tilde():
     usfm = r"""\id JHN with tildes
@@ -291,4 +291,14 @@ def test_tilde():
 """
     doc, f = _dousfm(usfm)
     if "~" not in f or "\u00A0" not in doc.getroot()[1][0].tail:
-        fail("{f} has bad hard space")
+        fail(f"{f} has bad hard space")
+
+def test_notilde():
+    usfm = r"""\id JHN with tilde in footnote
+\p
+\v 1 This is a test\f + \fr 1:1~\ft No tildes here\f*
+"""
+    doc, f = _dousfm(usfm, notilde=True)
+    if '~' in f:
+        fail(f"{f} should have a hard space not tilde")
+
