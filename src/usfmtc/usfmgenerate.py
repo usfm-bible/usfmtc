@@ -15,7 +15,7 @@ _reatt = re.compile(r'([\\|"])')
 def attribescaped(s, escapes):
     return escaped(s, escapes, reg=_reatt)
 
-def escaped(s, escapes, reg=None):
+def escaped(s, escapes, reg=None, notilde=False):
     res = (reg or _reesc).sub(r'\\\1', s)
     res = res.replace("\u00A0", "~")
     if escapes:
@@ -65,16 +65,17 @@ def get(el, k):
     return el.get(k, "")
 
 class Emitter:
-    def __init__(self, outf, escapes):
+    def __init__(self, outf, escapes, notilde=False):
         self.outf = outf
         self.escapes = escapes
+        self.notilde = notilde
 
     def __call__(self, s, text=False):
         if s is None:
             return
         s = re.sub(r"\s*\n\s*", "\n", s)
         if text:
-            s = escaped(s, self.escapes)
+            s = escaped(s, self.escapes, notilde=self.notilde)
         self.outf.write(s)
 
     def tag(self, e, sep=" "):
@@ -115,7 +116,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
         version = [100]
     if version < [3, 2]:
         escapes = ""
-    emit = kw.get('emitter', Emitter)(outf, escapes)
+    emit = kw.get('emitter', Emitter)(outf, escapes, notilde=kw.get('notilde', False))
     paraelements = ("chapter", "para", "row", "sidebar")
     innote = None
     for (ev, el) in iterels(root, ("start", "end")):
