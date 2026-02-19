@@ -5,7 +5,7 @@ from usfmtc.usxmodel import etCmp
 import xml.etree.ElementTree as et
 import re, json
 
-def _dousfm(s, grammar=None, errors=False, version=None, **kw):
+def _dousfm(s, grammar=None, errors=False, version=None, nofail=False, **kw):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
     doc.canonicalise()
     doc.version = version or "3.1"
@@ -14,15 +14,15 @@ def _dousfm(s, grammar=None, errors=False, version=None, **kw):
     if doc.errors is not None and len(doc.errors):
         print("\nParser Errors:\n")
         print("\n".join(["{0} at {2} pos {1}".format(*e) for e in doc.errors]))
-        if not errors:
+        if not errors and not nofail:
             fail("Unexpected parser errors encountered")
     j = doc.outUsj(None)
     js = json.dumps(j, indent=2, ensure_ascii=False)
     tj = usfmtc.readFile(js, informat="usj", grammar=grammar)
     if not etCmp(r, tj.getroot(), verbose=True):
         print(j)
-        breakpoint()
-        fail(f"USJ did not round trip")
+        if not nofail:
+            fail(f"USJ did not round trip")
     f = doc.outUsfm(None, **kw)
     print(f)
     return (doc, f)
@@ -301,4 +301,19 @@ def test_notilde():
     doc, f = _dousfm(usfm, notilde=True)
     if '~' in f:
         fail(f"{f} should have a hard space not tilde")
+
+# @pytest.mark.skip
+def test_unknowns():
+    usfm = r"""\id MAT EN_ULT with alignment
+
+\usfm 3.1
+\c 1
+\p \v 1 \zaln-s|x-strong="G09760" x-lemma="βίβλος" x-morph="Gr,N,,,,,NFS," x-occurrence="1" x-occurrences="1" x-content="βίβλος"\*\w The|x-occurrence="1" x-occurrences="1"\w* \w book|x-occurrence="1" x-occurrences="1"\w*\zaln-e\*
+\zaln-s|x-strong="G10780" x-lemma="γένεσις" x-morph="Gr,N,,,,,GFS," x-occurrence="1" x-occurrences="1" x-content="γενέσεως"\*\w of|x-occurrence="1" x-occurrences="4"\w* \w the|x-occurrence="1" x-occurrences="1"\w* \w genealogy|x-occurrence="1" x-occurrences="1"\w*\zaln-e\*
+\badchar testing|parms="test"\badchar*
+"""
+
+    doc, f = _dousfm(usfm, nofail=True)
+    if f != usfm:
+        fail(f"{f} is not like the original")
 

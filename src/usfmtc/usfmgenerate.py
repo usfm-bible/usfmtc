@@ -51,7 +51,7 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes="", ini
         return
     else:
         l = [(tag[0], el.get(tag[1], ""))]
-    l = [(k, v) for k,v in l if k not in excludes]
+    l = [(k, v) for k,v in l if k not in excludes and not k.startswith(" ")]
     if not len(l):
         return
     final = "|" if init else ""
@@ -199,8 +199,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 emit("//")
             elif el.tag == "ms":
                 emit.tag(el, sep="")
-                isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 1
-                append_attribs(el, emit, attribmap=attribmap)
+                isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 1 and el.get("x-bare", "false") == "true"
+                append_attribs(el, emit, attribmap=attribmap, excludes=excludes + ["x-bare"])
                 emit("\\*" if not isbare else ("" if el.tail and el.tail[0] in " \n" else " ")) # protective space
             elif el.tag == "ref":
                 if el.get('gen', 'false').lower() != 'true':

@@ -959,19 +959,32 @@ class USFMParser:
 
     def milestone(self, tag):
         if tag.isend:
+            n = self.stack[-1]
+            if n.element.get("x-bare", "false") == "true":
+                del n.element.attrib["x-bare"]
             return self.removeTag(str(tag))
         return self.addNode(MsNode(self, 'ms', tag, pos=tag.pos))
 
     def standalone(self, tag):
-        res = Node(self, 'ms', tag, pos=tag.pos)
-        return self.stack[-1]
+        res = self.addNode(Node(self, 'ms', tag, pos=tag.pos))
+        res.element.set("x-bare", "true")
+        return res
 
     def unknown(self, tag):
+        if tag.isend:
+            if str(tag) != "":      # treat as char
+                n = self.stack[-1]
+                if n.element.get("x-bare", "false") == "true":
+                    del n.element.attrib["x-bare"]
+                    n.tag = str(tag).rstrip("*")
+                    n.element.tag = "char"
+                return self.removeTag(str(tag))
         msg = f"Unknown tag '{tag}'"
         if len(self.stack):
             msg += f" in '{self.stack[-1].tag}'"
         self.error(SyntaxError, msg, tag.pos)
-        return self.standalone(tag)
+        res = self.standalone(tag)
+        return res
 
     def _usfm_(self, val):
         v = regex.sub(r"(\d+(?:\.\d+)*).*$", r"\1", val)

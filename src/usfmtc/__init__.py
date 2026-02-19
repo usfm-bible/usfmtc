@@ -197,7 +197,7 @@ class USX:
         """ Output USFM from USX object. grammar is et doc. If file is None returns string """
         if not altparser:
             if grammar is None:
-                grammar = Grammar()
+                grammar = self.grammar
             if 'book' not in kw:
                 kw['book'] = self.book
             return self._outwrite(file, self.xml, fn=usx2usfm, args={'grammar': grammar, **kw})
