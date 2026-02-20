@@ -199,7 +199,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 emit("//")
             elif el.tag == "ms":
                 emit.tag(el, sep="")
-                isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 1 and el.get("x-bare", "false") == "true"
+                isbare = mcats.get(s, "") != "milestone" and len(el.attrib) == 2 and el.get("x-bare", "false") == "true"
                 append_attribs(el, emit, attribmap=attribmap, excludes=excludes + ["x-bare"])
                 emit("\\*" if not isbare else ("" if el.tail and el.tail[0] in " \n" else " ")) # protective space
             elif el.tag == "ref":

@@ -696,6 +696,9 @@ class USFMParser:
             if not hasattr(clsself, a):
                 setattr(clsself, a, dotype)
 
+    def _getcategory(self, tag):
+        return self.grammar.marker_categories.get(tag, "")
+
     def parse(self):
         self.result = []
         self.stack = []
@@ -960,21 +963,22 @@ class USFMParser:
     def milestone(self, tag):
         if tag.isend:
             n = self.stack[-1]
-            if n.element.get("x-bare", "false") == "true":
+            if n.element is not None and n.element.get("x-bare", "false") == "true" \
+                    and self._getcategory(n.tag) != "standalone":
                 del n.element.attrib["x-bare"]
             return self.removeTag(str(tag))
         return self.addNode(MsNode(self, 'ms', tag, pos=tag.pos))
 
     def standalone(self, tag):
-        res = self.addNode(Node(self, 'ms', tag, pos=tag.pos))
+        res = Node(self, 'ms', tag, pos=tag.pos)
         res.element.set("x-bare", "true")
-        return res
+        return self.stack[-1]
 
     def unknown(self, tag):
         if tag.isend:
             if str(tag) != "":      # treat as char
                 n = self.stack[-1]
-                if n.element.get("x-bare", "false") == "true":
+                if n.element is not None and n.element.get("x-bare", "false") == "true":
                     del n.element.attrib["x-bare"]
                     n.tag = str(tag).rstrip("*")
                     n.element.tag = "char"
@@ -983,7 +987,8 @@ class USFMParser:
         if len(self.stack):
             msg += f" in '{self.stack[-1].tag}'"
         self.error(SyntaxError, msg, tag.pos)
-        res = self.standalone(tag)
+        res = self.addNode(Node(self, 'ms', tag, pos=tag.pos))
+        res.element.set("x-bare", "true")
         return res
 
     def _usfm_(self, val):
