@@ -2,7 +2,7 @@ import pytest
 from pytest import fail
 from usfmtc import readFile, usx2usfm
 from usfmtc.usxcursor import USXCursor
-from usfmtc.reference import Ref, RefList, RefRange
+from usfmtc.reference import Ref, RefList, RefRange, BookNamesEnvironment
 import os, io
 import xml.etree.ElementTree as et
 
@@ -21,6 +21,7 @@ def asusfm(root):
     return res
 
 jon_usfm = readFile(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"))
+bkenv = BookNamesEnvironment(os.path.join(os.path.dirname(__file__), "BookNames.xml"))
 
 def _get_textref(s):
     r = Ref(s)
@@ -509,4 +510,10 @@ def test_subsetemptyfinal():
     f = subdoc.outUsfm(None)
     if '\\s' in f:
         fail(f"{f} has a final section")
+
+def test_localbook():
+    ref = Ref("GEN 3:2")
+    bk = bkenv.localbook(ref.book, level=1)
+    if bk != "Genesis":
+        fail(f"{bk} from {ref} is not Genesis")
 

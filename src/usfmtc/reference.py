@@ -64,13 +64,13 @@ oneChbooks = [b.split("|")[0] for b in _bookslist.split() if b[-2:] == "|1"]
 
 
 @dataclass
-class MarkerRef:
+class _MarkerRef:
     mrkr: str
     index: Optional[int] = None
     word: Optional[int] = None
     char: Optional[str] = None
 
-    def __eq__(self, context:'MarkerRef'):
+    def __eq__(self, context:'_MarkerRef'):
         if self.mrkr != context.mrkr:
             return False
         elif self.index != context.index:
@@ -84,7 +84,7 @@ class MarkerRef:
     def __str__(self):
         return self.str(force=True)
 
-    def str(self, context: Optional['MarkerRef']=None, force: int=0):
+    def str(self, context: Optional['_MarkerRef']=None, force: int=0):
         res = []
         if force > 1 or context is None or context.mrkr != self.mrkr or context.index != self.index:
             res.append("!"+self.mrkr)
@@ -144,7 +144,7 @@ def parseverse(s: str) -> Tuple[int, Optional[str]]:
     raise SyntaxError(f"Badly structured verse: {s}")
 
 _reindex = re.compile(r"([0-9a-z_-]+)(?:\[([0-9]+\]))?")
-def asmarkers(s: str, t: str) -> List[MarkerRef]:
+def asmarkers(s: str, t: str) -> List[_MarkerRef]:
     res = []
     b = []
     if s is not None and len(s):
@@ -166,7 +166,7 @@ def asmarkers(s: str, t: str) -> List[MarkerRef]:
         else:
             word = None
             charref = None
-        res.append(MarkerRef(mrkr, index=ind, word=word, char=charref))
+        res.append(_MarkerRef(mrkr, index=ind, word=word, char=charref))
         i += 1
     return res if len(res) else None
 
@@ -207,6 +207,7 @@ for i in range(3):
 
 
 class Environment:
+    ''' Reference styling environment '''
     booksep: str = "; "
     chapsep: str = "; "
     versesep: str = ","
@@ -248,6 +249,59 @@ class Environment:
             setattr(res, a, kw[a] if a in kw else getattr(self, a))
         return res
 
+class BookNamesEnvironment(Environment):
+    ''' Localising Environment based on BookNames.xml '''
+    def __init__(self, *a, **kw):
+        super().__init__(**kw)
+        self.booknames = {}
+        self.level = 2
+        self.bookstrings = {}
+        if len(a):
+            self.readBookNames(a[0])
+
+    def localbook(self, bk, level=-1):
+        if level == -1:
+            level = self.level
+        res = self.booknames.get(bk, None)
+        if res is None or level >= len(res):
+            return super().localbook(bk, level)
+        else:
+            return res[level]
+
+    def parsebook(self, bk):
+        res = self.bookstrings.get(bk.lower(), None)
+        if res is None:
+            return super().parsebook(bk)
+        return res
+
+    def copy(self, **kw):
+        res = super().copy(**kw)
+        for a in "booknames bookstrings level".split():
+            setattr(res, a, getattr(self, a))
+        return res
+
+#--- end of inherited methods
+
+    def readBookNames(self, fpath):
+        from xml.etree import ElementTree as et
+        doc = et.parse(fpath)
+        for b in doc.findall(".//book"):
+            bkid = b.get("code")
+            strs = [b.get(a) for a in ("abbr", "short", "long")]
+            self.addBookName(bkid, *strs)
+
+    def addBookName(self, bkid, *strs):
+        self.booknames[bkid] = strs
+        self.bookstrings[bkid] = bkid
+        bkstrs = {}
+        for s in strs:
+            for i in range(len(s)):
+                if s[i] is None or s[i] == " ":
+                    break
+                bkstrs[s[:i+1]] = "" if bkstrs.get(s[:i+1], bkid) != bkid else bkid
+                self.bookstrings.update({k:v for k,v in bkstrs.items() if v != ""})
+
+
 class Ref:
     product: Optional[str] = None
     book: Optional[str] = None
@@ -256,7 +310,7 @@ class Ref:
     subverse: Optional[str] = None
     word: Optional[int] = None
     char: Optional[int] = None
-    mrkrs: Optional[List["MarkerRef"]] = None
+    mrkrs: Optional[List["_MarkerRef"]] = None
 
     versification: Optional[List[List[int]]] = None
     _rebook = re.compile(regexes["book"], flags=re.X|re.I)

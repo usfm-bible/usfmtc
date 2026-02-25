@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from usfmtc.xmlutils import isempty, ParentElement
 from usfmtc.usfmparser import Grammar, WS
-from usfmtc.reference import Ref, RefRange, MarkerRef
+from usfmtc.reference import Ref, RefRange, _MarkerRef
 import xml.etree.ElementTree as et
 from typing import Optional, Dict, List, Any, Tuple, Type, Union
 
@@ -639,7 +639,7 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
 def _sectionref(el, cref, grammar):
     start = el.parent.index(el)
     l = len(el.parent)
-    cref.mrkrs = [MarkerRef(el.get("style", ""), 0, 1)]
+    cref.mrkrs = [_MarkerRef(el.get("style", ""), 0, 1)]
     for i in range(start+1, l):
         p = el.parent[i]
         if p.tag != 'para':
@@ -741,7 +741,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
                 curr = lastref.last.copy()
                 if curr.mrkrs is None:
                     curr.mrkrs = []
-                curr.mrkrs.append(MarkerRef(eloc.get("style", ""), 0, 0))
+                curr.mrkrs.append(_MarkerRef(eloc.get("style", ""), 0, 0))
                 curr.word = None
                 curr.char = None
             else:
@@ -761,7 +761,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
                     lastref.mrkrs[0].mrkr = s
                     lastref.mrkrs[0].index = pcounts[s]
                 else:
-                    lastref.mrkrs = [MarkerRef(s, pcounts[s], 1)]
+                    lastref.mrkrs = [_MarkerRef(s, pcounts[s], 1)]
                     lastref.word = None
                     lastref.char = None
             if eloc.text is not None and len(eloc.text):

@@ -1,7 +1,7 @@
 
 from usfmtc.usxmodel import iterusx, iterusxref
 from usfmtc.xmlutils import isempty
-from usfmtc.reference import MarkerRef
+from usfmtc.reference import _MarkerRef
 from dataclasses import dataclass
 import xml.etree.ElementTree as et
 from typing import Optional
@@ -275,7 +275,7 @@ def _findtextref(ref, el, cls, atend=False, mrkri=-1, startref=None, skiptest=No
                         sref = (cref.last if atend else cref.first).copy()
                         if sref.mrkrs is None:
                             sref.mrkrs = []
-                        sref.mrkrs.append(MarkerRef(ref.mrkrs[mrkri].mrkr))
+                        sref.mrkrs.append(_MarkerRef(ref.mrkrs[mrkri].mrkr))
                         return _findtextref(ref, nel, cls, atend=atend, mrkri=mrkri+1, startref=sref)
                 # if text between can't keep hunting
                 if isempty(nel.tail):
