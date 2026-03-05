@@ -50,21 +50,29 @@ class ETCursor:
         return t[start:end] if t else t
 
 
-def testverse(v:str, verse:str) -> bool:
-    if v == verse:
-        return True     # short circuit
-    if "-" not in verse and "," not in verse:
-        return False
+def testverse(v:str, verse:str, after=False) -> bool:
+    if not after:
+        if v == verse:
+            return True             # short circuit
+        if "-" not in verse and "," not in verse:
+            return False
+    elif "-" not in verse and "," not in verse:
+        try:
+            bi = int(verse)
+            t = int(v)
+        except ValueError:
+            return False
+        return bi > t
     b = verse.split(",")        # list of ranges
     if len(b) > 1:
-        return any(testverse(v, ab) for ab in b)
+        return any(testverse(v, ab, after=after) for ab in b)
     b = verse.split("-")        # range, just take ends
     if len(b) > 1:
         try:
             bi = int(b[0])
             ba = int(b[-1])
             t = int(v)
-            return t >= bi and t <= ba
+            return t > ba if after else t >= bi and t <= ba
         except ValueError:
             return False
 
@@ -143,10 +151,11 @@ def _findcvel(ref, usx, atend=False, parindex=0):
 
     # scan for verse. Verses always have paragraphs as their parent
     if v is not None and v != "end" and vint(v) > 0:
+        testafter = False
         if atend:
             parindex = startparindex + 1
             if not ref.mrkrs and ref.word is None and ref.char is None:
-                v += 1
+                testafter = True
         else:
             parindex += 1
         while parindex < len(root):
@@ -154,7 +163,7 @@ def _findcvel(ref, usx, atend=False, parindex=0):
             if n.tag == "chapter":
                 el = n
                 break
-            el = _findel(n, "verse", {"number": lambda n:testverse(str(v), n)}, limits=("chapter",))
+            el = _findel(n, "verse", {"number": lambda n:testverse(str(v), n, after=testafter)}, limits=("chapter",))
             if el is not None:
                 break
             parindex += 1

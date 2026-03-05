@@ -517,3 +517,19 @@ def test_localbook():
     if bk != "Genesis":
         fail(f"{bk} from {ref} is not Genesis")
 
+def test_subsetrange():
+    usfm = r'''\id JHN test
+\c 4
+\p
+\v 1-3 This is a verse range and we will ask for a subrange within it.
+\v 4 We should bound our range.
+'''
+    doc = readFile(usfm, informat="usfm")
+    doc.canonicalise
+    # breakpoint()
+    subdoc = doc.getrefs(Ref("JHN 4:1-2"))
+    f = subdoc.outUsfm(None)
+    print(f)
+    if 'verse' not in f:
+        fail(f"{f} is not the right range")
+
