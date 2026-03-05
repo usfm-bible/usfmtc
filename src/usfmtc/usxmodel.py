@@ -731,7 +731,11 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
                 n = revnum.sub(r"\1", eloc.get("number", 0))
-                setattr(curr, eloc.tag, int(n))
+                try:
+                    vn = int(n)
+                except ValueError:
+                    vn = 0
+                setattr(curr, eloc.tag, vn)
                 curr.word = 0
                 curr.char = 0
                 curr.mrkrs = None
