@@ -422,7 +422,7 @@ def canonicalise(node, endofpara=False, factory=et, version=None):
                     ft = node.makeelement("char", {"style": replace})
                     ft.append(c)
                     c.parent = ft
-                    node.insert(node.find(c), ft)
+                    node.insert(node.index(c), ft)
                 node.remove(c)
             i += 1
     if [int(x) for x in version.split(".")] >= [3, 1] and node.tag == "char" and node.get("style", "") == "xt" \
