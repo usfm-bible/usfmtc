@@ -319,11 +319,12 @@ class Ref:
     _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
 
     def __new__(cls, string: Optional[str] = None,
-                    context: Optional['Ref'] = None, start: int = -1, **kw):
+                    context: Optional['Ref'] = None, start: int = -1,
+                    bookranges: bool = False, **kw):
         if string is None or not len(string) or start != -1:
             return super().__new__(cls)
-        res = RefList(string, context=context, **kw)
-        res.simplify()
+        res = RefList(string, context=context, bookranges=bookranges, **kw)
+        res.simplify(bookranges=bookranges)
         if len(res) == 0:
             raise SyntaxError(f"Empty reference: '{string}'")
         elif len(res) != 1:
@@ -633,9 +634,9 @@ class Ref:
         res = self._setall(-1, stopat="verse" if verseonly else None)
         if res.chapter == -1:
             vrs = self.versification or Ref.loadversification()
-            vbk = vrs[bk]
+            vbk = vrs[self.book]
             if vbk is not None:
-                res.chapter = len(vrs[bk])
+                res.chapter = len(vrs[self.book])
         if res.verse == -1:
             res.verse = self._getmaxvrs(self.book, res.chapter)
         return res
