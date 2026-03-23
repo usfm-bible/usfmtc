@@ -180,7 +180,7 @@ _regexes = {
                     (?P<book>(?!end)\d?{id})
                     (?:\s+{chap})?""",
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
-    "id": r"(?:[a-z][a-z0-9_-]*[a-z0-9]?)",
+    "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
     "wordrefanon": r"",
     "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9]|end)(?:[+]{charref})?)?)",
@@ -637,14 +637,14 @@ class Ref:
             if vbk is not None:
                 res.chapter = len(vrs[bk])
         if res.verse == -1:
-            res.verse = self._getmaxvrs(self.book, self.chapter)
+            res.verse = self._getmaxvrs(self.book, res.chapter)
         return res
 
     def start(self, verseonly=True):
         ''' Returns the first reference in the reference. verseonly limits
             the result to the verse, otherwise goes to the chapter '''
         if self.first is not self:
-            self.first = start(self.first)
+            self.first = self.first.start(verseOnly=verseOnly)
             return self.first
         return self._setall(1, stopat="verse" if verseonly else None)
 
@@ -917,7 +917,7 @@ class RefList(UserList):
                 continue
             if (m := re.match("\\s*[\u200F\u200E]?-[\u200F\u200E]?\\s*", s[start:])):
                 rangesep = m.group(0).strip()
-                if not len(res) or issubclass(res[-1].__class__, RefRange) or res[-1].chapter is None:
+                if not len(res) or issubclass(res[-1].__class__, RefRange): # or res[-1].chapter is None:
                     raise SyntaxError(f"Bad - in {s} ({s[start:]})")
                 inrange = True
                 start += len(rangesep)
@@ -963,7 +963,6 @@ class RefList(UserList):
         res = []
         lastref = Ref()
         temp = []
-        count = 0
         if sort:
             self.sort()
         for i,r in enumerate(self):
@@ -989,8 +988,11 @@ class RefList(UserList):
                 if len(temp):
                     res.extend(temp)
                     temp = []
-                count = 0
-                res.append(r)
+                if r.first.book != r.last.book:
+                    rs = self.bookrange(r)
+                    res.extend(rs)
+                else:
+                    res.append(r)
             lastref = r
         self[:] = res
         return self
@@ -1010,6 +1012,25 @@ class RefList(UserList):
     def allchaps(self):
         for r in self:
             yield from r.allchaps()
+
+    def bookrange(self, r):
+        res = []
+        if r.first.chapter not in (None, 1) or r.first.verse not in (None, "1"):
+            res.append(RefRange(r.first, Ref(r.first.book).end()))
+        else:
+            res.append(r.first)
+        if r.last.chapter is not None or r.last.verse is not None:
+            res.append(RefRange(Ref(r.last.book).start(), r.last))
+        else:
+            res.append(r.last)
+        try:
+            first = allbooks.index(r.first.book)
+            last = allbooks.index(r.last.book)
+        except ValueError:
+            return res
+        for i in range(first+1, last):
+            res.insert(-1, Ref(allbooks[i]))
+        return res
 
 class RefJSONEncoder(json.JSONEncoder):
     def default(self, obj):

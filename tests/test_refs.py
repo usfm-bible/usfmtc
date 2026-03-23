@@ -526,10 +526,16 @@ def test_subsetrange():
 '''
     doc = readFile(usfm, informat="usfm")
     doc.canonicalise
-    # breakpoint()
     subdoc = doc.getrefs(Ref("JHN 4:1-2"))
     f = subdoc.outUsfm(None)
     print(f)
     if 'verse' not in f:
         fail(f"{f} is not the right range")
+
+def test_bookrange():
+    '''Not a required part of the spect, but nice to have'''
+    ref = RefList("GEN-REV", bookranges=True)
+    ref.simplify()
+    if not any(x.first.book == "MAT" for x in ref):
+        fail(f"GEV-REV -> {ref} is missing MAT")
 
