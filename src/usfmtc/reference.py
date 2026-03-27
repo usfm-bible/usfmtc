@@ -356,7 +356,7 @@ class Ref:
 
     def __init__(self, s: Optional[str]=None,
                     context: Optional['Ref']=None, start:int=0, strict: bool=False, fullmatch: bool=False, **kw):
-        if getattr(self, 'chapter', None) is not None:     # We were created in __new__ so skip __init__
+        if getattr(self, 'chapter', None) is not None or getattr(self, 'book', None) is not None:
             return
         self.strict = strict
         self.env = kw.get('env', None)
