@@ -60,7 +60,7 @@ def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None, 
                 res.readmrkrs(e)
         return res
 
-_filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj", ".usj": "usj"}
+_filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj", ".usj": "usj", ".txt": "usfm3.0"}
 
 def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=None, altparser=False, strict=False, keepparser=False, **kw):
     """ Reads a USFM file of a given type or inferred from the filename

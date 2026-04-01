@@ -72,7 +72,7 @@ def testverse(v:str, verse:str, after=False) -> bool:
             bi = int(b[0])
             ba = int(b[-1])
             t = int(v)
-            return t > ba if after else t >= bi and t <= ba
+            return t == ba if after else t >= bi and t <= ba
         except ValueError:
             return False
 
