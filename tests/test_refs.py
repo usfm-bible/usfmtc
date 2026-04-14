@@ -540,3 +540,11 @@ def test_bookrange():
     if not any(x.first.book == "MAT" for x in ref):
         fail(f"GEV-REV -> {ref} is missing MAT")
 
+def test_booklist():
+    t = "GEN EXO ECC EST"
+    ref = RefList(t, bookranges=True)
+    ref.simplify(bookranges=True, sort=False)
+    print(f"{t} -> {ref}")
+    if any(x.first.book == "ISA" for x in ref):
+        fail(f"{t} -> {ref}")
+

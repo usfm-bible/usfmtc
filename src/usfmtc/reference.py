@@ -177,7 +177,7 @@ _regexes = {
                     (?P<book>\d?{id})
                     (?:\s+{chap})""",
     "booklax": r"""^(?P<transid>(?:[a-z0-9_-]*[+])*)
-                    (?P<book>(?!end)\d?{id})
+                    (?P<book>(?!end)(?:\d\s*)?{id})
                     (?:\s+{chap})?""",
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
@@ -297,9 +297,9 @@ class BookNamesEnvironment(Environment):
         for s in strs:
             for i in range(len(s)):
                 if s[i] is None or s[i] == " ":
-                    break
+                    continue
                 bkstrs[s[:i+1]] = "" if bkstrs.get(s[:i+1], bkid) != bkid else bkid
-                self.bookstrings.update({k:v for k,v in bkstrs.items() if v != ""})
+                self.bookstrings.update({k.lower():v for k,v in bkstrs.items() if v != ""})
 
 
 class Ref:
@@ -405,7 +405,7 @@ class Ref:
             p['product'] = m.group('transid') or None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
-            raise SyntaxError("Cannot parse reference '{}'".format(s[start:]))
+            raise SyntaxError("Cannot parse reference '{}' ({})".format(s[start:], s))
         gs = m.groupdict()
         p['chapter'] = intend(gs.get('chap', None))
         p['verse'] = intend(gs.get('verse1', gs.get('verse2', None)))
