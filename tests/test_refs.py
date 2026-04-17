@@ -548,3 +548,12 @@ def test_booklist():
     if any(x.first.book == "ISA" for x in ref):
         fail(f"{t} -> {ref}")
 
+def test_onechap():
+    t = "3JN 4"
+    ref = Ref(t)
+    print(f"{t}->{ref} and {ref.str(fullchap=True)}")
+    if "1" in str(ref):
+        fail(f"{t} -> {ref} but should not show chapter")
+    if "1" not in ref.str(fullchap=True):
+        fail(f"{t} -> {ref.str(fullchap=True)} should show chapter")
+

@@ -525,7 +525,7 @@ class Ref:
         return RefRangeIter(self)
 
     def str(self, context: Optional['Ref'] = None, force: int = 0, env: Optional['Environment'] = None,
-            level: Optional[int] = -1, start:str = "book"):
+            level: Optional[int] = -1, start:str = "book", fullchap:bool = False):
         def neqa(c, s, a):
             if getattr(s, a, None) is None:
                 return False
@@ -549,7 +549,7 @@ class Ref:
             res.append(env.localbook(getattr(self, 'book', ""), level=level) if env else getattr(self, 'book', ""))
             sep = env.bookspace if env else ' '
             force = max(2, iniforce)
-        oneChap = getattr(self, 'book', '') in oneChbooks
+        oneChap = getattr(self, 'book', '') in oneChbooks and not fullchap
         nskipchap = any(getattr(self, a, None) is not None for a in ('chapter', 'verse', 'word'))
         if (env is None or not env.nochap) and not oneChap and nskipchap and (force > 1 or neqa(context, self, 'chapter')):
             if len(res):
