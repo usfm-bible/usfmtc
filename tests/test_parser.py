@@ -317,3 +317,12 @@ def test_unknowns():
     if f != usfm:
         fail(f"{f} is not like the original")
 
+def test_error1():
+    usfm = r"""\id MAT test bad args
+\usfm 3.1
+\c 1
+\p
+\v 1 \vp 1//2\vp* This is a test
+"""
+    doc, f = _dousfm(usfm, nofail=True)
+

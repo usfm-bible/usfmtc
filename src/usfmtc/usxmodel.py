@@ -652,7 +652,7 @@ def _sectionref(el, cref, grammar):
         v = p[0]
         if v.tag != "verse":
             return cref
-        n = revnum.sub(r"\1", v.get("number", 0))
+        n = revnum.sub(r"\1", v.get("number", "0"))
         cref.verse = int(n)
         cref.word = None
         cref.char = None
@@ -730,7 +730,7 @@ def iterusxref(root, startref=None, book=None, grammar=None, skiptest=None, **kw
         if isin:
             if eloc.tag in ("verse", "chapter"):
                 curr = lastref.last.copy()
-                n = revnum.sub(r"\1", eloc.get("number", 0))
+                n = revnum.sub(r"\1", eloc.get("number", "0"))
                 try:
                     vn = int(n)
                 except ValueError:
@@ -886,7 +886,7 @@ def _insertoblink(linkloc, tag, linfo):
 def _getref(e, book, lastchap=0):
     refstr = e.get("sid", None)
     if refstr is None:
-        num = e.get("number", 0)
+        num = e.get("number", "0")
         if e.tag == "verse":
             ref = Ref(f"{book} {lastchap}:{num}")
         else:
@@ -917,7 +917,7 @@ def reversify(usx, srcvrs, tgtvrs, reverse=False, keep=False, chnums=False):
     chapters = [-1]
     for i, e in enumerate(root):
         if e.tag == "chapter":
-            _list_insert(chapters, int(e.get("number", 0)), i, default=-1)
+            _list_insert(chapters, int(e.get("number", "0")), i, default=-1)
     curr = Ref(None)
     currc = 0
     skipverse = False
