@@ -322,7 +322,7 @@ def test_error1():
 \usfm 3.1
 \c 1
 \p
-\v 1 \vp 1//2\vp* This is a test
+\v 1 \vp 1/2\vp* This is a test
 """
     doc, f = _dousfm(usfm, nofail=True)
 

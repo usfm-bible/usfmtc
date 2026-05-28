@@ -462,6 +462,7 @@ class Ref:
         return res
 
     def __contains__(self, o):
+        """ self is a point and is inside or equal to o """
         if o is None:
             return False
         if isinstance(o, RefRange):
