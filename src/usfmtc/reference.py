@@ -479,6 +479,8 @@ class Ref:
             return o > self
         if self.book != o.book:
             return books.get(self.book, 200) < books.get(o.book, 200)
+        elif self.chapter is None or o.chapter is None:
+            return False
         elif self.chapter != o.chapter:
             return (self.chapter or 0) < (o.chapter or 0)
         elif self.verse != o.verse:

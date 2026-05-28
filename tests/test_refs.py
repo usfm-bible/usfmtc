@@ -416,6 +416,12 @@ def test_refbidi():
     if r.sep != "\u200F-" or "\u200F" not in str(r):
         fail(f"{r} should contain bidi control")
 
+def test_lt():
+    r = Ref("ACT")
+    o = Ref("ACT 1:1")
+    if r < o or o < r:
+        fail(f"{r} and {o} cannot be less than each other")
+
 def test_reflistref():
     r = Ref("GEN 1:1-20,13,19")
     print(r)
