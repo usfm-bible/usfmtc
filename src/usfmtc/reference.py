@@ -484,6 +484,8 @@ class Ref:
             return False
         elif self.chapter != o.chapter:
             return (self.chapter or 0) < (o.chapter or 0)
+        elif self.verse is None or o.verse is None:
+            return False
         elif self.verse != o.verse:
             if self.verse == -1:
                 return False

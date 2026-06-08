@@ -563,3 +563,11 @@ def test_onechap():
     if "1" not in ref.str(fullchap=True):
         fail(f"{t} -> {ref.str(fullchap=True)} should show chapter")
 
+def test_booklt():
+    r = Ref("PHM 1")
+    s = Ref("PHM")
+    if s < r:
+        fail(f"{s} < {r}")
+    elif r < s:
+        fail(f"{r} < {s}")
+        
