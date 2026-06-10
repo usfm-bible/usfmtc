@@ -398,7 +398,7 @@ def test_unequalrangeattr():
     r = Ref("JHN 3:16-4:3", strict=True)
     try:
         x = r.chapter
-        fail("Unequal chapters in RefRange returned {x}")
+        fail(f"Unequal chapters in RefRange returned {x}")
     except AttributeError:
         pass
 
@@ -475,7 +475,7 @@ def test_finalv():
     if "\\c" in f:
         fail(f"{f} contains more than text")
 
-def test_booklist():
+def test_booklist1():
     r = RefList("GEN EXO LEV NUM PSA")
     r.simplify()
     if len(r) != 5:
@@ -551,7 +551,7 @@ def test_bookrange():
         fail(f"GEV-REV -> {ref} is missing MAT")
 
 def test_booklist():
-    t = "GEN EXO ECC EST"
+    t = "GEN EXO 2-3 ECC EST"
     ref = RefList(t, bookranges=True)
     ref.simplify(bookranges=True, sort=False)
     print(f"{t} -> {ref}")

@@ -177,7 +177,7 @@ _regexes = {
                     (?P<book>\d?{id})
                     (?:\s+{chap})""",
     "booklax": r"""^(?P<transid>(?:[a-z0-9_-]*[+])*)
-                    (?P<book>(?!end)(?:\d\s*)?{id})
+                    (?P<book>(?!end)\d?{id})
                     (?:\s+{chap})?""",
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
