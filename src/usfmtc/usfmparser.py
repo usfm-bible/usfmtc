@@ -286,7 +286,7 @@ class Lexer:
 
 class Grammar:
     category_markers = {
-        "attribute": "cp vp usfm ca va cat vid",
+        "attribute": "cp vp ca va cat",
         "cell": "th1 th2 th3 th4 th5 th6 th7 th8 th9 th10 th11 th12 tc1 tc2 tc3 tc4 tc5 tc6 tc7 tc8 tc9 tc10 tc11 tc12 tcr1 tcr2 tcr3 tcr4 tcr5 tcr6 tcr7 tcr8 tcr9 tcc1 tcc2 tcc3 tcc4 tcc5 tcc6 tcc7 tcc8 tcc9 tcc10 tcc11 tcc12 thc1 thc2 thc3 thc4 thc5 thc6 thc7 thc8 thc9 thc10 thc11 tch12 thr1 thr2 thr3 thr4 thr5 thr6 thr7 thr8 thr9 thr10 thr11 thr12",
         "char": "qac qs add addpn bk dc efm fm fv k nd ndx ord png pn pro qt rq sig sls tl wg wh wa wj jmp no it bdit bd em sc sup w rb",
         "crossreference": "ex x",
@@ -299,8 +299,8 @@ class Grammar:
         "introduction": "imt1 imt2 imt3 imt4 imte1 imte2 imte imt ib ie iex ili1 ili2 ili imi imq im io1 io2 io3 io4 iot io ipi ipq ipr ip iq1 iq2 iq3 iq is1 is2 is",
         "list": "lh li1 li2 li3 li4 lim1 lim2 lim3 lim4 lim li lf",
         "listchar": "litl lik liv1 liv2 liv3 liv4 liv5 liv",
-        "milestone": "ts-s ts-e ts t-s t-e qt1-s qt1-e qt2-s qt2-e qt3-s qt3-e qt4-s qt4-e qt5-s qt5-e qt-s qt-e",
-        "otherpara": "sts lit pb p1 p2 qa k1 k2",
+        "milestone": "ts-s ts-e ts t-s t-e qt1-s qt1-e qt2-s qt2-e qt3-s qt3-e qt4-s qt4-e qt5-s qt5-e qt-s qt-e vid",
+        "otherpara": "sts lit pb p1 p2 qa k1 k2 usfm",
         "sectionpara": "restore ms1 ms2 ms3 ms mr mte1 mte2 mte r s1 s2 s3 s4 sr sp sd1 sd2 sd3 sd4 sd s cl cd",
         "title": "mt1 mt2 mt3 mt4 mt",
         "versepara": "cls nb pc pi1 pi2 pi3 pi po pr pmo pmc pmr pm ph1 ph2 ph3 ph p q1 q2 q3 q4 qc qr qm1 qm2 qm3 qm qd q b d mi1 mi2 mi3 mi4 mi m",
@@ -509,8 +509,24 @@ class IdNode(Node):
         self.parser.stack[0].element.append(e)
 
 class USXNode(Node):
+    def __init__(self, parser, usxtag, tag, **kw):
+        self.parser = parser
+        self.parent = parser.stack[-1] if len(parser.stack) else None
+
     def appendText(self, t):
-        self.element.set('version', str(t).strip(WS))
+        s = str(t).strip(WS)
+        if not len(s):
+            return
+        self.parser.rootnode.element.set('version', s)
+        vs = s.split(".")
+        try:
+            version = [int(x) for x in vs]
+        except ValueError:
+            version = [3, 0]
+        self.parser.version = version
+
+    def addNodeElement(self, e):
+        return self.parent.addNodeElement(e)
 
 class AttribNode(Node):
     def __init__(self, parser, parent, tag, *, pos=None, only=[], **kw):
@@ -702,10 +718,10 @@ class USFMParser:
     def parse(self):
         self.result = []
         self.stack = []
-        rootnode = Node(self, 'usx', None)
-        rootnode.addAttributes({'version': '3.0'})
-        self.parent = rootnode
-        self.stack.append(rootnode)
+        self.rootnode = Node(self, 'usx', None)
+        self.rootnode.addAttributes({'version': '3.0'})
+        self.parent = self.rootnode
+        self.stack.append(self.rootnode)
 
         for t in self.lexer:
             if isinstance(t, Tag):
@@ -915,9 +931,6 @@ class USFMParser:
     def _ca(self, tag):
         return self.attribute(tag, only=["c"])
 
-    def _vid(self, tag):
-        return self.addNode(FwdAttribNode(self, 'ms', tag, pos=tag.pos))
-
     def cell(self, tag):
         self.removeType('cell', tags=["row"], node="cell")
         if not tag.isend:
@@ -993,13 +1006,8 @@ class USFMParser:
         res.element.set("x-bare", "true")
         return res
 
-    def _usfm_(self, val):
-        v = regex.sub(r"(\d+(?:\.\d+)*).*$", r"\1", val)
-        try:
-            version = [int(x) for x in v.split(".")]
-        except ValueError:
-            version = None
-        self.version = version
+    def _usfm(self, tag):
+        res = self.addNode(USXNode(self, 'usx', tag, pos=tag.pos))
 
 def main():
     import sys

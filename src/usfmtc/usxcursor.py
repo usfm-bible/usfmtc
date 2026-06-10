@@ -318,7 +318,7 @@ class USXCursor(ETCursor):
         char = ref.mrkrs[mrkri-1].char if mrkri > 0 else ref.char
         if word is not None or char is not None:
             res = _findtextref(ref, el, cls, atend=atend, startref=elref, mrkri=mrkri, skiptest=skiptest)
-        elif ref.mrkrs and len(ref.mrkrs) > mrkri:
+        elif ref.mrkrs is not None and len(ref.mrkrs) > mrkri:
             res = _findtextref(ref, el, cls, atend=atend, startref=elref, mrkri=mrkri+1, skiptest=skiptest)
         elif atend and len(el):
             res = cls(el[-1], " tail", -1)
@@ -354,6 +354,8 @@ class USXCursor(ETCursor):
                 return grammar.marker_categories.get(s, "") in categories
             # copy the tree up to the first chapter or verse text
             for i, eloc in enumerate(root):
+                if i == 0:
+                    continue        # already copied
                 if isendintro(eloc):
                     start = i
                     break
@@ -368,12 +370,14 @@ class USXCursor(ETCursor):
             # at the start
             elif isin and eloc == a.el and eloc.tag not in ("para", "book", "sidebar", "chapter"):
                 # if we are at the start of the parent (para, since a verse is always only in a para) check for subheadings
-                if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == start:  # are we first?
+                if headers and grammar and isempty(eloc.parent.text) and eloc.parent.index(eloc) == 0:  # are we first?
                     r = eloc.parent.parent  # should be root
                     i = r.index(eloc.parent) - 1
                     # scan back over section heads
                     while i > 0 and ((chapters and r[i].tag == "chapter") or \
-                            (r[i].tag == "para" and grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara")):
+                            (r[i].tag == "para" and \
+                                (grammar.marker_categories.get(r[i].get("style", None), "") == "sectionpara" or \
+                                 r[i].get('style', None) == 'd'))):
                         i -= 1
                     i += 1
                     # copy all the section heads

@@ -326,3 +326,13 @@ def test_error1():
 """
     doc, f = _dousfm(usfm, nofail=True)
 
+def test_vid():
+    usfm = r"""\id LUK test
+\usfm 3.1
+\vid|LUK 4:17\*
+\p
+\v 17 This is a test
+"""
+    doc, f = _dousfm(usfm, nofail=True)
+    if 'vid' not in f:
+        fail(f"vid lost in round tripping:\n{f}")

@@ -979,10 +979,9 @@ class RefList(UserList):
                 else:
                     r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter))
             n = lastref.last.nextverse(after=True, thisbook = not bookranges)
-            if lastref.first < t <= lastref.last:
+            if t in lastref:
                 t = n
             if t > u:
-                # print("{} inside {}".format(r, lastref))
                 continue
             if t == n and lastref.last.book is not None:
                 temp = []

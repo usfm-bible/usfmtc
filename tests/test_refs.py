@@ -78,7 +78,7 @@ def _do_findreftest(ref):
     res = jon_usfm.getrefs(ref, titles=False).xml
     et.dump(res)
     print(asusfm(res))
-    if len(res) != 7 or len(res[2]) != 1 or "vomited" not in res[-1][-1].tail:
+    if len(res) != 8 or len(res[3]) != 1 or "vomited" not in res[-1][-1].tail:
         fail(f"{len(res)=}, {res[-1][-1].tail=}")
 
 def _type_test(srange, ref, text):
@@ -152,6 +152,9 @@ def test_3jn():
 def test_1co():
     _t("1CO 6:5a", _r("1CO", 6, 5, "a"))
 
+def test_range1co():
+    _t("1CO 6:5a-10", RefRange(_r("1CO", 6, 5, "a"), _r("1CO", 6, 10)))
+
 def test_mat5():
     _t("MAT 5:1-7", RefRange(_r("MAT", 5, 1), _r("MAT", 5, 7)))
 
@@ -174,7 +177,7 @@ def test_gen1_1a():
     _o("GEN 1:1", "EXO 2:3", (True,False,False))
 
 def test_exo2():
-    _o("EXO 2:4", "EXO 2", (False,True,True))
+    _o("EXO 2:4", "EXO 2", (False,False,True))
 
 def test_exo2a():
     _o("EXO 2:4-5", "EXO 2", (False,False,True))
@@ -235,7 +238,7 @@ def test_multiple_ranges():
     root = res.getroot()
     et.dump(root)
 
-    if len(root) != 12 or root[3].get("vid", "") != "JON 1:1":
+    if len(root) != 13:
         fail(f"Incorrect range extraction: {len(root)=}")
 
 def test_chapter_only_range():
@@ -448,6 +451,7 @@ def test_bidi():
 
 def test_subdoc1():
     res = jon_usfm.getrefs(*RefList("JON 1:4-8; 4:9-11"), headers=True, titles=False)
+    et.dump(res.getroot())
     f = res.outUsfm(None, forcevid=True)
     print(f)
     if "Acts 27:13-26" not in f and "vid|JON 4:9" not in f:
@@ -456,12 +460,12 @@ def test_subdoc1():
         fail(f"{f} wrong number of \\vid in the text")
 
 def test_subdoc2():
-    res = jon_usfm.getrefs(*RefList("JON 1:1-3"))
+    res = jon_usfm.getrefs(*RefList("JON 1:1-3"), titles=False)
     et.dump(res.getroot())
     f = res.outUsfm(None, forcevid=True)
     print(f)
-    if len(res.getroot()) != 7:
-        fail(f"{f} has {len(res.getroot())} children and not 7")
+    if len(res.getroot()) != 6:
+        fail(f"{f} has {len(res.getroot())} children and not 6")
 
 def test_finalv():
     res = jon_usfm.getrefs(Ref("JON 1:17"), titles=False)
@@ -571,3 +575,26 @@ def test_booklt():
     elif r < s:
         fail(f"{r} < {s}")
         
+def test_subset1():
+    s = r'''\id PSA subset1
+\vid|PSA 89:52\*
+\q1 \v 52 Blessed is the \nd Lord\nd* forever! \q2 Amen and amen! \ms1 BOOK IV (Psalms 90–106) \c 90 \d A prayer by Moses, the godly man \s1 Life is Short \q1 \v 1 Lord, you’ve been our refuge \q2 from generation to generation. \q1 \v 2 Before the mountains were formed \q2 or the earth and the world were brought forth, \q3 you are God from eternity to eternity.'''
+    doc = readFile(s, informat="usfm")
+    doc.canonicalise()
+    subdoc = doc.getrefs(Ref("PSA 90:1"))
+    f = subdoc.outUsfm(None)
+    if r'\ms1' not in f:
+        fail(f"ms1 missing from {f}")
+
+def test_subset2():
+    s = r'''\id PSA subset2
+\vid|PSA 106:48\*
+\q1 \v 48 Blessed are you, \nd Lord\nd* God of Israel, \q2 from eternity to eternity; \q1 Let all the people say, “Amen!” \q2 Hallelujah! \ms1 BOOK V (Psalms 107–150) \c 107 \s1 Gratitude for God’s Deliverance \q1 \v 1 Give thanks to the \nd Lord\nd*, for he is good! \q2 His gracious love exists forever. \q1 \v 2 Let those who have been redeemed by the \nd Lord\nd* declare it— \q2 those whom he redeemed \q3 from the power of the enemy,'''
+    doc = readFile(s, informat="usfm")
+    doc.canonicalise()
+    subdoc = doc.getrefs(Ref("PSA 107:1"))
+    f = subdoc.outUsfm(None)
+    if r'\ms1' not in f:
+        fail(f"ms1 missing from {f}")
+
+

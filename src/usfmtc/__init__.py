@@ -248,6 +248,7 @@ class USX:
                     e.parent = res
                     res.append(e)
             books.add(r.first.book)
+        res.insert(0, root[0].copy(deep=True, parent=res))
         return self.__class__(res, grammar=self.grammar)
 
     def gettext(self, *refs, skiptest=None):
