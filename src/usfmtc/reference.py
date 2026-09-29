@@ -777,7 +777,7 @@ class RefRange:
         if a in Ref._parmlist:
             f = getattr(self.first, a)
             l = getattr(self.last, a)
-            if not self.strict or f == l:
+            if not self.__dict__.get("strict", False) or f == l:
                 return f
             else:
                 raise AttributeError(f"RefRange unequal values for {a}. {f} != {l}")
@@ -959,11 +959,11 @@ class RefList(UserList):
         return "".join(res)
 
     def __getattr__(self, a):
-        if self.strict:
+        if self.__dict__.get("strict", False):
             raise AttributeError(f"Ref attribute {a} queried on strict list")
-        if len(self) and a in Ref._parmlist:
+        if 'data' in self.__dict__ and len(self) and a in Ref._parmlist:
             return getattr(self[0], a)
-        raise AttributeError(f"Bad attribute {a} or missing references [{len(self)}]")
+        raise AttributeError(f"Bad attribute {a} or missing references")
 
     def simplify(self, sort=True, bookranges=False):
         res = []

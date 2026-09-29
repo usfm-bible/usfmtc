@@ -738,7 +738,7 @@ class USFMParser:
                         except FallBackError:
                             continue
                         except AttributeError as e:
-                            self.error(e, e.msg, self.lexer.currpos())
+                            self.error(e, str(e), self.lexer.currpos())
                         break
                 else:
                     self.parent = self.unknown(t)
