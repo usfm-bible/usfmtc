@@ -973,7 +973,7 @@ class RefList(UserList):
             self.sort()
         for i,r in enumerate(self):
             t, u = (r.first, r.last)
-            if r.first == r.last and all(getattr(r.first, a, None) is None for a in r._parmlist[3:]):
+            if r.first == r.last and all(getattr(r.first, a, None) is None for a in Ref._parmlist[3:]):
                 if isinstance(r, RefRange):
                     r.last = Ref(book=r.first.book, chapter=r.first.chapter)
                 else:
