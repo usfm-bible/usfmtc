@@ -336,3 +336,56 @@ def test_vid():
     doc, f = _dousfm(usfm, nofail=True)
     if 'vid' not in f:
         fail(f"vid lost in round tripping:\n{f}")
+
+def test_usx_version_handling():
+    bad_ver = "3" + usfmtc.version + "1"
+    usfm = r"""\id GEN test
+\c 1
+\p
+\v 1 In the beginning God created the heavens and the earth.
+"""
+    doc = usfmtc.readFile(usfm, informat="usfm")
+    assert doc.version == [3, 0]
+    assert doc.getroot().get("version") == "3.0"
+
+    # Test setter with string version
+    doc.version = "3.1"
+    assert doc.version == [3, 1]
+    assert doc.getroot().get("version") == "3.1"
+    usx_out = doc.outUsx()
+    assert 'version="3.1"' in usx_out
+    assert bad_ver not in usx_out
+
+    # Test USFM output emits \usfm 3.1 and not the bad version
+    usfm_out = doc.outUsfm()
+    assert r"\usfm 3.1" in usfm_out
+    assert bad_ver not in usfm_out
+
+    # Test canonicalise with list version
+    doc.canonicalise(version=[3, 1])
+    assert doc.version == [3, 1]
+    assert doc.getroot().get("version") == "3.1"
+    assert bad_ver not in doc.outUsx()
+
+    # Test setter with list version directly
+    doc.version = [3, 1]
+    assert doc.version == [3, 1]
+    assert doc.getroot().get("version") == "3.1"
+    assert bad_ver not in doc.outUsx()
+
+    # Test setter with string "3.0"
+    doc.version = "3.0"
+    assert doc.version == [3, 0]
+    assert doc.getroot().get("version") == "3.0"
+
+    # Test USJ -> USX retains version 3.0
+    j = doc.outUsj()
+    doc_from_json = usfmtc.USX.fromUsj(json.dumps(j))
+    assert doc_from_json.version == [3, 0]
+    assert doc_from_json.getroot().get("version") == "3.0"
+
+    # Test setting version "3.1" on doc from USJ
+    doc_from_json.version = "3.1"
+    assert doc_from_json.version == [3, 1]
+    assert doc_from_json.getroot().get("version") == "3.1"
+    assert bad_ver not in doc_from_json.outUsx()

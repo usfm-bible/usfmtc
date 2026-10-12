@@ -300,16 +300,16 @@ class USX:
             self.outUsx(outfpath, **kw)
         elif outtype == "usj":
             self.outUsj(outfpath, **kw)
-        elif outtype == "usfm":
+        elif outtype.startswith("usfm"):
             if outtype == "usfm3.0":
-                outtype = "usfm"
                 if version is None:
-                    version = "0.4.8"
+                    version = "3.0"
             self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
 
     def canonicalise(self, version=None):
         """ Canonicalises the text especially with regard to whitespace """
-        canonicalise(self.getroot(), version=version)
+        verstr = ".".join(str(x) for x in version) if isinstance(version, (list, tuple)) else version
+        canonicalise(self.getroot(), version=verstr)
         if version is not None:
             self.version = version
 
@@ -350,7 +350,7 @@ class USX:
     @version.setter
     def version(self, version):
         if isinstance(version, (list, tuple)):
-            version = "0.4.8".join([str(x) for x in version])
+            version = ".".join([str(x) for x in version])
         if version is not None:
             self.getroot().set('version', str(version))
 
