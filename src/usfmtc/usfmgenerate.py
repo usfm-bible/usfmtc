@@ -79,12 +79,12 @@ class Emitter:
             s = escaped(s, self.escapes, notilde=self.notilde)
         self.outf.write(s)
 
-    def tag(self, e, sep=" "):
+    def tag(self, e, sep=" ", prefix=""):
         s = e.get('style', '')
         if s is not None and len(s):
             if "colspan" in e.attrib:
                 s = "{}-{}".format(s, e.get('colspan'))
-            self("\\{0}{1}".format(s, sep))
+            self("\\{0}{1}".format(prefix+s, sep))
 
 def iterels(el, events):
     if 'start' in events:
@@ -120,6 +120,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
     emit = kw.get('emitter', Emitter)(outf, escapes, notilde=kw.get('notilde', False))
     paraelements = ("chapter", "para", "row", "sidebar")
     innote = None
+    inchar = 0
     for (ev, el) in iterels(root, ("start", "end")):
         s = el.get("style", "")
 
@@ -173,8 +174,12 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                     emit.tag(el, sep="\n")
                 else:
                     emit.tag(el)
-            elif el.tag in ("link", "char"):
+            elif el.tag == "link":
                 emit.tag(el)
+            elif el.tag == "char":
+                prefix = "+" if version == [3, 0] and inchar > 0 else ""
+                emit.tag(el, prefix=prefix)
+                inchar += 1
             elif el.tag in ("note", "sidebar"):
                 emit.tag(el, sep="")
                 if version >= [3, 2] and el.tag != "ms":
@@ -206,7 +211,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 if el.get('gen', 'false').lower() != 'true':
                     emit("\\ref ")
             elif el.tag == "usx":
-                version =  el.get("version", [3,1])
+                if version is None:
+                    version = el.get("version", [3,1])
                 if isinstance(version, str):
                     version = [int(x.strip(WS)) for x in version.split(".")]
             elif el.tag in ("table", ):
@@ -240,7 +246,15 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
             if el.tag == "note":
                 emit("\\{}*".format(s))
                 innote = None
-            elif el.tag in ("char", "link", "figure") and (not innote or mcats.get(s, "") != innote + "char"):
+            elif el.tag  == "char" and (not innote or mcats.get(s, "") != innote + "char"):
+                prefix = ""
+                inchar = max(0, inchar - 1)
+                if version <= [3, 1]:
+                    append_attribs(el, emit, attribmap=attribmap)
+                    if inchar > 0 and version == [3, 0]:
+                        prefix = "+"
+                emit("\\{}*".format(prefix+s))
+            elif el.tag in ("link", "figure") and (not innote or mcats.get(s, "") != innote + "char"):
                 if version <= [3, 1]:
                     append_attribs(el, emit, attribmap=attribmap)
                 emit("\\{}*".format(s))

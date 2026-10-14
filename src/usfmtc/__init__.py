@@ -122,7 +122,7 @@ class USX:
         return cls(res, grammar)
 
     @classmethod
-    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, **kw):
+    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, version="3.1", **kw):
         """ Parses USFM using UsfmGrammarParser grammar and creates USX object.
             Raise usfmtc.parser.NoParseError on error.
             elfactory must take parent and pos named parameters not as attributes
@@ -133,9 +133,11 @@ class USX:
         except UnicodeError as e:
             readerr = f"In file {getSrcName(src)}: {e}"
             data = readsrc(src)
+        if isinstance(version, str):
+            version = [int(x) for x in version.split(".")]
 
         if not altparser:
-            p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, **kw)
+            p = USFMParser(data, factory=elfactory or ParentElement, grammar=grammar, strict=strict, version=version, **kw)
             xml = p.parse()
         else:
             # This can raise usfmtc.parser.NoParseError
@@ -146,7 +148,7 @@ class USX:
         if p and readerr is not None:
             p.errors.insert(0, (readerr,))
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
-        res = cls(xml, grammar, errors=p.errors if p else None)
+        res = cls(xml, grammar, errors=p.errors if p else None, version=getattr(p, 'version', None))
         if keepparser:
             res.parser = p
         return res
@@ -158,12 +160,14 @@ class USX:
         xml = usjtousx(djson, elfactory=elfactory)
         return cls(xml, grammar)
 
-    def __init__(self, xml, grammar=None, errors=None):
+    def __init__(self, xml, grammar=None, errors=None, version=None):
         self.xml = xml      # an Element, not an ElementTree
         self.grammar = grammar
         if self.grammar is None:
             self.grammar = Grammar()
         self.errors = errors    # list of errors (description, sfmparser.Pos)
+        if version is not None:
+            self.version = version
 
     def copy(self, deep=False):
         res = self.__class__(self.xml.copy(deep=deep), grammar=self.grammar)
@@ -193,9 +197,13 @@ class USX:
         prettyxml(self.xml)
         return self._outwrite(file, self.xml, fn=writexml)
 
-    def outUsfm(self, file=None, grammar=None, altparser=False, **kw):
+    def outUsfm(self, file=None, grammar=None, altparser=False, version=None, **kw):
         """ Output USFM from USX object. grammar is et doc. If file is None returns string """
         if not altparser:
+            if isinstance(version, str):
+                version = [int(x) for x in version.split(".")]
+            if version is not None:
+                kw['version'] = version
             if grammar is None:
                 grammar = self.grammar
             if 'book' not in kw:
@@ -350,7 +358,7 @@ class USX:
     @version.setter
     def version(self, version):
         if isinstance(version, (list, tuple)):
-            version = "0.4.8".join([str(x) for x in version])
+            version = ".".join([str(x) for x in version])
         if version is not None:
             self.getroot().set('version', str(version))
 

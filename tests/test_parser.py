@@ -7,7 +7,7 @@ import re, json
 
 def _dousfm(s, grammar=None, errors=False, version=None, nofail=False, **kw):
     doc = usfmtc.readFile(s, informat="usfm", grammar=grammar)
-    doc.canonicalise()
+    doc.canonicalise(version=version)
     doc.version = version or "3.1"
     r = doc.getroot()
     et.dump(r)
@@ -147,7 +147,7 @@ def test_footnote3():
 \p
 \v 1 This is a test\f + \fr 1:1 \ft And a note in it for \xt John 3:16|href="JHN 3:16"\xt*\f*
 """
-    doc, f = _dousfm(usfm)
+    doc, f = _dousfm(usfm, version="3.0")
     if "fr*" in f:
         fail(f"{f}: bad structure")
     if 'xt*' not in f or 'ref' in f:        # is this what we really want?

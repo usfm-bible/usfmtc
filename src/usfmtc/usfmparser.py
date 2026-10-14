@@ -1008,6 +1008,7 @@ class USFMParser:
 
     def _usfm(self, tag):
         res = self.addNode(USXNode(self, 'usx', tag, pos=tag.pos))
+        return res
 
 def main():
     import sys
