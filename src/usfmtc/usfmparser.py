@@ -388,6 +388,8 @@ class Grammar:
             if 'category' in v:
                 b = v['category'].split()[0]
                 self.marker_categories[k] = b.lower()
+                if 'closedby' in v:
+                    self.marker_categories.setdefault(v['closedby'].split()[0], b.lower())
             if 'defattrib' in v:
                 self.attribmap[k] = v['defattrib']
             if 'attributes' in v:

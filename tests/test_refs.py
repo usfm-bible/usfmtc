@@ -524,6 +524,18 @@ def test_localbook():
     if bk != "Genesis":
         fail(f"{bk} from {ref} is not Genesis")
 
+@pytest.mark.parametrize("s, bk", [("Judge", "JDG"), ("Judges", "JDG"), ("jdg", "JDG"),
+        ("Jud", "JUD"), ("Song", "SNG"), ("Psalm", "PSA"), ("Est", "EST"), ("Dan", "DAN"),
+        ("Judges B", "JDB"), ("Judith", "JDT")])
+def test_parsebook(s, bk):
+    res = bkenv.parsebook(s)
+    if res != bk:
+        fail(f"{s} parsed as {res} instead of {bk}")
+
+def test_parsebook_single():
+    if "j" in bkenv.bookstrings:
+        fail(f"Single letter j maps to {bkenv.bookstrings['j']}")
+
 def test_subsetrange():
     usfm = r'''\id JHN test
 \c 4

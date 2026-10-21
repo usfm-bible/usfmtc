@@ -292,14 +292,15 @@ class BookNamesEnvironment(Environment):
 
     def addBookName(self, bkid, *strs):
         self.booknames[bkid] = strs
-        self.bookstrings[bkid] = bkid
-        bkstrs = {}
+        self.bookstrings[bkid.lower()] = bkid
         for s in strs:
-            for i in range(len(s)):
-                if s[i] is None or s[i] == " ":
+            if s is None:
+                continue
+            for i in range(1, len(s)):
+                if s[i] == " ":
                     continue
-                bkstrs[s[:i+1]] = "" if bkstrs.get(s[:i+1], bkid) != bkid else bkid
-                self.bookstrings.update({k.lower():v for k,v in bkstrs.items() if v != ""})
+                # first book to claim a prefix keeps it
+                self.bookstrings.setdefault(s[:i+1].lower(), bkid)
 
 
 class Ref:
