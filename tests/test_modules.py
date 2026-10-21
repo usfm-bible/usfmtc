@@ -54,6 +54,14 @@ def test_errors(s, res):
     ("$nobody stays", "$nobody stays"),
     ("$$name", "$name"),
     ("$name${}s", "Freds"),
+    ("${name}s", "Freds"),
+    ("${nobody}s", "${nobody}s"),
+    ("${name", "${name"),
+    ("$get(name)", "Fred"),
+    ("$get( title , es )", "Léxico"),
+    ("$get(title, fr)", "Lexicon"),
+    ("$get(nobody, *, Anon)", "Anon"),
+    ("$s($get(ref))", "Judges 3:4"),
 ])
 def test_vars(s, res):
     _e(s, res)
@@ -87,3 +95,48 @@ def test_flatten():
         fail(f"Flattened to {res}")
     if "$s" not in doc.outUsfm(None):
         fail("Flattening changed the original document")
+
+def test_get_errors():
+    _e("$get(nobody)", "[ERROR: No value for $nobody]", errors=1)
+    _e("$get(es_only, fr, '')", "", errors=0)
+    _e("$get(es_only, fr)", "[ERROR: No value for $es_only in fr]", errors=1)
+
+def _flatten(usfm, errors=0):
+    mod = _mod(readFile(usfm, informat="usfm"))
+    res = mod.flatten().outUsfm(None)
+    if len(mod.errors) != errors:
+        fail(f"{len(mod.errors)} errors instead of {errors}: {mod.errors}")
+    return res
+
+def test_mlet():
+    res = _flatten(r"""\id GEN module test
+\mlet|var="who" val="Jane"\*
+\c 1
+\p
+\v 1 $who read \mlet|var="where" val="$s($ref)"\*$where.
+\v 2 \mlet|var="name" val="Joe" lang="es"\*$get(name, es) and $name.
+""")
+    for s in ("Jane read Judges 3:4.", "Joe and Fred."):
+        if s not in res:
+            fail(f"{s} not in {res}")
+    if "mlet" in res:
+        fail(f"mlet left in output {res}")
+
+def test_mlet_order():
+    """ A variable is only set from where the \\mlet is """
+    res = _flatten(r"""\id GEN module test
+\c 1
+\p
+\v 1 $later \mlet|var="later" val="now"\*$later
+""")
+    if "$later now" not in res:
+        fail(f"Wrong order in {res}")
+
+def test_mlet_error():
+    res = _flatten(r"""\id GEN module test
+\c 1
+\p
+\v 1 A\mlet|var="bad" val="$s(GEN 1:1, a, b)"\*B $bad
+""", errors=1)
+    if "A[ERROR: Wrong number of arguments (3) to $s]B $bad" not in res:
+        fail(f"Failed \\mlet not reported in place: {res}")

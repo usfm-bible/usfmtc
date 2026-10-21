@@ -18,9 +18,10 @@ class Result:
     """ A node in a parsed expression: literal text, a quoted literal or a parse error """
     TEXT, QUOTED, ERROR, CALL, VAR = range(5)
 
-    def __init__(self, s: str, kind: int = TEXT):
+    def __init__(self, s: str, kind: int = TEXT, src: Optional[str] = None):
         self.s = s
         self.kind = kind
+        self.src = src          # source text, where it differs from s
 
     def __repr__(self):
         return f"Result({self.s!r}, {self.kind})"
@@ -76,6 +77,15 @@ def modulefn(name: str):
     return deco
 
 
+def modulems(name: str):
+    """ Registers a method as the handler of the module milestone \\name. It is
+        passed the milestone element, whose attributes are not yet expanded. """
+    def deco(fn):
+        fn._modulems = name
+        return fn
+    return deco
+
+
 class Module:
     """ Flattens a parsed module document.
 
@@ -98,22 +108,56 @@ class Module:
             self.frames[0][k] = dict(v) if isinstance(v, dict) else {"*": v}
         self.errors = []
         self.functions = {}
+        self.milestones = {}
         for k in dir(self.__class__):
             v = getattr(self.__class__, k)
-            if callable(v) and hasattr(v, "_modulefn"):
+            if not callable(v):
+                continue
+            if hasattr(v, "_modulefn"):
                 self.functions[v._modulefn] = getattr(self, k)
+            if hasattr(v, "_modulems"):
+                self.milestones[v._modulems] = getattr(self, k)
 
     def flatten(self):
         """ Returns a copy of the document with its contents expanded """
         res = self.doc.copy(deep=True)
-        for e in res.getroot().iter():
-            if e.text:
-                e.text = self.expand(e.text, e)
-            if e.tail:
-                e.tail = self.expand(e.tail, e)
-            for k, v in e.attrib.items():
-                e.set(k, self.expand(v, e))
+        self._walk(res.getroot())
         return res
+
+    def _walk(self, e):
+        """ Expands e and its contents in document order. Module milestones are
+            executed and removed. """
+        for k, v in e.attrib.items():
+            e.set(k, self.expand(v, e))
+        if e.text:
+            e.text = self.expand(e.text, e)
+        for c in list(e):
+            fn = self.milestones.get(c.get("style", None), None) if c.tag == "ms" else None
+            if fn is None:
+                self._walk(c)
+                rep = None
+            else:
+                try:
+                    rep = fn(c) or ""
+                except ModuleError as err:
+                    self.errors.append((str(err), getattr(c, "pos", None)))
+                    rep = self.errorfmt.format(err)
+            if c.tail:
+                c.tail = self.expand(c.tail, c)
+            if rep is not None:
+                self._replace(e, c, rep)
+
+    @staticmethod
+    def _replace(parent, e, s):
+        """ Replaces element e with the text s """
+        s += e.tail or ""
+        i = list(parent).index(e)
+        if i > 0:
+            prev = parent[i-1]
+            prev.tail = (prev.tail or "") + s
+        else:
+            parent.text = (parent.text or "") + s
+        parent.remove(e)
 
     def expand(self, s: str, e=None) -> str:
         """ Expands a content string. Each top level expansion that fails is replaced
@@ -132,12 +176,22 @@ class Module:
                 res.append(self.errorfmt.format(err))
         return "".join(res)
 
+    def evaluate(self, s: str) -> str:
+        """ Expands a string, raising ModuleError on any failure, so that a failed
+            value is never used """
+        res = []
+        for n in self._parse(s, 0, "")[0]:
+            if n.iserror():
+                raise ModuleError(n.s)
+            res.append(self._eval(n))
+        return "".join(res)
+
     def _eval(self, n) -> str:
         if n.isliteral():
             return n.s
         if n.isvar():
             if self._findvar(n.s) is None:
-                return "$" + n.s            # not a variable, so literal
+                return n.src                # not a variable, so literal
             return self.getvar(n.s)
         fn = self.functions[n.name]
         args = ["".join(self._eval(x) for x in a) for a in n.args]
@@ -179,6 +233,10 @@ class Module:
                 i += 2
             elif s.startswith("${}", i):
                 i += 3
+            elif nxt == "{" and (m := self._namere.match(s, i+2)) and s[m.end():m.end()+1] == "}":
+                flush()
+                nodes.append(Result(m.group(0), Result.VAR, s[i:m.end()+1]))
+                i = m.end() + 1
             elif nxt == "#":
                 j = s.find("\n", i)
                 i = len(s) if j < 0 else j
@@ -193,7 +251,7 @@ class Module:
                         call, i = Result(str(err), Result.ERROR), len(s)   # a top level syntax error consumes the rest
                     nodes.append(call)
                 else:
-                    nodes.append(Result(m.group(0), Result.VAR))
+                    nodes.append(Result(m.group(0), Result.VAR, s[i:m.end()]))
                     i = m.end()
             else:                               # unrecognised $ is literal
                 text.append("$")
@@ -242,6 +300,15 @@ class Module:
             raise ModuleError(f"No value for ${name}" + (f" in {lang}" if lang != "*" else ""))
         return default
 
+    def setvar(self, name: str, value: str, lang: str = "*"):
+        """ Writes a variable. If the name is bound in a non-global frame, the write
+            goes to the innermost frame, else to global. """
+        if any(name in f for f in self.frames[1:]):
+            frame = self.frames[-1]
+        else:
+            frame = self.frames[0]
+        frame.setdefault(name, {})[lang] = value
+
     def _env(self, lang: Optional[str]) -> Environment:
         lang = lang or self.lang
         env = self.envs.get(lang, self.envs.get("*", None))
@@ -263,6 +330,20 @@ class Module:
     def fn_s(self, ref, lang=None):
         """ $s(ref, [lang]): short localised form of a reference """
         return self._localref(ref, 1, lang)
+
+    @modulefn("get")
+    def fn_get(self, name, lang=None, default=None):
+        """ $get(name, [lang], [default]): reads a variable """
+        return self.getvar(name, lang or "*", default)
+
+    @modulems("mlet")
+    def ms_mlet(self, e):
+        """ \\mlet|var="name" val="value" [lang="tag"]\\*: assignment """
+        name = self.evaluate(e.get("var", "")).strip()
+        if not name:
+            raise ModuleError("\\mlet has no var")
+        lang = self.evaluate(e.get("lang", "")).strip() or "*"
+        self.setvar(name, self.evaluate(e.get("val", "")), lang)
 
 
 def main(argv=None):
