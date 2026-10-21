@@ -140,3 +140,104 @@ def test_mlet_error():
 """, errors=1)
     if "A[ERROR: Wrong number of arguments (3) to $s]B $bad" not in res:
         fail(f"Failed \\mlet not reported in place: {res}")
+
+def _vars(usfm, errors=0):
+    """ Flattens usfm, returning the output and global variables """
+    mod = _mod(readFile(usfm, informat="usfm"))
+    res = mod.flatten().outUsfm(None)
+    if len(mod.errors) != errors:
+        fail(f"{len(mod.errors)} errors instead of {errors}: {mod.errors}")
+    return res, {k: v.get("*", None) for k, v in mod.frames[0].items()}
+
+def test_mlet_s():
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 A \mlet-s|var="x"\*one $name\mlet-e\*B $x
+""")
+    if v["x"] != "one Fred":
+        fail(f"x is {v['x']!r}")
+    if "\\v 1 A B one Fred" not in res or "mlet" in res:
+        fail(f"Bad output {res}")
+
+def test_mlet_s_paras():
+    """ A block across paragraphs. What follows \\mlet-e continues the paragraph
+        holding \\mlet-s """
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 Before \mlet-s|var="x"\*one
+\p two \bd $name\bd*
+\q three\mlet-e\* after
+\p Next
+""")
+    if v["x"] != "one\n\\p two \\bd Fred\\bd*\n\\q three":
+        fail(f"x is {v['x']!r}")
+    if "\\v 1 Before  after\n\\p Next" not in res or "two" in res:
+        fail(f"Bad output {res}")
+
+def test_mlet_s_nested():
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mlet-s|var="outer"\*a \mlet-s|var="inner" lang="es"\*b\mlet-e\*$get(inner, es) c\mlet-e\*$outer
+""")
+    if v["outer"] != "a b c" or v["inner"] is not None:
+        fail(f"Variables are {v}")
+    if "\\v 1 a b c" not in res:
+        fail(f"Bad output {res}")
+
+def test_mlet_s_local():
+    """ An \\mlet in a block sets global, unless the name is bound locally """
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mlet-s|var="x"\*\mlet|var="y" val="Y"\*$y\mlet-e\*$x $y
+""")
+    if v["x"] != "Y" or v["y"] != "Y":
+        fail(f"Variables are {v}")
+
+@pytest.mark.parametrize("usfm", [
+    "\\id GEN test\n\\c 1\n\\p\n\\v 1 A \\mlet-s|var=\"x\"\\* B\n",
+    "\\id GEN test\n\\c 1\n\\p\n\\v 1 A \\mlet-e\\* B\n",
+])
+def test_mlet_s_unmatched(usfm):
+    _vars(usfm, errors=1)
+
+def test_runblock():
+    """ A block can be run repeatedly with different bindings, leaving it unchanged """
+    doc = readFile(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mlet-s|var="x"\*$who and $name\mlet-e\*
+""", informat="usfm")
+    mod = _mod(doc)
+    root = doc.getroot()
+    mod._gather(root)
+    blk = next(root.iter("ms"))
+    res = [mod._usfm(mod._runblock(blk, {"who": w})).strip() for w in ("Jane", "Joe")]
+    if res != ["Jane and Fred", "Joe and Fred"]:
+        fail(f"Runs gave {res}")
+    mod.frames.append({"name": {"*": "Local"}})
+    res = [mod._usfm(mod._runblock(blk, {"who": "Jane"}, chain=c)).strip() for c in (True, False)]
+    if res != ["Jane and Local", "Jane and Fred"]:
+        fail(f"Chained runs gave {res}")
+    if blk.text != "$who and $name" or len(mod.frames) != 2:
+        fail(f"Block changed to {blk.text!r} or frames left at {len(mod.frames)}")
+
+def test_block_frame():
+    """ A block runs in the enclosing frame, so writes to a local stay in it """
+    doc = readFile(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mlet-s|var="x"\*\mlet|var="n" val="$n$n"\*\mlet|var="m" val="M"\*\mlet-e\*
+""", informat="usfm")
+    mod = _mod(doc)
+    root = doc.getroot()
+    mod._gather(root)
+    blk = next(root.iter("ms"))
+    local = {"n": {"*": "1"}}
+    mod.frames.append(local)
+    mod._runblock(blk)
+    if local["n"]["*"] != "11" or "m" in local or mod.frames[0].get("m") != {"*": "M"}:
+        fail(f"Local frame is {local}, global m is {mod.frames[0].get('m')}")

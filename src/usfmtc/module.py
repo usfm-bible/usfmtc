@@ -5,9 +5,10 @@ The Module class walks a parsed module document and expands its contents
 into plain USFM/USX.
 """
 
-import re, inspect
+import re, inspect, io
 from typing import Optional, Dict, List, Union
 from usfmtc.reference import RefList, Environment
+from usfmtc.usfmgenerate import usx2usfm
 
 
 class ModuleError(Exception):
@@ -77,11 +78,13 @@ def modulefn(name: str):
     return deco
 
 
-def modulems(name: str):
+def modulems(name: str, end: Optional[str] = None):
     """ Registers a method as the handler of the module milestone \\name. It is
-        passed the milestone element, whose attributes are not yet expanded. """
+        passed the milestone element, whose attributes are not yet expanded. If
+        end is given, \\name..\\end is a block and the element holds its contents. """
     def deco(fn):
         fn._modulems = name
+        fn._modulemsend = end
         return fn
     return deco
 
@@ -109,6 +112,7 @@ class Module:
         self.errors = []
         self.functions = {}
         self.milestones = {}
+        self.blocks = {}            # start milestone -> end milestone
         for k in dir(self.__class__):
             v = getattr(self.__class__, k)
             if not callable(v):
@@ -117,18 +121,116 @@ class Module:
                 self.functions[v._modulefn] = getattr(self, k)
             if hasattr(v, "_modulems"):
                 self.milestones[v._modulems] = getattr(self, k)
+                if v._modulemsend is not None:
+                    self.blocks[v._modulems] = v._modulemsend
 
     def flatten(self):
         """ Returns a copy of the document with its contents expanded """
         res = self.doc.copy(deep=True)
+        self._gather(res.getroot())
         self._walk(res.getroot())
         return res
+
+    def _gather(self, root):
+        """ Turns each block milestone pair into a single start milestone element
+            holding the block's contents. Inner blocks are gathered first. """
+        ends = set(self.blocks.values())
+        stack = []
+        pairs = []
+        for e in root.iter("ms"):
+            s = e.get("style", None)
+            if s in self.blocks:
+                stack.append(e)
+            elif s in ends:
+                if stack and self.blocks[stack[-1].get("style")] == s:
+                    pairs.append((stack.pop(), e))
+                else:
+                    self.errors.append((f"Unexpected \\{s}", getattr(e, "pos", None)))
+        for e in stack:
+            self.errors.append((f"Missing \\{self.blocks[e.get('style')]}", getattr(e, "pos", None)))
+        for s, e in pairs:
+            self._gatherblock(root, s, e)
+
+    @staticmethod
+    def _gatherblock(root, start, end):
+        """ Moves everything between start and end into start, removing end. Elements
+            the block cuts across are split, and the part following end joins the
+            element holding start, as if the block's text were not there. """
+        parents = {c: p for p in root.iter() for c in p}
+        def move(e, parent, i=None):
+            parents[e].remove(e)
+            if i is None:
+                parent.append(e)
+            else:
+                parent.insert(i, e)
+            parents[e] = e.parent = parent
+        def split(e, after):
+            """ Moves e (or what follows e if after) and later siblings into a copy
+                of e's parent inserted after it. Returns the copy. """
+            p = parents[e]
+            res = p.copy(children=False)
+            res.text, res.tail, p.tail = None, p.tail, None
+            if after:
+                res.text, e.tail = e.tail, None
+            kids = list(p)
+            for c in kids[kids.index(e) + (1 if after else 0):]:
+                move(c, res)
+            pp = parents[p]
+            pp.insert(list(pp).index(p) + 1, res)
+            parents[res] = res.parent = pp
+            return res
+        sancs = [start]
+        while sancs[-1] in parents:
+            sancs.append(parents[sancs[-1]])
+        top = end
+        while top not in sancs:
+            top = parents[top]
+        # top is the common ancestor. Split the end side so that what follows end
+        # is in a separate element, and the start side so that start leads its
+        # own element, at each level below top.
+        endtext = None
+        etop = end
+        after = None
+        while parents[etop] is not top:
+            after = split(etop, True)
+            etop = parents[etop]
+        if after is None:
+            endtext, end.tail = end.tail, None
+        stop = start
+        while parents[stop] is not top:
+            stop = split(stop, False)
+        head = None
+        if stop is not start:
+            head = top[list(top).index(stop) - 1]
+            for c in list(stop)[1:]:
+                move(c, start)
+        start.text, start.tail = start.tail, None
+        kids = list(top)
+        body = kids[kids.index(stop)+1:kids.index(etop)+1]
+        for c in body:
+            move(c, start)
+        parents[end].remove(end)
+        if stop is not start:
+            top.remove(stop)
+            move(start, head)
+        # what followed end continues the element holding start
+        if after is not None and head is not None:
+            start.tail = after.text
+            for c in list(after):
+                move(c, head)
+            head.tail = after.tail
+            top.remove(after)
+        else:
+            start.tail = endtext
 
     def _walk(self, e):
         """ Expands e and its contents in document order. Module milestones are
             executed and removed. """
         for k, v in e.attrib.items():
             e.set(k, self.expand(v, e))
+        self._walkcontent(e)
+
+    def _walkcontent(self, e):
         if e.text:
             e.text = self.expand(e.text, e)
         for c in list(e):
@@ -300,6 +402,40 @@ class Module:
             raise ModuleError(f"No value for ${name}" + (f" in {lang}" if lang != "*" else ""))
         return default
 
+    def _runblock(self, e, bindings: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
+                  chain: bool = True):
+        """ Returns an expanded copy of the contents of block e, leaving e unchanged.
+            Blocks run in the current frame. Given bindings (a macro call), the
+            expansion runs in a new frame holding them, chained to the current
+            frames, or if not chain, only to global. """
+        res = e.copy(deep=True)
+        res.tail = None
+        saved = self.frames
+        if bindings is not None:
+            frame = {k: dict(v) if isinstance(v, dict) else {"*": v} for k, v in bindings.items()}
+            self.frames = (saved if chain else saved[:1]) + [frame]
+        try:
+            self._walkcontent(res)
+        finally:
+            self.frames = saved
+        return res
+
+    def _usfm(self, e) -> str:
+        """ Returns the contents of e as USFM text """
+        root = e.__class__("usx", {"version": "3.1"})
+        # inline content before any block goes in an unmarked para, which ends the line
+        lead = e.__class__("para", {"style": ""})
+        lead.text = e.text
+        root.append(lead)
+        for c in list(e):
+            if len(root) > 1 or c.tag in ("para", "chapter", "row", "table", "sidebar"):
+                root.append(c)
+            else:
+                lead.append(c)
+        res = io.StringIO()
+        usx2usfm(res, root, grammar=getattr(self.doc, "grammar", None))
+        return res.getvalue()
+
     def setvar(self, name: str, value: str, lang: str = "*"):
         """ Writes a variable. If the name is bound in a non-global frame, the write
             goes to the innermost frame, else to global. """
@@ -344,6 +480,16 @@ class Module:
             raise ModuleError("\\mlet has no var")
         lang = self.evaluate(e.get("lang", "")).strip() or "*"
         self.setvar(name, self.evaluate(e.get("val", "")), lang)
+
+    @modulems("mlet-s", end="mlet-e")
+    def ms_mlet_s(self, e):
+        """ \\mlet-s|var="name" [lang="tag"]\\*..\\mlet-e\\*: assigns the expanded
+            contents of the block, as USFM text """
+        name = self.evaluate(e.get("var", "")).strip()
+        if not name:
+            raise ModuleError("\\mlet-s has no var")
+        lang = self.evaluate(e.get("lang", "")).strip() or "*"
+        self.setvar(name, self._usfm(self._runblock(e)).strip(), lang)
 
 
 def main(argv=None):
