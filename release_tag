@@ -84,8 +84,8 @@ def syscmd(*a, **kw):
 
 
 # gitversion = get_gitver()
-replacefile("pyproject.toml", r'(version = ").*?"', r'\g<1>'+args.version+'"')
-replacefile("src/usfmtc/__init__.py", r'(version = ").*?"', r'\g<1>'+args.version+'"')
+replacefile("pyproject.toml", r'^(version = ").*?"', r'\g<1>'+args.version+'"')
+replacefile("src/usfmtc/__init__.py", r'^(version = ").*?"', r'\g<1>'+args.version+'"')
 
 branches = get_branches()
 
