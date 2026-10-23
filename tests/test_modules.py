@@ -241,3 +241,80 @@ def test_block_frame():
     mod._runblock(blk)
     if local["n"]["*"] != "11" or "m" in local or mod.frames[0].get("m") != {"*": "M"}:
         fail(f"Local frame is {local}, global m is {mod.frames[0].get('m')}")
+
+def test_mfor():
+    res, v = _vars("\\id GEN module test\n\\mlet|var=\"xs\" val=\"a\x1cb\x1cc\"\\*\n"
+r"""\c 1
+\p
+\v 1 Start \mfor-s|var="x" list="$xs"\*$x, \mfor-e\*end $name
+""")
+    if "\\v 1 Start a, b, c, end Fred" not in res or "mfor" in res:
+        fail(f"Bad output {res}")
+    if "x" in v:
+        fail(f"Loop variable left as {v['x']}")
+
+def test_mfor_restore():
+    """ The loop variable's previous binding is restored """
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mfor-s|var="name" list="Jo"\*$name \mfor-e\*$name
+""")
+    if "\\v 1 Jo Fred" not in res or v["name"] != "Fred":
+        fail(f"Bad output {res} or name {v['name']}")
+
+def test_mfor_empty():
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 A \mfor-s|var="x" list=""\*$x
+\p more\mfor-e\*B
+""")
+    if "\\v 1 A B" not in res or "more" in res:
+        fail(f"Bad output {res}")
+
+def test_mfor_paras():
+    """ Paragraphs in the block become siblings, what follows \\mfor-e continues
+        the last of them, as if the text were substituted """
+    res, v = _vars("\\id GEN module test\n\\mlet|var=\"xs\" val=\"a\x1cb\"\\*\n"
+r"""\c 1
+\p
+\v 1 Start \mfor-s|var="x" list="$xs"\*$x
+\q \bd $x\bd* \mfor-e\*end
+\p Next
+""")
+    if "\\v 1 Start a\n\\q \\bd a\\bd* b\n\\q \\bd b\\bd* end\n\\p Next" not in res:
+        fail(f"Bad output {res}")
+
+def test_mfor_nested():
+    res, v = _vars("\\id GEN module test\n\\mlet|var=\"xs\" val=\"a\x1cb\"\\*\n"
+r"""\c 1
+\p
+\v 1 \mfor-s|var="x" list="$xs"\*\mfor-s|var="y" list="$xs"\*
+\q $x$y\mfor-e\*\mfor-e\*
+\p Next
+""")
+    if "\\v 1 \n\\q aa\n\\q ab\n\\q ba\n\\q bb\n\\p Next" not in res:
+        fail(f"Bad output {res}")
+
+def test_mfor_mlet_s():
+    """ A loop runs within an \\mlet-s """
+    res, v = _vars("\\id GEN module test\n\\mlet|var=\"xs\" val=\"a\x1cb\"\\*\n"
+r"""\c 1
+\p
+\v 1 \mlet-s|var="out"\*\mfor-s|var="x" list="$xs"\*
+\q $x\mfor-e\*\mlet-e\*
+""")
+    if v["out"] != "\\q a\n\\q b":
+        fail(f"out is {v['out']!r}")
+
+def test_mfor_toplevel():
+    """ A block between paragraphs adds paragraphs. The empty paragraph left by
+        what followed \\mfor-e is harmless """
+    res, v = _vars("\\id GEN module test\n\\c 1\n\\mfor-s|var=\"x\" list=\"a\x1cb\"\\*\n"
+r"""\p $x \bd y\bd*
+\mfor-e\*
+\p after
+""")
+    if "\\c 1\n\\p a \\bd y\\bd*\n\\p b \\bd y\\bd*\n\\p \n\\p after" not in res:
+        fail(f"Bad output {res}")

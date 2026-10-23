@@ -99,6 +99,9 @@ class Module:
         (its "*" form) or a dict of language tag -> string. """
 
     errorfmt = "[ERROR: {}]"
+    listsep = "\x1c"
+    _blocktags = ("book", "para", "chapter", "table", "row", "sidebar")
+    _holdertags = ("usx", "ms", "sidebar")     # elements whose children are blocks
     _namere = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
     def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: str = "*",
@@ -246,7 +249,9 @@ class Module:
                     rep = self.errorfmt.format(err)
             if c.tail:
                 c.tail = self.expand(c.tail, c)
-            if rep is not None:
+            if isinstance(rep, list):
+                e = self._splice(e, c, rep)     # later siblings may have moved
+            elif rep is not None:
                 self._replace(e, c, rep)
 
     @staticmethod
@@ -260,6 +265,63 @@ class Module:
         else:
             parent.text = (parent.text or "") + s
         parent.remove(e)
+
+    @classmethod
+    def _splice(cls, parent, e, containers):
+        """ Replaces block element e in parent with the contents of the expanded
+            containers, as if their USFM text stood in place of e: inline content
+            continues the current paragraph and block level content starts a new
+            one. Unless parent holds blocks, the blocks become its siblings and what
+            followed e continues the last of them. Returns the element now holding
+            what followed e. """
+        class Cursor:
+            """ An insertion point: the end of what precedes index i in el """
+            def __init__(self, el, i):
+                self.el, self.i = el, i
+            def text(self, s):
+                if not s:
+                    return
+                if self.i > 0:
+                    prev = self.el[self.i-1]
+                    prev.tail = (prev.tail or "") + s
+                else:
+                    self.el.text = (self.el.text or "") + s
+            def add(self, c):
+                self.el.insert(self.i, c)
+                c.parent = self.el
+                self.i += 1
+        i = list(parent).index(e)
+        parent.remove(e)
+        hasblocks = any(c.tag in cls._blocktags for b in containers for c in b)
+        if not hasblocks or parent.tag in cls._holdertags:
+            following = None
+            inline = blocks = Cursor(parent, i)
+        else:
+            if parent.parent is None:
+                raise ModuleError(f"No room for paragraphs in {parent.tag}")
+            following = list(parent)[i:]
+            for c in following:
+                parent.remove(c)
+            inline = Cursor(parent, i)
+            pp = parent.parent
+            blocks = Cursor(pp, list(pp).index(parent) + 1)
+        for b in containers:
+            inline.text(b.text)
+            for c in list(b):
+                b.remove(c)
+                if c.tag in cls._blocktags:
+                    blocks.add(c)
+                    inline = Cursor(c, len(c))
+                else:
+                    inline.add(c)
+                inline.text(c.tail)
+                c.tail = None
+        inline.text(e.tail)
+        if following is None:
+            return parent
+        for c in following:
+            inline.add(c)
+        return inline.el
 
     def expand(self, s: str, e=None) -> str:
         """ Expands a content string. Each top level expansion that fails is replaced
@@ -428,7 +490,7 @@ class Module:
         lead.text = e.text
         root.append(lead)
         for c in list(e):
-            if len(root) > 1 or c.tag in ("para", "chapter", "row", "table", "sidebar"):
+            if len(root) > 1 or c.tag in self._blocktags:
                 root.append(c)
             else:
                 lead.append(c)
@@ -490,6 +552,29 @@ class Module:
             raise ModuleError("\\mlet-s has no var")
         lang = self.evaluate(e.get("lang", "")).strip() or "*"
         self.setvar(name, self._usfm(self._runblock(e)).strip(), lang)
+
+    @modulems("mfor-s", end="mfor-e")
+    def ms_mfor_s(self, e):
+        """ \\mfor-s|var="name" list="list"\\*..\\mfor-e\\*: expands the block once
+            for each item in list, with var bound to the item in the enclosing frame """
+        name = self.evaluate(e.get("var", "")).strip()
+        if not name:
+            raise ModuleError("\\mfor-s has no var")
+        items = self.evaluate(e.get("list", ""))
+        items = items.split(self.listsep) if items else []
+        frame = self.frames[-1]
+        saved = frame.get(name, None)
+        res = []
+        try:
+            for item in items:
+                frame[name] = {"*": item}
+                res.append(self._runblock(e))
+        finally:
+            if saved is None:
+                frame.pop(name, None)
+            else:
+                frame[name] = saved
+        return res
 
 
 def main(argv=None):
