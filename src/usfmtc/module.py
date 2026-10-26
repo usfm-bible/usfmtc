@@ -258,6 +258,7 @@ class Module:
         self.blocks = {}            # start milestone -> end milestone
         self.middles = {}           # start milestone -> middle milestone
         self.macros = {}            # name -> (params, rest param or None, body)
+        self.refconfigs = {"default": dict(self._refsettings)}     # \mrefconfig name -> settings
         self.topdefs = set()        # top level \\mdef-s elements, removed by the walk
         self.depth = 0
         self.active = []            # what is running (macro calls, loops), outermost first
@@ -1236,6 +1237,118 @@ class Module:
         if items is None:
             raise ModuleError(f"Bad level {level!r} to $rall")
         return self.listsep.join(r.str() for r in items())
+
+    @modulefn("reftext")
+    def fn_reftext(self, ref):
+        """ $reftext(ref): the plain text of the scripture of a reference list, read
+            in $LANG. It comes from the module's project, or from the project of a
+            reference's product. """
+        res = []
+        for r in self._refs(ref, self._env(None)):
+            project = self._project(r.first.product)
+            doc = project.books.getusx(r.first.book)
+            if doc is None:
+                raise ModuleError(f"No {r.first.book} in project {project.prjid}")
+            try:
+                res.append(doc.gettext(r))
+            except ValueError as err:
+                raise ModuleError(str(err))
+        return " ".join(t for t in res if t)
+
+    # \mrefconfig settings and their defaults. notes and milestones are sets of
+    # markers to keep, or True for all of them
+    _refsettings = {"intro": False, "headings": False, "chapters": True, "verses": True,
+                    "notes": set(), "milestones": set()}
+
+    @staticmethod
+    def _mkrset(v: str):
+        """ A setting listing markers: true for all of them, false or empty for
+            none. (Only the words, since f is a marker.) """
+        v = v.strip()
+        if v.lower() == "true":
+            return True
+        if v.lower() == "false":
+            return set()
+        return set(v.split())
+
+    @modulems("mrefconfig")
+    def ms_mrefconfig(self, e):
+        """ \\mrefconfig|name="configid" settings\\*: defines the settings of a
+            config for \\mref. Settings not given take their defaults. """
+        name = self._attr(e, "name").strip() or "default"
+        conf = dict(self._refsettings)
+        for k in e.keys():
+            if k in ("style", "name"):
+                continue
+            if k not in conf:
+                raise ModuleError(f"Unknown \\mrefconfig setting {k}")
+            v = self._attr(e, k)
+            conf[k] = self._mkrset(v) if isinstance(conf[k], set) else self._truth(v)
+        self.refconfigs[name] = conf
+
+    @modulems("mref")
+    def ms_mref(self, e):
+        """ \\mref|ref="refs" [config="configid"] [lang="tag"]\\*: inserts the
+            scripture of refs, read in lang (default $LANG), from the module's
+            project or the projects of their products. Its $ are not expanded. """
+        ref = (self._attr(e, "ref") or self._attr(e, "_unknown_")).strip()
+        if not ref:
+            raise ModuleError("\\mref has no ref")
+        cname = self._attr(e, "config").strip() or "default"
+        conf = self.refconfigs.get(cname, None)
+        if conf is None:
+            raise ModuleError(f"No \\mrefconfig {cname}")
+        res = None
+        last = None         # the project and book of the previous ref
+        for r in self._refs(ref, self._env(self._attr(e, "lang").strip() or None)):
+            project = self._project(r.first.product)
+            doc = project.books.getusx(r.first.book)
+            if doc is None:
+                raise ModuleError(f"No {r.first.book} in project {project.prjid}")
+            first = last != (project, r.first.book)     # the intro comes once per book
+            last = (project, r.first.book)
+            try:
+                sub = doc.getrefs(r, addintro=conf["intro"] and first, titles=conf["intro"] and first,
+                                  headers=True, chapters=conf["chapters"])
+            except ValueError as err:
+                raise ModuleError(str(err))
+            root = self._filterrefs(sub, conf)
+            if res is None:
+                res = root
+            else:
+                for c in list(root):
+                    root.remove(c)
+                    res.append(c)
+                    c.parent = res
+        return [res]
+
+    def _filterrefs(self, doc, conf):
+        """ The root of a document from getrefs, without what conf leaves out """
+        root = doc.getroot()
+        cats = doc.grammar.marker_categories if doc.grammar is not None else {}
+        for c in list(root):        # the book and its headers
+            if c.tag == "book" or (c.tag == "para" and cats.get(c.get("style", ""), "") == "header"):
+                root.remove(c)
+            elif "vid" in c.attrib:     # where getrefs started copying a paragraph
+                del c.attrib["vid"]
+        if not conf["headings"]:    # headings at the start, before the scripture text
+            for c in list(root):
+                cat = cats.get(c.get("style", ""), "") if c.tag == "para" else ""
+                if cat == "sectionpara" and c.find(".//verse") is None:
+                    root.remove(c)
+                elif c.tag != "chapter" and cat not in ("title", "introduction"):
+                    break
+        def keep(mkrs, el):
+            return mkrs is True or el.get("style", "") in mkrs
+        for el in list(root.iter()):
+            if el is root or el.parent is None:
+                continue
+            if (el.tag == "chapter" and not conf["chapters"]) \
+                    or (el.tag == "verse" and not conf["verses"]) \
+                    or (el.tag == "note" and not keep(conf["notes"], el)) \
+                    or (el.tag == "ms" and not keep(conf["milestones"], el)):
+                self._replace(el.parent, el, "")
+        return root
 
     @modulems("mlet")
     def ms_mlet(self, e):

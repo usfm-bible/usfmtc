@@ -569,6 +569,19 @@ def test_product_context(s, res, products):
     if r.str() != res or [x.first.product for x in r] != products:
         fail(f"{s} gave {r.str()} with products {[x.first.product for x in r]}")
 
+@pytest.mark.parametrize("s, res, products", [
+    ("JON 1:1; en+BSB+JON 1:2; +JON 1:3; 1:4", "JON 1:1,en+BSB+JON 1:2,+JON 1:3,4", [None, "en+BSB", "", None]),
+    ("+JON 1:3", "JON 1:3", [""]),
+    ("BSB+JHN 3:16; +ROM 1; GEN 1", "BSB+JHN 3:16; +ROM 1; GEN 1", ["BSB", "", None]),
+])
+def test_product_reset(s, res, products):
+    """ A bare + goes back to no product """
+    r = RefList(s)
+    if r.str() != res or [x.first.product for x in r] != products:
+        fail(f"{s} gave {r.str()} with products {[x.first.product for x in r]}")
+    if RefList(r.str()).str() != res:
+        fail(f"{res} doesn't round trip")
+
 def test_product_all():
     r = RefList("BSB+JHN 21:24-ACT 1:2")
     for fn in ("allbooks", "allchaps", "allrefs"):

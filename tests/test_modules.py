@@ -784,25 +784,24 @@ def test_melse_unexpected(body):
     if "melse" in res:
         fail(f"Bad output {res}")
 
-def test_example_rt():
+def test_example_rt(tmp_path):
     """ The Text + Reference example from the spec: a macro heading each reading
-        with its reference. \\mref is not implemented yet, so it stays as a
-        milestone holding the expanded reference. """
-    res, root = _outdoc(r"""\id GEN module test
+        with its reference, followed by the reading """
+    res, root, errors = _mref(tmp_path, r"""\id FRT module test
 \mdef-s|name="rt" args="reft"\*
 \r $s($reft)
 \mref|$reft\*
 \mdef-e\*
 
-$rt(JHN 1:1-4)
-$rt(ROM 3:20-21)
+$rt(JON 1:1-2)
+$rt(JON 2:1)
 """)
-    heads = [p.text.strip() for p in root.iter("para") if p.get("style") == "r" and p.text.strip()]
-    if heads != ["John 1:1-4", "Romans 3:20-21"]:
-        fail(f"Headings are {heads} in {res}")
-    refs = [list(m.attrib.values())[-1] for m in root.iter("ms") if m.get("style") == "mref"]
-    if refs != ["JHN 1:1-4", "ROM 3:20-21"] or "$" in res:
-        fail(f"\\mref references are {refs} in {res}")
+    heads = [p.text.strip() for p in root.iter("para") if p.get("style") == "r" and p.text and p.text.strip()]
+    if heads != ["Jonah 1:1-2", "Jonah 2:1"] or errors:
+        fail(f"Headings are {heads} in {res} with {errors}")
+    verses = [v.get("number") for v in root.iter("verse")]
+    if verses != ["1", "2", "1"] or "$" in res or "\\mref" in res:
+        fail(f"Verses are {verses} in {res}")
 
 @pytest.mark.parametrize("s, res", [
     ("$e('$name')", "Fred"),
@@ -1127,3 +1126,113 @@ def test_flattenmodulefile_options(tmp_path):
                             envs={"fr": bkenv}, project=projects.find("TST"))
     assert res.book == "FRT"
     assert "a#b# fr Jonah 1:1" in res.outUsfm()
+
+_jon13 = ("Nevertheless, the men rowed hard to get back to dry land, but they could not, "
+          "for the sea was raging against them more and more.")
+_jon16 = ("Then the men feared the LORD greatly, and they offered a sacrifice to the LORD "
+          "and made vows to Him.")
+
+@pytest.mark.parametrize("s, res", [
+    ("$reftext(JON 1:13)", _jon13),
+    ("$reftext(Jonah 1:13)", _jon13),                     # the module's book names
+    ("$reftext('JON 1:13; 16')", _jon13 + " " + _jon16),
+    ("$reftext(en+TST+JON 1:13)", _jon13),                # another project
+    ("$reftext(en+XYZ+JON 1:13)", "[ERROR: No project for en+XYZ]"),
+    ("$reftext(MAT 1:1)", "[ERROR: No MAT in project FRA]"),
+    ("$reftext(JON 1:99)", "[ERROR: Reference verse JON 1:99 out of range]"),
+])
+def test_reftext(tmp_path, s, res):
+    projects = _projects(str(tmp_path))
+    mod = Module(None, project=projects.find("FRA"), projects=projects)
+    out = mod.expand(s)
+    if out != res:
+        fail(f"{s!r} gave {out!r}")
+
+def test_reftext_noproject():
+    assert _mod().expand("$reftext(JON 1:1)") == "[ERROR: No project to take scripture from]"
+
+def _mref(tmp_path, src):
+    """ Flattens src in the FRA project, returning the USFM, its root and the errors """
+    projects = _projects(str(tmp_path))
+    _project(str(tmp_path), "DOL", lang="en:::", booknames=False)
+    with open(os.path.join(str(tmp_path), "DOL", "32JONDOL.usfm"), "w", encoding="utf-8") as outf:
+        outf.write("\\id JON\n\\c 1\n\\p\n\\v 1 It cost $5 and $name.\n")
+    projects.addProject("DOL", os.path.join(str(tmp_path), "DOL"))
+    mod = Module(parseModule(src), project=projects.find("FRA"), projects=projects,
+                 variables={"name": "Fred"})
+    res = mod.flatten()
+    return res.outUsfm(), res.getroot(), mod.errors
+
+def _styles(root):
+    return [e.get("style") for e in root.iter() if e.get("style")]
+
+def test_mref(tmp_path):
+    res, root, errors = _mref(tmp_path, "\\id FRT\n\\p Before\n\\mref|JON 1:13\\*\n\\p After\n")
+    assert not errors
+    assert "\\p Before\n" in res and "\\p After" in res
+    assert "\\v 13 Nevertheless, the men rowed hard to get back to dry land" in res
+    assert "\\f" not in res and "vid" not in res          # no notes, no getrefs \\vid
+    assert "\\toc1" not in res and "\\h " not in res     # nor the book's headers
+
+@pytest.mark.parametrize("conf, ref, has, hasnt", [
+    ('verses="false" chapters="false"', "JON 1:17-2:2", [r"\s1 Jonahʼs Prayer", "From inside the fish"], [r"\v", r"\c"]),
+    ('', "JON 1:13", [r"\v 13"], [r"\f"]),
+    ('notes="f"', "JON 1:13", [r"\f + \fr 1:13"], []),
+    ('notes="x"', "JON 1:13", [], [r"\f"]),
+    ('notes="true"', "JON 1:13", [r"\f + \fr 1:13"], []),
+    ('notes="false"', "JON 1:13", [], [r"\f"]),
+    ('intro="true"', "JON 1:1", [r"\mt1 Jonah", r"\v 1"], [r"\toc1"]),
+    ('', "JON 1:1", [r"\v 1"], [r"\mt1"]),
+    ('', "JON 2", ["\\c 2\n", r"\v 10"], [r"\v 1 Now", r"\s1"]),
+    ('headings="true"', "JON 2", ["\\c 2\n\\s1 Jonahʼs Prayer", r"\v 10"], []),
+    ('chapters="false"', "JON 2", [r"\v 10"], [r"\c"]),
+    # headings at the start of the fragment, not those inside it
+    ('', "JON 1:3-4", [r"\v 3", r"\s1 The Great Storm"], []),
+    ('', "JON 1:4", [r"\v 4"], [r"\s1", r"\r "]),
+    ('headings="true"', "JON 1:4", [r"\s1 The Great Storm", r"\v 4"], []),
+    ('headings="true"', "JON 2:1", [r"\s1 Jonahʼs Prayer", r"\v 1"], []),
+    ('intro="true"', "JON 1:1-2", [r"\mt1 Jonah", r"\v 1"], [r"\s1"]),
+    ('intro="true" headings="true"', "JON 1:1-2", [r"\mt1 Jonah", r"\s1 Jonah Flees"], []),
+    # the intro comes once per book
+    ('intro="true"', "JON 1:1; 2:1", [r"\mt1 Jonah", r"\v 1 From inside"], [r"\mt1 Jonah\n\\p \v 1 From"]),
+])
+def test_mref_config(tmp_path, conf, ref, has, hasnt):
+    res, root, errors = _mref(tmp_path, f'\\id FRT\n\\mrefconfig|name="c" {conf}\\*\n\\p\n\\mref|ref="{ref}" config="c"\\*\n')
+    assert not errors
+    for h in has:
+        if h not in res:
+            fail(f"{h!r} not in {res}")
+    for h in hasnt:
+        if h in res:
+            fail(f"{h!r} in {res}")
+
+def test_mref_default(tmp_path):
+    """ \\mrefconfig with no name changes the default """
+    res, root, errors = _mref(tmp_path, '\\id FRT\n\\mrefconfig|notes="f"\\*\n\\p\n\\mref|JON 1:13\\*\n')
+    assert r"\f + \fr 1:13" in res and not errors
+
+def test_mref_nodollar(tmp_path):
+    """ $ in the inserted scripture is not expanded, unlike in the module """
+    res, root, errors = _mref(tmp_path, "\\id FRT\n\\p $name\n\\mref|en+DOL+JON 1:1\\*\n")
+    assert "\\p Fred" in res and "It cost $5 and $name." in res and not errors
+
+def test_mref_projects(tmp_path):
+    """ The refs of a list can come from different projects. A product carries
+        on to the following refs, and a bare + goes back to the module's project. """
+    res, root, errors = _mref(tmp_path, '\\id FRT\n\\p\n\\mref|ref="JON 1:1; en+DOL+JON 1:1; +JON 1:2"\\*\n')
+    assert not errors
+    assert [v.get("number") for v in root.iter("verse")] == ["1", "1", "2"]
+    assert "It cost" in res and "Get up!" in res
+
+@pytest.mark.parametrize("src, err", [
+    (r'\mref|ref=""\*', r'\mref has no ref'),
+    (r'\mref|ref="JON 1:1" config="nothing"\*', r'No \mrefconfig nothing'),
+    (r'\mrefconfig|name="x" colour="red"\*', r'Unknown \mrefconfig setting colour'),
+    (r'\mref|JON 1:99\*', 'Reference verse JON 1:99 out of range'),
+    (r'\mref|MAT 1:1\*', 'No MAT in project FRA'),
+    (r'\mref|en+XYZ+JON 1:1\*', 'No project for en+XYZ'),
+])
+def test_mref_errors(tmp_path, src, err):
+    res, root, errors = _mref(tmp_path, "\\id FRT\n\\p " + src + "\n")
+    if len(errors) != 1 or not errors[0][0].startswith(err):
+        fail(f"{src}: {errors}")

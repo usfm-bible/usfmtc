@@ -394,6 +394,8 @@ class Ref:
                     hitlimit = True
                 elif not hitlimit:
                     v = getattr(context.last, a, None)
+                    if a == 'product' and v == "":      # what follows a bare + has no product
+                        v = None
                 setattr(self, a, v)
             if not hasattr(self, 'strend'):
                 self.strend = context.strend
@@ -428,7 +430,8 @@ class Ref:
             p['book'] = envbook[0]
             start = envbook[1]      # the rest is matched from the end of the name
         elif m := bookre.match(s[start:]):
-            p['product'] = m.group('transid')[:-1] or None      # without the final +
+            # without the final +. A bare + is no product, rather than the context's
+            p['product'] = m.group('transid')[:-1] if m.group('transid') else None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
             raise SyntaxError("Cannot parse reference '{}' ({})".format(s[start:], s))
@@ -572,8 +575,9 @@ class Ref:
             context = context.last
         res = []
         sep = ''
-        if (env is None or not env.nobook) and neqa(context, self, 'product'):
-            res.append(self.product)
+        if (env is None or not env.nobook) and getattr(self, 'product', None) is not None \
+                and (self.product != (getattr(context, 'product', None) or "") or start == 'product'):
+            res.append(self.product)        # a bare + if going back to no product
             res.append('+')
             force = max(2, iniforce)        # a product is followed by a full reference
         if (env is None or not env.nobook) and (force > 1 or neqa(context, self, 'book')):
