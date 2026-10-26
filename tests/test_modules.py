@@ -1,6 +1,6 @@
 import pytest
 from pytest import fail
-from usfmtc.module import Module, ModuleFatalError, parseModule, protect
+from usfmtc.module import Module, ModuleError, ModuleFatalError, parseModule, protect, main
 from usfmtc.reference import BookNamesEnvironment
 import os
 
@@ -691,7 +691,9 @@ def test_output_noroom():
     ("$op(!=, abc, abd)", "1"),
     ("$op(=, abc, abd)", "0"),
     ("$bool(Yes)", "1"),
-    ("$bool(maybe)", "0"),
+    ("$bool(maybe)", "1"),
+    ("$bool(No)", "0"),
+    ("$bool('')", "0"),
     ("$not(0)", "1"),
     ("$not(x)", "0"),
     ("$and(1, yes, x)", "1"),
@@ -1005,3 +1007,78 @@ def test_mfor_rall():
 """)
     if "\\v 1 John 3:16; John 3:17;" not in res:
         fail(f"Bad output {res}")
+
+def _project(root, name, lang="en:::", booknames=True, **kw):
+    """ A project directory holding Jonah """
+    import shutil
+    path = os.path.join(root, name)
+    os.makedirs(path)
+    vals = {"LanguageIsoCode": lang, "Versification": "4", "FileNameBookNameForm": "41MAT",
+            "FileNamePrePart": "", "FileNamePostPart": name + ".usfm"}
+    vals.update(kw)
+    with open(os.path.join(path, "Settings.xml"), "w", encoding="utf-8") as outf:
+        outf.write("<ScriptureText>" + "".join(f"<{k}>{v}</{k}>" for k, v in vals.items()) + "</ScriptureText>")
+    testdir = os.path.dirname(__file__)
+    shutil.copy(os.path.join(testdir, "32JONBSB.usfm"), os.path.join(path, "32JON" + name + ".usfm"))
+    if booknames:
+        shutil.copy(os.path.join(testdir, "BookNames.xml"), os.path.join(path, "BookNames.xml"))
+
+def _projects(root):
+    from usfmtc.projects import Projects
+    _project(root, "TST", ChapterVerseSeparator=".")
+    _project(root, "FRA", lang="fr:::", booknames=False)
+    return Projects(root)
+
+def test_project(tmp_path):
+    projects = _projects(str(tmp_path))
+    mod = Module(None, project=projects.find("TST"), projects=projects)
+    assert mod.lang == "en"
+    assert mod.expand("$s(JON 1:1)") == "Jonah 1.1"         # the project's names and separators
+    assert mod.expand("$s(JON 1:1, fr)") == "JON 1:1"       # no fr names, so canonical
+    assert Module(None, project=projects.find("TST"), lang="fr").lang == "fr"
+
+def test_project_lang(tmp_path):
+    """ $LANG starts as the module's language """
+    projects = _projects(str(tmp_path))
+    tst = projects.find("TST")
+    assert Module(None, project=tst).expand("$LANG") == "en"
+    assert Module(None, project=tst, lang="fr").expand("$LANG") == "fr"
+    assert Module(None, project=tst, variables={"LANG": "de"}).expand("$LANG") == "de"
+    assert Module(None, lang="fr").expand("$LANG") == "fr"
+    assert Module(None).expand("$LANG") == "$LANG"      # no language at all
+
+def test_project_tocnames(tmp_path):
+    """ A project without BookNames.xml names its books from \\toc """
+    projects = _projects(str(tmp_path))
+    mod = Module(None, project=projects.find("FRA"), projects=projects)
+    assert mod.lang == "fr"
+    assert mod.expand("$l(JON 1:1)") == "Jonah 1:1"
+
+def test_project_lookup(tmp_path):
+    projects = _projects(str(tmp_path))
+    tst = projects.find("TST")
+    mod = Module(None, project=tst, projects=projects)
+    assert mod._project(None) is tst
+    assert mod._project("fr+FRA") is projects.find("FRA")
+    with pytest.raises(ModuleError, match="No project for en\\+XYZ"):
+        mod._project("en+XYZ")
+    with pytest.raises(ModuleError, match="No project to take scripture"):
+        Module(None)._project(None)
+
+def test_cli_project(tmp_path, monkeypatch):
+    _projects(str(tmp_path / "prjs"))
+    infile = tmp_path / "mod.usfm"
+    infile.write_text("\\id FRT\n\\p $s(JON 1:1)\n", encoding="utf-8")
+    outfile = tmp_path / "out.usfm"
+    assert main(["-R", str(tmp_path / "prjs"), "-p", "TST", str(infile), str(outfile)]) == 0
+    assert "Jonah 1.1" in outfile.read_text(encoding="utf-8")
+    monkeypatch.chdir(tmp_path / "prjs")                    # the default projects directory
+    assert main(["-p", "fra", str(infile), str(outfile)]) == 0
+    assert "Jonah 1:1" in outfile.read_text(encoding="utf-8")
+    infile.write_text("\\id FRT\n\\p $LANG\n", encoding="utf-8")
+    assert main(["-p", "fra", str(infile), str(outfile)]) == 0
+    assert "\\p fr" in outfile.read_text(encoding="utf-8")
+    assert main(["-p", "fra", "-l", "wsg", str(infile), str(outfile)]) == 0
+    assert "\\p wsg" in outfile.read_text(encoding="utf-8")
+    with pytest.raises(SystemExit):
+        main(["-p", "XYZ", str(infile), str(outfile)])

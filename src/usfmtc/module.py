@@ -198,14 +198,27 @@ class Module:
     _namere = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
     maxdepth = 50               # macro call nesting limit
 
-    def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: str = "*",
-                 variables: Optional[Dict[str, Union[str, Dict[str, str]]]] = None):
+    def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: Optional[str] = None,
+                 variables: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
+                 project=None, projects=None):
+        """ project is the Project (see ptsettings) the module is flattened in: it gives
+            the default language and its book names, and the scripture for references
+            without a product. projects (a Projects) finds the projects of products. """
         self.doc = doc
-        self.envs = envs or {}
-        self.lang = lang
+        self.envs = dict(envs or {})
+        self.project = project
+        self.projects = projects
+        if project is not None:
+            self.lang = lang or project.lang
+            self.envs.setdefault(project.lang, project.refenv)
+            self.envs.setdefault("*", Environment())
+        else:
+            self.lang = lang or "*"
         self.frames = [{}]          # variable frames, global first: name -> {lang: value}
         for k, v in (variables or {}).items():
             self.frames[0][k] = dict(v) if isinstance(v, dict) else {"*": v}
+        if self.lang != "*":
+            self.frames[0].setdefault("LANG", {"*": self.lang})
         self.errors = []
         self.functions = {}
         self.milestones = {}
@@ -864,6 +877,18 @@ class Module:
             raise ModuleError(f"No reference environment for language {lang}")
         return env
 
+    def _project(self, product: Optional[str]):
+        """ The project to take a reference's scripture from: the module's project,
+            or the one for the reference's product, e.g. en+BSB """
+        if not product:
+            if self.project is None:
+                raise ModuleError("No project to take scripture from")
+            return self.project
+        res = self.projects.find(product) if self.projects is not None else None
+        if res is None:
+            raise ModuleError(f"No project for {product}")
+        return res
+
     def _refs(self, ref: str, env: Environment) -> RefList:
         """ Parses a reference list, which may use the local book names of env """
         try:
@@ -1138,8 +1163,8 @@ class Module:
 
     @modulefn("bool")
     def fn_bool(self, val):
-        """ $bool(val): 1 if val is 1, true, t, yes or y, else 0 """
-        return "1" if val.strip().lower() in ("1", "true", "t", "yes", "y") else "0"
+        """ $bool(val): 0 if val is false (see _truth), else 1 """
+        return "1" if self._truth(val) else "0"
 
     @modulefn("not")
     def fn_not(self, cond):
@@ -1325,12 +1350,17 @@ class Module:
 def main(argv=None):
     import argparse, sys, os
     from usfmtc.reference import BookNamesEnvironment
+    from usfmtc.projects import Projects
 
     parser = argparse.ArgumentParser(description="Flatten a Paratext module into plain USFM/USX")
     parser.add_argument("infile", help="Input module file")
     parser.add_argument("outfile", help="Output file, format inferred from extension")
-    parser.add_argument("-b", "--booknames", help="BookNames.xml for localising references")
-    parser.add_argument("-l", "--lang", default="*", help="Default language")
+    parser.add_argument("-p", "--project", help="Project (directory name) to flatten the module in")
+    parser.add_argument("-R", "--root", action="append", default=[],
+                        help="Directory of projects (repeatable, default: the current directory)")
+    parser.add_argument("-b", "--booknames", help="BookNames.xml for localising references, "
+                        "instead of the project's")
+    parser.add_argument("-l", "--lang", help="Module language, instead of the project's ($LANG starts as this)")
     parser.add_argument("-x", "--extfiles", action="append", default=[],
                         help="markers.ext files to include (repeatable)")
     parser.add_argument("-D", "--define", action="append", default=[],
@@ -1340,13 +1370,22 @@ def main(argv=None):
     doc = readModule(args.infile, extfiles=args.extfiles)
     if doc is None:
         parser.error(f"Can't read {args.infile}")
-    env = BookNamesEnvironment(args.booknames) if args.booknames else Environment()
+    projects = Projects(*(args.root or [os.getcwd()]))
+    project = None
+    if args.project:
+        project = projects.findProject(args.project)
+        if project is None:
+            parser.error(f"No project {args.project} in {', '.join(projects.treedirs)}")
+    envs = {}
+    if args.booknames:
+        envs[args.lang or (project.lang if project is not None else "*")] = BookNamesEnvironment(args.booknames)
+    envs.setdefault("*", Environment())
     variables = {}
     for d in args.define:
         k, v = d.split("=", 1)
         name, _, lang = k.partition(":")
         variables.setdefault(name, {})[lang or "*"] = v
-    mod = Module(doc, envs={"*": env}, lang=args.lang, variables=variables)
+    mod = Module(doc, envs=envs, lang=args.lang, variables=variables, project=project, projects=projects)
     try:
         res = mod.flatten()
     except ModuleFatalError as err:
