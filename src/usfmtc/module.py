@@ -8,7 +8,7 @@ which keeps the backslashes in quoted arguments and $# comments from the USFM
 parser.
 """
 
-import re, inspect, io
+import re, inspect, io, os
 from typing import Optional, Dict, List, Union
 from usfmtc.reference import RefList, Environment
 from usfmtc.usfmgenerate import usx2usfm
@@ -163,11 +163,14 @@ def protect(src: str) -> str:
     return "".join(res)
 
 
+moduleext = os.path.join(os.path.dirname(__file__), "modules.ext")      # the module markers
+
+
 def flattenModuleFile(fname: str, project=None, projects=None, booknames: Optional[str] = None,
                       moderrors: Optional[list] = None, **kw):
     """ Reads a module file (any format readFile knows) and flattens it, returning
         the flattened USX document. USFM is protected (see protect) before it is
-        parsed. The keyword arguments go to both readFile
+        parsed, and the module markers (moduleext) are added to the grammar. The keyword arguments go to both readFile
         (e.g. informat, grammar, extfiles, strict) and Module() (e.g. lang,
         variables, envs), and each takes what it knows. In addition:
         project:    the Project to flatten the module in, or its name in projects.
@@ -176,14 +179,15 @@ def flattenModuleFile(fname: str, project=None, projects=None, booknames: Option
                     current directory if project is a name.
         booknames:  a BookNames.xml for the module language, instead of the project's.
         moderrors:  a list to which (message, line) is added for each error in the
-                    module. The errors are also marked in the output.
+                    module: first those from parsing it, then those from flattening,
+                    which are also marked in the output.
         Raises ValueError if the file can't be read or the project isn't found, and
         ModuleFatalError if flattening has to stop. """
-    import os
     from usfmtc.usfm import readFile
     from usfmtc.projects import Projects
     from usfmtc.reference import BookNamesEnvironment
     envs = dict(kw.pop("envs", None) or {})
+    kw["extfiles"] = [moduleext] + list(kw.get("extfiles", None) or [])
     doc = readFile(fname, preprocess=protect, **kw)
     if doc is None:
         raise ValueError(f"Can't read {fname}")
@@ -201,9 +205,12 @@ def flattenModuleFile(fname: str, project=None, projects=None, booknames: Option
     if booknames is not None:
         lang = kw.get("lang", None) or (project.lang if project is not None else "*")
         envs[lang] = BookNamesEnvironment(booknames)
-    mod = Module(doc, envs=envs, project=project, projects=projects, **kw)
+    mod = Module(doc, envs=envs, project=project, projects=projects, path=fname, **kw)
     res = mod.flatten()
     if moderrors is not None:
+        for err in (doc.errors or []):      # (message, pos, ref) from the USFM parser
+            pos = err[1] if len(err) > 1 else None
+            moderrors.append((err[0], pos.l + 1 if pos is not None and pos.l >= 0 else None))
         moderrors.extend(mod.errors)
     return res
 
@@ -231,10 +238,15 @@ class Module:
 
     def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: Optional[str] = None,
                  variables: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
-                 project=None, projects=None, **kw):
+                 project=None, projects=None, path: Optional[str] = None,
+                 ldmldir: Optional[str] = None, refreshldml: bool = False, ldmlfetch=None, **kw):
         """ project is the Project (see ptsettings) the module is flattened in: it gives
             the default language and its book names, and the scripture for references
             without a product. projects (a Projects) finds the projects of products.
+            path is the module's file, which \\minclude names are relative to.
+            ldmldir holds the flattened LDML files for $ldml (default the user's
+            cache), refreshldml says to fetch them again, with ldmlfetch (see
+            ldml.getFlatLdml).
             Other keyword arguments are ignored, so that one bundle of options can
             be given to readFile and Module (see flattenModuleFile). """
         self.doc = doc
@@ -261,6 +273,9 @@ class Module:
         self.refconfigs = {"default": dict(self._refsettings)}     # \mrefconfig name -> settings
         self.topdefs = set()        # top level \\mdef-s elements, removed by the walk
         self.depth = 0
+        self.path = path
+        self.ldmlopts = {"ldmldir": ldmldir, "refresh": refreshldml, "fetch": ldmlfetch}
+        self.ldmls = {}             # lang -> LDML tree, got once per flattening
         self.active = []            # what is running (macro calls, loops), outermost first
         self.locs = []              # (Pos, string) being expanded, innermost last
         for k in dir(self.__class__):
@@ -279,10 +294,49 @@ class Module:
     def flatten(self):
         """ Returns a copy of the document with its contents expanded """
         res = self.doc.copy(deep=True)
+        self._includes(res.getroot(), self.path, [os.path.abspath(self.path)] if self.path else [])
         self._gather(res.getroot())
         self._macros(res.getroot())
         self._walk(res.getroot())
         return res
+
+    def _includes(self, root, path: Optional[str], stack: List[str]):
+        """ Replaces each \\minclude milestone in root with the contents of the
+            module file it names, relative to path, with its own includes done.
+            stack holds the files being included. """
+        for e in [e for e in root.iter("ms") if e.get("style", None) == "minclude"]:
+            try:
+                rep = [self._include(e, path, stack)]
+            except ModuleError as err:
+                rep = self._report(err.where("in \\minclude", self._lineof(e)))
+            if isinstance(rep, list):
+                self._splice(e.parent, e, rep)
+            else:
+                self._replace(e.parent, e, rep)
+
+    def _include(self, e, path: Optional[str], stack: List[str]):
+        """ The root of the module file that \\minclude e names, without its \\id """
+        from usfmtc.usfm import readFile
+        name = self._attr(e, "name").strip()
+        if not name:
+            raise ModuleError("\\minclude has no name")
+        fpath = os.path.abspath(os.path.join(os.path.dirname(path) if path else "", name))
+        if fpath in stack:
+            raise ModuleError(f"{name} includes itself")
+        if not os.path.exists(fpath):
+            raise ModuleError(f"No file {name} to include")
+        doc = readFile(fpath, preprocess=protect, grammar=self.doc.grammar)
+        if doc is None:
+            raise ModuleError(f"Can't read {name}")
+        for err in (doc.errors or []):
+            pos = err[1] if len(err) > 1 else None
+            self.errors.append((f"{err[0]}; in {name}", pos.l + 1 if pos is not None and pos.l >= 0 else None))
+        root = doc.getroot()
+        for c in list(root):
+            if c.tag == "book":
+                root.remove(c)
+        self._includes(root, fpath, stack + [fpath])
+        return root
 
     def _gather(self, root):
         """ Turns each block milestone pair into a single start milestone element
@@ -1237,6 +1291,43 @@ class Module:
         if items is None:
             raise ModuleError(f"Bad level {level!r} to $rall")
         return self.listsep.join(r.str() for r in items())
+
+    @staticmethod
+    def _nospace(s: str) -> str:
+        """ s without whitespace, except in quotes """
+        res = []
+        quote = None
+        for c in s:
+            if quote is not None:
+                quote = None if c == quote else quote
+            elif c in "\"'":
+                quote = c
+            elif c.isspace():
+                continue
+            res.append(c)
+        return "".join(res)
+
+    @modulefn("ldml")
+    def fn_ldml(self, path, lang=None):
+        """ $ldml(path, [lang]): the text of the element at path (with no whitespace
+            outside quotes) in the flattened LDML for lang (default $LANG) """
+        from usfmtc.ldml import getFlatLdml
+        lang = (lang or "").strip() or self.getvar("LANG", "*", "").strip() or self.lang
+        if lang == "*":
+            raise ModuleError("No language for $ldml")
+        path = self._nospace(path)
+        if lang not in self.ldmls:
+            try:
+                self.ldmls[lang] = getFlatLdml(lang, **self.ldmlopts)
+            except (OSError, ValueError) as err:
+                raise ModuleError(f"Can't get the LDML for {lang}: {err}")
+        try:
+            e = self.ldmls[lang].getroot().find(path)
+        except (SyntaxError, TypeError, KeyError) as err:     # all from bad paths
+            raise ModuleError(f"Bad LDML path {path}")
+        if e is None:
+            raise ModuleError(f"Nothing at {path} in the LDML for {lang}")
+        return (e.text or "").strip()
 
     @modulefn("reftext")
     def fn_reftext(self, ref):

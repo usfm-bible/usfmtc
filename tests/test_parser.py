@@ -354,3 +354,11 @@ def test_vid():
 def test_preprocess():
     doc = usfmtc.readFile("\\id GEN\n\\p Hello X\n", informat="usfm", preprocess=lambda s: s.replace("X", "World"))
     assert "Hello World" in doc.outUsfm()
+
+def test_attrib_newline():
+    """ A newline in an attribute is an error, kept unless strict """
+    s = '\\id GEN\n\\p \\w word|lemma="a\nb"\\w*\n'
+    doc = usfmtc.readFile(s, informat="usfm")
+    assert any("Newlines not allowed" in e[0] for e in doc.errors)
+    with pytest.raises(SyntaxError, match="Newlines not allowed"):
+        usfmtc.readFile(s, informat="usfm", strict=True)

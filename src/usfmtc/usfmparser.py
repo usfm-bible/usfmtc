@@ -248,7 +248,7 @@ class Lexer:
         resi = curri
         while (m := self.attribsre.match(self.txt[curri:])):
             if "\r" in m.group(2) or "\n" in m.group(2):
-                self.error(SyntaxError, f"Newlines not allowed in attributes: '{m.group(0)}'", self.currpos())
+                self.parser.error(SyntaxError, f"Newlines not allowed in attributes: '{m.group(0)}'", self.currpos())
             res[m.group(1)] = self.usvre.sub(lambda x:chr(int(x.group(1) or x.group(2), 16)), m.group(2))    # tests say not to strip()
             if m.end() == 0:
                 break

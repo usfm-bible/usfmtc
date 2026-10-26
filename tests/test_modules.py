@@ -1236,3 +1236,109 @@ def test_mref_errors(tmp_path, src, err):
     res, root, errors = _mref(tmp_path, "\\id FRT\n\\p " + src + "\n")
     if len(errors) != 1 or not errors[0][0].startswith(err):
         fail(f"{src}: {errors}")
+
+def test_flattenmodulefile_parseerrors(tmp_path):
+    """ USFM parsing errors, such as a newline in an attribute, are reported """
+    infile = tmp_path / "mod.usfm"
+    infile.write_text('\\id FRT\n\\p\n\\mlet|var="x" val="$op(+,\n 1, 2)"\\*$x $s(JON 1:1, a, b)\n', encoding="utf-8")
+    errors = []
+    flattenModuleFile(str(infile), envs={"*": bkenv}, moderrors=errors)
+    assert len(errors) == 2
+    assert errors[0][0].startswith("Newlines not allowed in attributes") and errors[0][1] == 3
+    assert errors[1][0].startswith("Wrong number of arguments (3) to $s")
+
+def _write(path, s):
+    os.makedirs(os.path.dirname(str(path)), exist_ok=True)
+    with open(str(path), "w", encoding="utf-8") as outf:
+        outf.write(s)
+
+def _flatfile(path, **kw):
+    errors = []
+    res = flattenModuleFile(str(path), envs={"*": bkenv}, moderrors=errors, **kw)
+    return res.outUsfm(), errors
+
+def test_minclude(tmp_path):
+    """ An included file's macros can be used before the include, and its own
+        includes are relative to it """
+    _write(tmp_path / "main.usfm", "\\id FRT\n\\p $hi(Fred)\n\\minclude|lib/fns.txt\\*\n\\p $bye\n")
+    _write(tmp_path / "lib" / "fns.txt", "\\id FRT functions\n\\mdef-s|name=\"hi\" args=\"x\"\\*Hello $x\\mdef-e\\*\n"
+                                          "\\minclude|more.txt\\*\n")
+    _write(tmp_path / "lib" / "more.txt", "\\id FRT more\n\\mlet|var=\"bye\" val=\"Goodbye\"\\*\n\\p Included text\n")
+    res, errors = _flatfile(tmp_path / "main.usfm")
+    assert not errors
+    assert "\\p Hello Fred\n" in res and "\\p Included text\n" in res and "\\p Goodbye" in res
+    assert "\\id FRT functions" not in res and "minclude" not in res
+
+def test_minclude_var(tmp_path):
+    """ Processor defined variables can make the name """
+    _write(tmp_path / "main.usfm", "\\id FRT\n\\minclude|$part.txt\\*\n")
+    _write(tmp_path / "intro.txt", "\\id FRT\n\\p The intro\n")
+    res, errors = _flatfile(tmp_path / "main.usfm", variables={"part": "intro"})
+    assert "\\p The intro" in res and not errors
+
+@pytest.mark.parametrize("files, err", [
+    ({"main.usfm": "\\id FRT\n\\p \\minclude|nothing.txt\\*\n"}, "No file nothing.txt to include"),
+    ({"main.usfm": "\\id FRT\n\\p \\minclude|main.usfm\\*\n"}, "main.usfm includes itself"),
+    ({"main.usfm": "\\id FRT\n\\p \\minclude|a.txt\\*\n", "a.txt": "\\id FRT\n\\p \\minclude|main.usfm\\*\n"},
+        "main.usfm includes itself"),
+    ({"main.usfm": "\\id FRT\n\\p \\minclude|a.txt\\*\n", "a.txt": "\\id FRT\n\\p \\w x|a=\"b\nc\"\\w*\n"},
+        "Newlines not allowed in attributes"),
+])
+def test_minclude_errors(tmp_path, files, err):
+    for k, v in files.items():
+        _write(tmp_path / k, v)
+    res, errors = _flatfile(tmp_path / "main.usfm")
+    if len(errors) != 1 or not errors[0][0].startswith(err):
+        fail(f"{files}: {errors}")
+
+_ldmldir = os.path.join(os.path.dirname(__file__), "ldml")
+_cal = 'dates/calendars/calendar[@type="gregorian"]/'
+
+@pytest.mark.parametrize("s, res", [
+    ("$ldml(" + _cal + 'days/dayContext[@type="format"]/dayWidth[@type="wide"]/day[@type="sun"])', "Sunday"),
+    # whitespace is removed from the path, except in quotes
+    ("$ldml(" + _cal + 'days/dayContext\n  [@type="stand-alone"]/dayWidth[@type="abbreviated"]/day[@type="wed"])', "Wed"),
+    ("$ldml(" + _cal + 'months/monthContext[@type="stand-alone"]/monthWidth[@type="wide"]/month[@type="12"], en)', "December"),
+    ("$ldml(dates/nothing)", "[ERROR: Nothing at dates/nothing in the LDML for en]"),
+    ("$ldml(dates[@x)", "[ERROR: Bad LDML path dates[@x]"),
+    ("$ldml(dates, ../en)", "[ERROR: Can't get the LDML for ../en: Bad language tag '../en']"),
+])
+def test_ldml(s, res):
+    mod = Module(None, envs={"*": bkenv}, lang="en", ldmldir=_ldmldir)
+    out = mod.expand(s)
+    if out != res:
+        fail(f"{s!r} gave {out!r}")
+
+def test_ldml_nolang():
+    mod = Module(None, envs={"*": bkenv}, ldmldir=_ldmldir)
+    assert mod.expand("$ldml(dates)") == "[ERROR: No language for $ldml]"
+    mod = Module(None, envs={"*": bkenv}, variables={"LANG": "en"}, ldmldir=_ldmldir)
+    assert mod.expand("$ldml(" + _cal + 'months/monthContext[@type="format"]/monthWidth[@type="abbreviated"]/month[@type="2"])') == "Feb"
+
+def test_ldml_fetch(tmp_path):
+    """ A missing file is fetched and cached; refresh fetches it again, once """
+    with open(os.path.join(_ldmldir, "en.xml"), "rb") as inf:
+        data = inf.read()
+    fetches = []
+    def fetch(lang):
+        fetches.append(lang)
+        return data
+    s = "$ldml(" + _cal + 'days/dayContext[@type="format"]/dayWidth[@type="wide"]/day[@type="mon"])'
+    for refresh, res in ((False, ["en"]), (False, ["en"]), (True, ["en", "en"])):
+        mod = Module(None, envs={"*": bkenv}, lang="en", ldmldir=str(tmp_path), ldmlfetch=fetch, refreshldml=refresh)
+        assert mod.expand(s) == "Monday" and mod.expand(s) == "Monday"
+        assert fetches == res and os.path.exists(tmp_path / "en.xml")
+
+def test_ldml_baddata(tmp_path):
+    mod = Module(None, envs={"*": bkenv}, lang="en", ldmldir=str(tmp_path), ldmlfetch=lambda l: b"<html>oops")
+    assert mod.expand("$ldml(dates)").startswith("[ERROR: Can't get the LDML for en: Bad LDML for en")
+    assert not os.path.exists(tmp_path / "en.xml")
+
+def test_ldml_cachedir(monkeypatch):
+    from usfmtc.ldml import cachedir
+    monkeypatch.setenv("USFMTC_CACHE", "/somewhere")
+    assert cachedir() == os.path.join("/somewhere", "ldml")
+    if os.sys.platform not in ("win32", "darwin"):
+        monkeypatch.delenv("USFMTC_CACHE")
+        monkeypatch.setenv("XDG_CACHE_HOME", "/xdg")
+        assert cachedir() == os.path.join("/xdg", "usfmtc", "ldml")

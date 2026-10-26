@@ -15,6 +15,9 @@ def main(argv=None):
     parser.add_argument("-b", "--booknames", help="BookNames.xml for localising references, "
                         "instead of the project's")
     parser.add_argument("-l", "--lang", help="Module language, instead of the project's ($LANG starts as this)")
+    parser.add_argument("-C", "--ldmldir", help="Directory of cached flattened LDML files for $ldml "
+                        "(default the user's cache)")
+    parser.add_argument("--refresh-ldml", action="store_true", help="Fetch the LDML files for $ldml again")
     parser.add_argument("-x", "--extfiles", action="append", default=[],
                         help="markers.ext files to include (repeatable)")
     parser.add_argument("-D", "--define", action="append", default=[],
@@ -30,7 +33,8 @@ def main(argv=None):
     try:
         res = flattenModuleFile(args.infile, project=args.project, projects=args.root or [os.getcwd()],
                                 lang=args.lang, booknames=args.booknames, variables=variables,
-                                moderrors=errors, extfiles=args.extfiles)
+                                moderrors=errors, extfiles=args.extfiles,
+                                ldmldir=args.ldmldir, refreshldml=args.refresh_ldml)
     except ValueError as err:
         parser.error(str(err))
     except ModuleFatalError as err:
