@@ -111,10 +111,11 @@ class USX:
         return cls(res, grammar)
 
     @classmethod
-    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, version="3.1", **kw):
+    def fromUsfm(cls, src, grammar=None, altparser=False, elfactory=None, timeout=1e7, strict=False, keepparser=False, version="3.1", preprocess=None, **kw):
         """ Parses USFM using UsfmGrammarParser grammar and creates USX object.
             Raise usfmtc.parser.NoParseError on error.
             elfactory must take parent and pos named parameters not as attributes
+            preprocess, if given, is applied to the USFM text before it is parsed
         """
         readerr = None
         try:
@@ -122,6 +123,8 @@ class USX:
         except UnicodeError as e:
             readerr = f"In file {getSrcName(src)}: {e}"
             data = readsrc(src)
+        if preprocess is not None:
+            data = preprocess(data)
         if isinstance(version, str):
             version = [int(x) for x in version.split(".")]
 

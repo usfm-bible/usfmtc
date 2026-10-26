@@ -2,8 +2,10 @@
 
 A module is a USFM document containing \\m... milestones and $ expressions.
 The Module class walks a parsed module document and expands its contents
-into plain USFM/USX. Read modules with readModule or parseModule, which keep
-the backslashes in quoted arguments and $# comments from the USFM parser.
+into plain USFM/USX. flattenModuleFile reads and flattens a module file in
+one call. To read a module yourself, use readFile(..., preprocess=protect),
+which keeps the backslashes in quoted arguments and $# comments from the USFM
+parser.
 """
 
 import re, inspect, io
@@ -161,20 +163,49 @@ def protect(src: str) -> str:
     return "".join(res)
 
 
-def parseModule(text: str, extfiles: Optional[List[str]] = None, **kw):
-    """ Parses module source text, returning a USX document """
-    from usfmtc import readFile
-    return readFile(protect(text), informat="usfm", extfiles=extfiles, **kw)
-
-
-def readModule(fname: str, extfiles: Optional[List[str]] = None, **kw):
-    """ Reads a module file, returning a USX document. As for readFile, a
-        markers.ext beside the file is included. """
+def flattenModuleFile(fname: str, project=None, projects=None, booknames: Optional[str] = None,
+                      moderrors: Optional[list] = None, **kw):
+    """ Reads a module file (any format readFile knows) and flattens it, returning
+        the flattened USX document. USFM is protected (see protect) before it is
+        parsed. The keyword arguments go to both readFile
+        (e.g. informat, grammar, extfiles, strict) and Module() (e.g. lang,
+        variables, envs), and each takes what it knows. In addition:
+        project:    the Project to flatten the module in, or its name in projects.
+        projects:   a Projects, or a directory (or list of them) of projects, to find
+                    project and the projects of reference products. Defaults to the
+                    current directory if project is a name.
+        booknames:  a BookNames.xml for the module language, instead of the project's.
+        moderrors:  a list to which (message, line) is added for each error in the
+                    module. The errors are also marked in the output.
+        Raises ValueError if the file can't be read or the project isn't found, and
+        ModuleFatalError if flattening has to stop. """
     import os
-    with open(fname, encoding="utf-8-sig") as inf:
-        text = inf.read()
-    extfiles = list(extfiles or []) + [os.path.join(os.path.dirname(fname), "markers.ext")]
-    return parseModule(text, extfiles=extfiles, **kw)
+    from usfmtc.usfm import readFile
+    from usfmtc.projects import Projects
+    from usfmtc.reference import BookNamesEnvironment
+    envs = dict(kw.pop("envs", None) or {})
+    doc = readFile(fname, preprocess=protect, **kw)
+    if doc is None:
+        raise ValueError(f"Can't read {fname}")
+    if projects is None and isinstance(project, str):
+        projects = os.getcwd()
+    if isinstance(projects, str):
+        projects = [projects]
+    if isinstance(projects, (list, tuple)):
+        projects = Projects(*projects)
+    if isinstance(project, str):
+        name, project = project, projects.findProject(project)
+        if project is None:
+            raise ValueError(f"No project {name} in {', '.join(projects.treedirs)}")
+    envs.setdefault("*", Environment())
+    if booknames is not None:
+        lang = kw.get("lang", None) or (project.lang if project is not None else "*")
+        envs[lang] = BookNamesEnvironment(booknames)
+    mod = Module(doc, envs=envs, project=project, projects=projects, **kw)
+    res = mod.flatten()
+    if moderrors is not None:
+        moderrors.extend(mod.errors)
+    return res
 
 
 class Module:
@@ -200,10 +231,12 @@ class Module:
 
     def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: Optional[str] = None,
                  variables: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
-                 project=None, projects=None):
+                 project=None, projects=None, **kw):
         """ project is the Project (see ptsettings) the module is flattened in: it gives
             the default language and its book names, and the scripture for references
-            without a product. projects (a Projects) finds the projects of products. """
+            without a product. projects (a Projects) finds the projects of products.
+            Other keyword arguments are ignored, so that one bundle of options can
+            be given to readFile and Module (see flattenModuleFile). """
         self.doc = doc
         self.envs = dict(envs or {})
         self.project = project

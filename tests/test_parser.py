@@ -349,3 +349,7 @@ def test_vid():
     doc, f = _dousfm(usfm, nofail=True)
     if 'vid' not in f:
         fail(f"vid lost in round tripping:\n{f}")
+
+def test_preprocess():
+    doc = usfmtc.readFile("\\id GEN\n\\p Hello X\n", informat="usfm", preprocess=lambda s: s.replace("X", "World"))
+    assert "Hello World" in doc.outUsfm()

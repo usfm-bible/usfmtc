@@ -1,9 +1,7 @@
 """ usfmmodule: flattens a Paratext module into plain USFM/USX """
 
 import argparse, sys, os
-from usfmtc.module import Module, ModuleFatalError, readModule
-from usfmtc.reference import BookNamesEnvironment, Environment
-from usfmtc.projects import Projects
+from usfmtc.module import ModuleFatalError, flattenModuleFile
 
 
 def main(argv=None):
@@ -23,34 +21,25 @@ def main(argv=None):
                         help="Set a global variable name[:lang]=value (repeatable)")
     args = parser.parse_args(argv)
 
-    doc = readModule(args.infile, extfiles=args.extfiles)
-    if doc is None:
-        parser.error(f"Can't read {args.infile}")
-    projects = Projects(*(args.root or [os.getcwd()]))
-    project = None
-    if args.project:
-        project = projects.findProject(args.project)
-        if project is None:
-            parser.error(f"No project {args.project} in {', '.join(projects.treedirs)}")
-    envs = {}
-    if args.booknames:
-        envs[args.lang or (project.lang if project is not None else "*")] = BookNamesEnvironment(args.booknames)
-    envs.setdefault("*", Environment())
     variables = {}
     for d in args.define:
         k, v = d.split("=", 1)
         name, _, lang = k.partition(":")
         variables.setdefault(name, {})[lang or "*"] = v
-    mod = Module(doc, envs=envs, lang=args.lang, variables=variables, project=project, projects=projects)
+    errors = []
     try:
-        res = mod.flatten()
+        res = flattenModuleFile(args.infile, project=args.project, projects=args.root or [os.getcwd()],
+                                lang=args.lang, booknames=args.booknames, variables=variables,
+                                moderrors=errors, extfiles=args.extfiles)
+    except ValueError as err:
+        parser.error(str(err))
     except ModuleFatalError as err:
         print(f"{args.infile}: {err}", file=sys.stderr)
         return 2
     res.saveAs(args.outfile)
-    for msg, line in mod.errors:
+    for msg, line in errors:
         print(f"{args.infile}:{line}: {msg}" if line is not None else f"{args.infile}: {msg}", file=sys.stderr)
-    return 1 if mod.errors else 0
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

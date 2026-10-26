@@ -1,9 +1,13 @@
 import pytest
 from pytest import fail
-from usfmtc.module import Module, ModuleError, ModuleFatalError, parseModule, protect
+from usfmtc.module import Module, ModuleError, ModuleFatalError, protect, flattenModuleFile
+from usfmtc.usfm import readFile
 from usfmtc.usfmmodule import main
 from usfmtc.reference import BookNamesEnvironment
 import os
+
+def parseModule(text):
+    return readFile(text, informat="usfm", preprocess=protect)
 
 bkenv = BookNamesEnvironment(os.path.join(os.path.dirname(__file__), "BookNames.xml"))
 
@@ -1083,3 +1087,43 @@ def test_cli_project(tmp_path, monkeypatch):
     assert "\\p wsg" in outfile.read_text(encoding="utf-8")
     with pytest.raises(SystemExit):
         main(["-p", "XYZ", str(infile), str(outfile)])
+
+def test_flattenmodulefile(tmp_path):
+    from usfmtc.projects import Projects
+    projects = _projects(str(tmp_path / "prjs"))
+    infile = tmp_path / "mod.usfm"
+    infile.write_text("\\id FRT\n\\p $s(JON 1:1) $LANG $x $s(JON 1:1, a, b)\n", encoding="utf-8")
+    errors = []
+    res = flattenModuleFile(str(infile), project="TST", projects=str(tmp_path / "prjs"),
+                            variables={"x": "X"}, moderrors=errors)
+    out = res.outUsfm()
+    assert "Jonah 1.1 en X" in out
+    assert "[ERROR: Wrong number of arguments (3) to $s]" in out
+    assert len(errors) == 1 and errors[0][1] == 2
+    res = flattenModuleFile(str(infile), project=projects.find("FRA"), lang="de",
+                            booknames=os.path.join(os.path.dirname(__file__), "BookNames.xml"))
+    assert "John" not in res.outUsfm() and "Jonah 1:1 de" in res.outUsfm()
+    with pytest.raises(ValueError, match="No project XYZ"):
+        flattenModuleFile(str(infile), project="XYZ", projects=[str(tmp_path / "prjs")])
+    with pytest.raises(ValueError, match="Can't read"):
+        flattenModuleFile(str(tmp_path / "mod.abc"))
+
+def test_flattenmodulefile_usx(tmp_path):
+    """ A module saved as USX is read as USX """
+    projects = _projects(str(tmp_path / "prjs"))
+    usx = tmp_path / "mod.usx"
+    parseModule("\\id FRT\n\\p $s(JON 1:1)\n").saveAs(str(usx))
+    res = flattenModuleFile(str(usx), project=projects.find("TST"))
+    assert "Jonah 1.1" in res.outUsfm()
+
+def test_flattenmodulefile_options(tmp_path):
+    """ One bundle of options goes to both readFile and Module """
+    projects = _projects(str(tmp_path / "prjs"))
+    infile = tmp_path / "mod.mod"
+    infile.write_text("﻿\\id FRT\n\\p $sub(a1b2, '\\d', '#') $LANG $s(JON 1:1)\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Can't read"):
+        flattenModuleFile(str(infile), project=projects.find("TST"))
+    res = flattenModuleFile(str(infile), informat="usfm", strict=False, lang="fr",
+                            envs={"fr": bkenv}, project=projects.find("TST"))
+    assert res.book == "FRT"
+    assert "a#b# fr Jonah 1:1" in res.outUsfm()
