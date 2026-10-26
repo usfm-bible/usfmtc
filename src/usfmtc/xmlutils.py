@@ -31,6 +31,9 @@ class ParentElement(et.Element):
         res = tf(self.tag, attrib=self.attrib, parent=parent, pos=self.pos)
         res.text = self.text
         res.tail = self.tail
+        for a in ("textpos", "tailpos"):        # where the parser found text and tail
+            if hasattr(self, a):
+                setattr(res, a, getattr(self, a))
         if children:
             for e in self:
                 res.append(e.copy(deep=deep, parent=res, factory=factory) if deep else e)

@@ -101,18 +101,23 @@ class String(UserString):
         return String(str(s), l=self.pos.l, c=self.pos.c, **self.kw)
 
     def addToNode(self, node: et.Element, position: str, lstrip: bool=False) -> None:
-        cp = self.pos.c
+        lp, cp = self.pos.l, self.pos.c
         s = str(self)
         if lstrip:
             t = s.lstrip(WS)
             if len(t) < len(s):
-                cp += len(s) - len(t)
+                stripped = s[:len(s)-len(t)]
+                if "\n" in stripped:       # the text starts on a later line
+                    lp += stripped.count("\n")
+                    cp = len(stripped) - stripped.rfind("\n") - 1
+                else:
+                    cp += len(stripped)
         else:
             t = s
         currt = getattr(node, position, None)
         if currt is None:
             setattr(node, position, t)
-            setattr(node, position+"pos", Pos(self.pos.l, cp, **self.pos.kw))
+            setattr(node, position+"pos", Pos(lp, cp, **self.pos.kw))
         else:
             setattr(node, position, currt+t)
 

@@ -1,7 +1,7 @@
 import pytest
 from pytest import fail
 from usfmtc import readFile
-from usfmtc.module import Module
+from usfmtc.module import Module, ModuleFatalError
 from usfmtc.reference import BookNamesEnvironment
 import os
 
@@ -317,4 +317,354 @@ r"""\p $x \bd y\bd*
 \p after
 """)
     if "\\c 1\n\\p a \\bd y\\bd*\n\\p b \\bd y\\bd*\n\\p \n\\p after" not in res:
+        fail(f"Bad output {res}")
+
+def _forlist(lst, attrs, body="$x;"):
+    """ Flattens an \\mfor over the list lst, returning the output of verse 1 """
+    usfm = ("\\id GEN module test\n\\c 1\n\\p\n\\v 1 \\mfor-s|var=\"x\" list=\"" + lst + "\""
+            + attrs + "\\*" + body + "\\mfor-e\\*\n")
+    mod = _mod(readFile(usfm, informat="usfm"))
+    res = mod.flatten().outUsfm(None)
+    return res[res.index("\\v 1") + 5:].strip(), mod.errors
+
+@pytest.mark.parametrize("attrs, res", [
+    ("", "a;b;c;d;e;"),
+    (' slice="1::2"', "b;d;"),
+    (' slice="::2"', "a;c;e;"),
+    (' slice="-1::"', "e;"),
+    (' slice="1:3"', "b;c;"),
+    (' slice="::-1"', "e;d;c;b;a;"),
+    (' slice="10:"', ""),
+])
+def test_mfor_slice(attrs, res):
+    out, errors = _forlist("a\x1cb\x1cc\x1cd\x1ce", attrs)
+    if out != res or errors:
+        fail(f"{attrs} gave {out!r} with errors {errors}")
+
+@pytest.mark.parametrize("attrs, res", [
+    (' slice="keys"', "one;two;"),
+    (' slice="values"', "1;2;"),
+])
+def test_mfor_dict(attrs, res):
+    out, errors = _forlist("one\x1e1\x1ctwo\x1e2", attrs)
+    if out != res or errors:
+        fail(f"{attrs} gave {out!r} with errors {errors}")
+
+def test_mfor_dict_pair():
+    """ A dict item is bound as a [key, value] list """
+    doc = readFile("\\id GEN module test\n\\c 1\n\\p\n\\v 1 \\mfor-s|var=\"x\" list=\"one\x1e1\x1ctwo\x1e2\"\\*"
+                   "\\mlet|var=\"last\" val=\"$x\"\\*\\mfor-e\\*\n", informat="usfm")
+    mod = _mod(doc)
+    mod.flatten()
+    if mod.frames[0]["last"]["*"] != "two\x1c2" or mod.errors:
+        fail(f"Pair bound as {mod.frames[0]['last']} with errors {mod.errors}")
+
+@pytest.mark.parametrize("lst, attrs", [
+    ("a\x1cb", ' slice="keys"'),
+    ("a\x1cb", ' slice="x"'),
+    ("a\x1cb", ' slice="1"'),
+    ("a\x1cb", ' slice="a:b"'),
+    ("a\x1cb", ' slice="::0"'),
+])
+def test_mfor_slice_errors(lst, attrs):
+    out, errors = _forlist(lst, attrs)
+    if len(errors) != 1 or not out.startswith("[ERROR:"):
+        fail(f"{attrs} gave {out!r} with errors {errors}")
+
+FS, RS = "\x1c", "\x1e"
+
+@pytest.mark.parametrize("s, res", [
+    ("$len($list(a, b, c))", "3"),
+    ("$len($list())", "0"),
+    ("$len($list(a, $list(b, c), ''))", "3"),
+    ("$join(-, a, b)", "a-b"),
+    ("$join(-, $list(a, b), c)", "a-b-c"),
+    ("$join(' ', $split('x y z', ' '))", "x y z"),
+    ("$join(;, $split('a,b,c'))", "a;b;c"),
+    ("$len($split(''))", "0"),
+    ("$join(;, $strip($split('a , b')))", "a;b"),
+    ("$join(;, $range(3))", "0;1;2"),
+    ("$join(;, $range(1, 4))", "1;2;3"),
+    ("$join(;, $range(10, 0, -3))", "10;7;4;1"),
+    ("$iget($list(a, b, c), 1)", "b"),
+    ("$iget($list(a, b, c), -1)", "c"),
+    ("$iget($list(a, b), 5, none)", "none"),
+    ("$iget($dict($list(one, 1, two, 2)), two)", "2"),
+    ("$iget($dict($list(one, two), $list(1, 2)), one)", "1"),
+    ("$iget($dict($list(one, two), x), two)", "x"),
+    ("$iget($dict($list(one, 1)), three, none)", "none"),
+    ("$len($dict($list(one, 1, two, 2)))", "2"),
+])
+def test_listfns(s, res):
+    _e(s, res)
+
+@pytest.mark.parametrize("s, res", [
+    ("$dict($list(one, 1, two))", "[ERROR: $dict needs a value for each key]"),
+    ("$dict($list(a, b, c), $list(1, 2))", "[ERROR: $dict has 3 keys and 2 values]"),
+    ("$iget($list(a, b), 2)", "[ERROR: No item '2']"),
+    ("$iget($list(a, b), x)", "[ERROR: $iget needs a number, not 'x']"),
+    ("$range(a)", "[ERROR: $range needs a number, not 'a']"),
+    ("$range(1, 2, 0)", "[ERROR: $range step is 0]"),
+    ("$range()", "[ERROR: Wrong number of arguments (0) to $range]"),
+    ("$list(a, b)", "[ERROR: A list can't be output, use $join()]"),
+    ("$dict($list(a, b))", "[ERROR: A list can't be output, use $join()]"),
+])
+def test_listfn_errors(s, res):
+    _e(s, res, errors=1)
+
+def test_list_leak_attrib():
+    """ A list can't go in an attribute either """
+    res = _flatten(r"""\id GEN module test
+\c 1
+\p
+\v 1 \w word|lemma="$list(a, b)"\w*
+""", errors=1)
+    if "[ERROR: A list" not in res:
+        fail(f"Bad output {res}")
+
+def test_mfor_dict_iget():
+    out, errors = _forlist("$dict($list(one, 1, two, 2))", "", "$iget($x, 0)=$iget($x, 1);")
+    if out != "one=1;two=2;" or errors:
+        fail(f"Gave {out!r} with errors {errors}")
+
+def _mdoc(body):
+    return "\\id GEN module test\n" + body
+
+def test_mdef():
+    res, v = _vars(_mdoc(r"""\c 1
+\p
+\v 1 $greet(Jane). $greet(Joe, Bloggs).
+\mdef-s|name="greet" args="who, family..."\*
+    Hello $who
+\mdef-e\*
+\p $greet()
+"""), errors=1)
+    if "\\v 1 Hello Jane. Hello Joe." not in res or "mdef" in res:
+        fail(f"Bad output {res}")
+    if "[ERROR: Wrong number of arguments (0) to $greet]" not in res:
+        fail(f"No arity error in {res}")
+
+def test_mdef_rest():
+    res, v = _vars(_mdoc(r"""\mdef-s|name="all" args="first, rest…"\*$first: $join(+, $rest) ($len($rest))\mdef-e\*
+\c 1
+\p
+\v 1 $all(a, b, c) $all(a)
+"""))
+    if "\\v 1 a: b+c (2) a:  (0)" not in res:
+        fail(f"Bad output {res}")
+
+def test_mdef_arity():
+    res, v = _vars(_mdoc(r"""\mdef-s|name="two" args="a, b"\*$a$b\mdef-e\*
+\c 1
+\p
+\v 1 $two(x) $two(x, y) $two(x, y, z)
+"""), errors=2)
+    if "[ERROR: Wrong number of arguments (1) to $two] xy [ERROR: Wrong number of arguments (3) to $two]" not in res:
+        fail(f"Bad output {res}")
+
+def test_mdef_frames():
+    """ A macro sees its parameters and globals, not its caller's parameters.
+        Writes to a parameter stay local, others go global. """
+    res, v = _vars(_mdoc(r"""\mdef-s|name="inner" args=""\*[$p $name]\mdef-e\*
+\mdef-s|name="outer" args="p"\*$inner()\mlet|var="p" val="changed"\*\mlet|var="g" val="$p"\*\mdef-e\*
+\c 1
+\p
+\v 1 $outer(local) $p
+"""))
+    if "\\v 1 [$p Fred] $p" not in res:
+        fail(f"Bad output {res}")
+    if v.get("g") != "changed" or "p" in v:
+        fail(f"Globals are {v}")
+
+def test_mdef_args_evaluated():
+    """ Arguments are evaluated by the caller and bound, not re-expanded """
+    res, v = _vars(_mdoc(r"""\mdef-s|name="show" args="x"\*<$x>\mdef-e\*
+\mdef-s|name="pass" args="name"\*$show($name)\mdef-e\*
+\c 1
+\p
+\v 1 $pass(Jane) $show('$name') $show($$name)
+"""))
+    if "\\v 1 <Jane> <$name> <$name>" not in res:
+        fail(f"Bad output {res}")
+
+def test_mdef_blocks():
+    """ A macro can hold paragraphs and blocks, and returns them as USFM text.
+        The rest of the \\li holding \\mfor-e is an empty paragraph, which is harmless """
+    res, v = _vars(_mdoc("\\mlet|var=\"xs\" val=\"a\x1cb\"\\*\n" + r"""\mdef-s|name="items" args="pre"\*
+\mfor-s|var="x" list="$xs"\*
+\li $pre $x\mfor-e\*
+\mdef-e\*
+\c 1
+\p
+\v 1 \mlet|var="out" val="$items(-)"\*
+"""))
+    if v["out"] != "\\li - a\n\\li - b\n\\li":
+        fail(f"out is {v['out']!r}")
+
+def test_mdef_redefine():
+    res, v = _vars(_mdoc(r"""\mdef-s|name="m" args=""\*one\mdef-e\*
+\mdef-s|name="m" args=""\*two\mdef-e\*
+\mdef-s|name="s" args=""\*three\mdef-e\*
+\c 1
+\p
+\v 1 $m()
+"""), errors=2)
+    if "\\v 1 one" not in res:
+        fail(f"Bad output {res}")
+
+@pytest.mark.parametrize("attrs", ['name="" args=""', 'name="a b" args=""', 'name="m" args="a, b c"',
+                                   'name="m" args="a…, b"'])
+def test_mdef_bad(attrs):
+    _vars(_mdoc("\\mdef-s|" + attrs + "\\*x\\mdef-e\\*\n\\c 1\n\\p\n\\v 1 text\n"), errors=1)
+
+def test_mdef_nested():
+    mod = _mod(readFile(_mdoc(r"""\c 1
+\p
+\v 1 \mfor-s|var="x" list="a"\*\mdef-s|name="m" args=""\*one\mdef-e\*\mfor-e\*
+"""), informat="usfm"))
+    res = mod.flatten().outUsfm(None)
+    if len(mod.errors) != 1 or not mod.errors[0][0].startswith("\\mdef-s must be at the top level") \
+            or "one" in res:
+        fail(f"Errors {mod.errors} in {res}")
+
+def test_mdef_recursion():
+    mod = _mod(readFile(_mdoc(r"""\mdef-s|name="loop" args="x"\*$loop($x)\mdef-e\*
+\c 1
+\p
+\v 1 $loop(a)
+"""), informat="usfm"))
+    with pytest.raises(ModuleFatalError):
+        mod.flatten()
+
+def _errors(usfm):
+    mod = _mod(readFile(usfm, informat="usfm"))
+    mod.flatten()
+    return mod.errors
+
+def test_error_lines():
+    """ Errors give the module line of the expression """
+    errs = _errors(r"""\id GEN module test
+\mdef-s|name="m" args=""\*
+  x
+\mdef-e\*
+\c 1
+\p
+\v 1 First $s()
+then $s(GEN 1:1, a, b) and
+\mfor-s|var="x" list="a"\*
+\q $s()
+\mfor-e\* after
+and $s()
+\p \w word|lemma="$list(a, b)"\w*
+""")
+    if [e[1] for e in errs] != [7, 8, 10, 12, 13]:
+        fail(f"Lines are wrong: {errs}")
+
+@pytest.mark.parametrize("usfm, msg", [
+    ("\\v 1 $join(;, $iget($list(a), 5))",
+        "No item '5'; in $iget($list(a), 5); in $join"),
+    ("\\v 1 \\mlet|var=\"xs\" val=\"$list(a, b)\"\\*$xs",
+        "A list can't be output, use $join(); in $xs"),
+    ("\\v 1 \\mlet|var=\"y\" val=\"$iget($name, q)\"\\*",
+        "$iget needs a number, not 'q'; in $iget($name, q); in val=\"$iget($name, q)\"; in \\mlet"),
+    ("\\v 1 \\w word|lemma=\"$list(a, b)\"\\w*",
+        "A list can't be output, use $join(); in $list(a, b); in lemma of \\w"),
+    ("\\v 1 \\mfor-s|var=\"x\" list=\"$list(a, b)\"\\*$s($x)\\mfor-e\\*",
+        "Bad reference 'b': "),
+])
+def test_error_context(usfm, msg):
+    errs = _errors("\\id GEN module test\n\\c 1\n\\p\n" + usfm + "\n")
+    if not errs or not errs[-1][0].startswith(msg) or errs[-1][1] != 4:
+        fail(f"Errors are {errs}, expected {msg!r} on line 4")
+
+def test_error_active():
+    """ Errors within macros and loops say how they were reached """
+    errs = _errors(r"""\id GEN module test
+\mdef-s|name="m" args="x"\*$iget($x, 3)\mdef-e\*
+\c 1
+\p
+\v 1 \mfor-s|var="k" list="$list(a, b)"\*
+$m($k)\mfor-e\*
+""")
+    msgs = [e[0] for e in errs]
+    if msgs != ["No item '3'; in $iget($x, 3); in macro $m called at line 6; in \\mfor-s at line 5 with $k='a' (item 0)",
+                "No item '3'; in $iget($x, 3); in macro $m called at line 6; in \\mfor-s at line 5 with $k='b' (item 1)"] \
+            or [e[1] for e in errs] != [2, 2]:
+        fail(f"Errors are {errs}")
+
+def _outdoc(usfm, errors=0):
+    """ Flattens usfm, returning the USFM and the flattened document """
+    mod = _mod(readFile(usfm, informat="usfm"))
+    doc = mod.flatten()
+    if len(mod.errors) != errors:
+        fail(f"{len(mod.errors)} errors instead of {errors}: {mod.errors}")
+    return doc.outUsfm(None), doc.getroot()
+
+_heads = r"""\id GEN module test
+\mdef-s|name="head" args="t"\*
+\s $t
+\mdef-e\*
+\mdef-s|name="b" args="t"\*\bd $t\bd*\mdef-e\*
+\mdef-s|name="cash" args=""\*\bd $$name\bd*\mdef-e\*
+\c 1
+"""
+
+def test_output_inline():
+    """ Markup in an output value becomes elements, keeping the spaces around it """
+    res, root = _outdoc(_heads + "\\p\n\\v 1 a $b(x) c $b(y)\n")
+    if "\\v 1 a \\bd x\\bd* c \\bd y\\bd*" not in res:
+        fail(f"Bad output {res}")
+    if [c.get("style") for c in root.iter("char")] != ["bd", "bd"]:
+        fail(f"No char elements in {res}")
+
+def test_output_blocks():
+    """ Paragraphs in an output value split the paragraph """
+    res, root = _outdoc(_heads + "\\p\n\\v 1 Before $head(Intro) after \\bd b\\bd*\n\\p Next $head(Two)\n")
+    if "\\v 1 Before\n\\s Intro after \\bd b\\bd*\n\\p Next\n\\s Two" not in res:
+        fail(f"Bad output {res}")
+    styles = [p.get("style") for p in root.iter("para")][-4:]     # after any left by \\mdef-e
+    if styles != ["p", "s", "p", "s"]:
+        fail(f"Paragraphs are {styles} in {res}")
+
+def test_output_tail():
+    """ Output in a tail, after a milestone that is removed """
+    res, root = _outdoc(_heads + "\\p\n\\v 1 a\\mlet|var=\"x\" val=\"y\"\\* $head($x) z\n")
+    if "\\v 1 a\n\\s y z" not in res:
+        fail(f"Bad output {res}")
+
+def test_output_variable():
+    """ A captured block output from a variable becomes paragraphs """
+    res, root = _outdoc(r"""\id GEN module test
+\mlet-s|var="blk"\*
+\q one \bd $name\bd*
+\q two
+\mlet-e\*
+\c 1
+\p
+\v 1 Then $blk
+\p after
+""")
+    if [(p.get("style"), p.text) for p in root.iter("para")][-3:] != [("q", "one "), ("q", "two"), ("p", "after\n")]:
+        fail(f"Bad output {res}")
+
+def test_output_noreexpand():
+    """ A $ in an output value is not expanded again """
+    res, root = _outdoc(_heads + "\\p\n\\v 1 $cash()\n")
+    if "\\v 1 \\bd $name\\bd*" not in res:
+        fail(f"Bad output {res}")
+
+def test_output_plain_backslash():
+    """ Only values are markup: a backslash in an error marker stays text """
+    mod = Module(readFile(_heads + "\\p\n\\v 1 $s($bs) $b(y)\n", informat="usfm"),
+                 envs={"*": bkenv}, variables={"bs": "\\q"})
+    doc = mod.flatten()
+    res, root = doc.outUsfm(None), doc.getroot()
+    if len(mod.errors) != 1 or len(list(root.iter("char"))) != 1 \
+            or "Bad reference '\\\\q'" not in "".join(root.itertext()):
+        fail(f"Bad output {res}")
+
+def test_output_noroom():
+    """ Paragraphs can't go inside a character style """
+    res, root = _outdoc(_heads + "\\p\n\\v 1 \\bd $head(x)\\bd*\n", errors=1)
+    if list(root.iter("char"))[0].text != "\\s x":
         fail(f"Bad output {res}")
