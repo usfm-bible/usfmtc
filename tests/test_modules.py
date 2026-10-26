@@ -1,6 +1,7 @@
 import pytest
 from pytest import fail
-from usfmtc.module import Module, ModuleError, ModuleFatalError, parseModule, protect, main
+from usfmtc.module import Module, ModuleError, ModuleFatalError, parseModule, protect
+from usfmtc.usfmmodule import main
 from usfmtc.reference import BookNamesEnvironment
 import os
 

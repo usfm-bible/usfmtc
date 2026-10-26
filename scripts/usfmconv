@@ -3,10 +3,10 @@
 import os, sys
 
 try:
-    from usfmtc import main
+    from usfmtc.main import main
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lib'))
-    from usfmtc import main
+    from usfmtc.main import main
 
 from gooey import Gooey
 

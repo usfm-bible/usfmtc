@@ -55,6 +55,6 @@ usfmtc = ["*.rng", "*.vrs"]
 universal = true
 
 [project.scripts]
-usfmconv = "usfmtc:main"
-usfmreversify = "usfmtc.versification:main"
+usfmconv = "usfmtc.main:main"
+usfmmodule = "usfmtc.usfmmodule:main"
 urnc2rng = "usfmtc.rnc2rng:main"

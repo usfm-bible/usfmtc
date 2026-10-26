@@ -38,8 +38,9 @@ See the `tests/test_\*.py` files for more examples. See also `pydoc usfmtc`.
 
 usfmtc comes with a few utilities:
 
-- usfmconv: Converts from one serialisation to another
-- usfmreversify: Change the versification of a file to something different
+- usfmconv: Converts from one serialisation to another, optionally extracting
+  references and changing the versification (`-f`, `-t`)
+- usfmmodule: Flattens a Paratext module into plain USFM/USX
 - urnc2rng: Convert to relax-NG
 
 ## Installation

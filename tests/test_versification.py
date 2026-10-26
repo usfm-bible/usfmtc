@@ -185,3 +185,32 @@ according unto the multitude of thy tender mercies blot out my transgressions.
 \q1 \v 4 \vp 2\vp* Wash me throughly from mine iniquity, and cleanse me from my sin.
 '''
     cmptest(intext, outtext, 'PSA', 51, 'Reversification', keep=True)
+
+def test_usfmconv_reversify(tmp_path):
+    """ usfmconv -f changes the versification on the way through """
+    from usfmtc.main import main
+    infile = os.path.join(os.path.dirname(__file__), "32JONBSB.usfm")
+    outfile = str(tmp_path / "jon.usfm")
+    main(argv=["-q", "-f", "eng", "-o", outfile, infile])
+    res = readFile(outfile)
+    if not len(res.gettext(Ref("JON 2:11"))):
+        fail("Failed to find JON 2:11 after usfmconv -f eng")
+    main(argv=["-q", "-f", "eng", "-k", "-o", outfile, infile])
+    if "\\v 1 \\vp 17\\vp*" not in open(outfile, encoding="utf-8").read():
+        fail("No \\vp for changed verse numbers with -k")
+    main(argv=["-q", "-f", "eng", "-k", "--vpchap", "-o", outfile, infile])
+    if "\\v 1 \\vp 1:17\\vp*" not in open(outfile, encoding="utf-8").read():
+        fail("No chapter in \\vp with --vpchap")
+
+def test_usfmconv_dirs(tmp_path):
+    """ A directory as input, and as output keeping the file names and format """
+    import shutil
+    from usfmtc.main import main
+    indir, outdir = tmp_path / "in", tmp_path / "out"
+    indir.mkdir()
+    outdir.mkdir()
+    shutil.copy(os.path.join(os.path.dirname(__file__), "32JONBSB.usfm"), indir / "32JONBSB.usfm")
+    main(argv=["-q", "-f", "eng", "-o", str(outdir), str(indir)])
+    res = readFile(str(outdir / "32JONBSB.usfm"))
+    if not len(res.gettext(Ref("JON 2:11"))):
+        fail("Failed to find JON 2:11 in the output directory")
