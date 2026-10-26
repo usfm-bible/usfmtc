@@ -345,6 +345,8 @@ class Module:
         middles = set(self.middles.values())
         stack = []          # [start, middle or None]
         pairs = []
+        alive = list(root.iter())       # so that their ids stay unique
+        given = {id(e): self._isempty(e) for e in alive}
         for e in root.iter("ms"):
             s = e.get("style", None)
             if s in self.blocks:
@@ -367,6 +369,29 @@ class Module:
                 last = e.__class__("ms", {}, parent=s)
                 s.append(last)
                 self._gatherblock(s, m, last)
+        self._prune(root, given)
+
+    @staticmethod
+    def _isempty(e) -> bool:
+        return not len(e) and not (e.text and e.text.strip())
+
+    def _prune(self, root, given):
+        """ Removes the elements that gathering left empty, and then any of their
+            parents left empty, but not milestones. given says whether each element
+            we were given was empty, and those that were are kept, as are those
+            with attributes (other than style). Elements that gathering made, by
+            splitting, have only copied attributes and go. """
+        def isgone(e):
+            if e.tag == "ms" or not self._isempty(e) or given.get(id(e), False):
+                return False
+            return id(e) not in given or not (set(e.keys()) - {"style"})
+        while True:
+            parents = {c: p for p in root.iter() for c in p}
+            gone = [e for e in parents if isgone(e)]
+            if not gone:
+                return
+            for e in gone:
+                self._replace(parents[e], e, "")
 
     def _macros(self, root):
         """ Enters each top level \\mdef-s block of the gathered document into the

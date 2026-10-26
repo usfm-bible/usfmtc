@@ -950,10 +950,8 @@ class RefRangeIter:
         if self.r is None:
             raise StopIteration
         res = self.r
-        if self.r >= self.last:
-            self.r = None
-        else:
-            self.r = self.r.nextverse()
+        nxt = self.r.nextverse() if self.r < self.last else None
+        self.r = nxt if nxt is not None and nxt <= self.last else None     # don't go past the end
         return res
 
 

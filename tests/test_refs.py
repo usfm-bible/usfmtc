@@ -582,6 +582,19 @@ def test_product_reset(s, res, products):
     if RefList(r.str()).str() != res:
         fail(f"{res} doesn't round trip")
 
+@pytest.mark.parametrize("s, res", [
+    ("JON 1:14-16", ["JON 1:14", "JON 1:15", "JON 1:16"]),
+    # an end past the end of its chapter, in the default (org) versification
+    ("JON 1:15-17", ["JON 1:15", "JON 1:16"]),
+    ("JON 4:10-12", ["JON 4:10", "JON 4:11"]),
+    ("JON 4:11-MIC 1:1", ["JON 4:11", "MIC 1:1"]),
+])
+def test_allrefs_end(s, res):
+    """ Iterating a range stops at its end """
+    r = [x.str() for x in RefList(s).allrefs()]
+    if r != res:
+        fail(f"{s} gave {r}")
+
 def test_product_all():
     r = RefList("BSB+JHN 21:24-ACT 1:2")
     for fn in ("allbooks", "allchaps", "allrefs"):

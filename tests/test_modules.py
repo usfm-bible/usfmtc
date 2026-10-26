@@ -313,14 +313,14 @@ r"""\c 1
         fail(f"out is {v['out']!r}")
 
 def test_mfor_toplevel():
-    """ A block between paragraphs adds paragraphs. The empty paragraph left by
-        what followed \\mfor-e is harmless """
+    """ A block between paragraphs adds paragraphs. The paragraph that gathering
+        leaves empty, after \\mfor-e, is removed """
     res, v = _vars("\\id GEN module test\n\\c 1\n\\mfor-s|var=\"x\" list=\"a\x1cb\"\\*\n"
 r"""\p $x \bd y\bd*
 \mfor-e\*
 \p after
 """)
-    if "\\c 1\n\\p a \\bd y\\bd*\n\\p b \\bd y\\bd*\n\\p \n\\p after" not in res:
+    if "\\c 1\n\\p a \\bd y\\bd*\n\\p b \\bd y\\bd*\n\\p after" not in res:
         fail(f"Bad output {res}")
 
 def _forlist(lst, attrs, body="$x;"):
@@ -493,7 +493,7 @@ def test_mdef_args_evaluated():
 
 def test_mdef_blocks():
     """ A macro can hold paragraphs and blocks, and returns them as USFM text.
-        The rest of the \\li holding \\mfor-e is an empty paragraph, which is harmless """
+        The rest of the \\li holding \\mfor-e, left empty by gathering, is removed """
     res, v = _vars(_mdoc("\\mlet|var=\"xs\" val=\"a\x1cb\"\\*\n" + r"""\mdef-s|name="items" args="pre"\*
 \mfor-s|var="x" list="$xs"\*
 \li $pre $x\mfor-e\*
@@ -502,7 +502,7 @@ def test_mdef_blocks():
 \p
 \v 1 \mlet|var="out" val="$items(-)"\*
 """))
-    if v["out"] != "\\li - a\n\\li - b\n\\li":
+    if v["out"] != "\\li - a\n\\li - b":
         fail(f"out is {v['out']!r}")
 
 def test_mdef_redefine():
@@ -1342,3 +1342,46 @@ def test_ldml_cachedir(monkeypatch):
         monkeypatch.delenv("USFMTC_CACHE")
         monkeypatch.setenv("XDG_CACHE_HOME", "/xdg")
         assert cachedir() == os.path.join("/xdg", "usfmtc", "ldml")
+
+def test_gather_prune():
+    """ Gathering removes what it leaves empty, but not what was empty already,
+        nor milestones """
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 Text
+\b
+\mdef-s|name="row" args="x"\*
+\tr \tc1 $x
+\mdef-e\*
+\p $row(a)
+""")
+    assert "\\b \n" in res                  # the author's empty \\b stays
+    assert "\\tr \\tc1 a" in res and res.count("\\tr") == 1
+    assert "\\tr \n" not in res and "\\tr\n" not in res
+
+def test_calendar(tmp_path):
+    """ The calendar example from the spec, with readings from Jonah """
+    projects = _projects(str(tmp_path))
+    errors = []
+    res = flattenModuleFile(os.path.join(os.path.dirname(__file__), "calendar", "calendar.usfm"),
+                            project=projects.find("FRA"), projects=projects, lang="en",
+                            booknames=os.path.join(os.path.dirname(__file__), "BookNames.xml"),
+                            ldmldir=_ldmldir, moderrors=errors)
+    out = res.outUsfm()
+    root = res.getroot()
+    assert not errors, errors
+    assert "$" not in out
+    assert "\\mt1 Scripture Calendar" in out and "\\s January 2027" in out
+    rows = list(root.iter("row"))
+    assert [c.text.strip() for c in rows[0]] == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    assert len(rows) == 6 and all(len(r) == 7 for r in rows)
+    days = [[c.find("char").text if c.find("char") is not None else None for c in r] for r in rows[1:]]
+    assert days[0] == ["31", None, None, None, None, "1", "2"]      # 1 Jan 2027 is a Friday
+    assert days[4] == ["24", "25", "26", "27", "28", "29", "30"]
+    cells = {c.find("char").text: c for r in rows[1:] for c in r if c.find("char") is not None}
+    assert "Now the word of the LORD came to Jonah son of Amittai" in "".join(cells["1"].itertext())
+    assert "Jonah 1:1" in "".join(cells["1"].itertext())
+    assert "Jonah 1:10" in "".join(cells["10"].itertext())
+    assert "Jonah 3:1" in "".join(cells["11"].itertext())
+    assert "Jonah 4:11" in "".join(cells["31"].itertext())
