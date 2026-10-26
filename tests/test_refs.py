@@ -532,6 +532,48 @@ def test_parsebook(s, bk):
     if res != bk:
         fail(f"{s} parsed as {res} instead of {bk}")
 
+@pytest.mark.parametrize("s, res", [
+    ("1 John 1:1-4", "1JN 1:1-4"),
+    ("1 John", "1JN"),
+    ("The First Letter of John 2:3", "1JN 2:3"),
+    ("Song of Songs 2:1", "SNG 2:1"),
+    ("1 Corinthians 13:4-7; 2 Cor 1", "1CO 13:4-7; 2CO 1"),
+    ("Judges B 3:4", "JDB 3:4"),
+    ("Judges 3:4", "JDG 3:4"),
+    ("Jn 3:16-18; Rom 1", "JHN 3:16-18; ROM 1"),
+    ("1Jn 1:1", "1JN 1:1"),
+])
+def test_parse_localbook(s, res):
+    """ Local book names, which may contain spaces, parse in a BookNames environment """
+    if (r := RefList(s, env=bkenv).str()) != res:
+        fail(f"{s} parsed as {r} instead of {res}")
+
+@pytest.mark.parametrize("s, product", [("BSB+JHN 3:16", "BSB"), ("a+b+JHN 3:16-18", "a+b"), ("JHN 3:16", None)])
+def test_product(s, product):
+    """ A product (translation) id prefix parses and writes back as it was """
+    r = RefList(s)
+    if r[0].first.product != product or r.str() != s:
+        fail(f"{s} has product {r[0].first.product!r} and writes as {r.str()}")
+
+@pytest.mark.parametrize("s, res, products", [
+    ("BSB+JHN 3:16-18; ROM 1", "BSB+JHN 3:16-18; ROM 1", ["BSB", "BSB"]),
+    ("BSB+JHN 3:16; WEB+ROM 1; ACT 2", "BSB+JHN 3:16; WEB+ROM 1; ACT 2", ["BSB", "WEB", "WEB"]),
+    ("BSB+JHN 21:24-ACT 1:2", "BSB+JHN 21:24-end; ACT 1:1-2", ["BSB", "BSB"]),
+    ("BSB+3JN 1:14-JUD 1:2", "BSB+3JN 14-end; JUD 1-2", ["BSB", "BSB"]),
+])
+def test_product_context(s, res, products):
+    """ A product carries over to later references, as context, including when
+        a range is split into books """
+    r = RefList(s)
+    if r.str() != res or [x.first.product for x in r] != products:
+        fail(f"{s} gave {r.str()} with products {[x.first.product for x in r]}")
+
+def test_product_all():
+    r = RefList("BSB+JHN 21:24-ACT 1:2")
+    for fn in ("allbooks", "allchaps", "allrefs"):
+        if any(x.first.product != "BSB" for x in getattr(r, fn)()):
+            fail(f"{fn} lost the product: {[str(x) for x in getattr(r, fn)()]}")
+
 def test_parsebook_single():
     if "j" in bkenv.bookstrings:
         fail(f"Single letter j maps to {bkenv.bookstrings['j']}")
@@ -655,3 +697,21 @@ def test_chap0f():
 
     
 
+@pytest.mark.parametrize("s, fn, res", [
+    ("GEN", "end", ["GEN 50:26"]),
+    ("GEN-LEV", "allbooks", ["GEN", "EXO", "LEV"]),
+    ("JHN 21:24-ACT 1:2", "allbooks", ["JHN 21:24-25", "ACT 1:1-2"]),
+    ("JHN 1-2", "allchaps", ["JHN 1", "JHN 2"]),
+    ("GEN-EXO", "allchaps", [f"GEN {i}" for i in range(1, 51)] + [f"EXO {i}" for i in range(1, 41)]),
+    ("JHN 1:50-2:3", "allchaps", ["JHN 1:50-51", "JHN 2:1-3"]),
+    ("JHN 1-2", "allrefs", [f"JHN 1:{i}" for i in range(1, 52)] + [f"JHN 2:{i}" for i in range(1, 26)]),
+    ("JHN 21:24-ACT 1:2", "allrefs", ["JHN 21:24", "JHN 21:25", "ACT 1:1", "ACT 1:2"]),
+    ("MAT 5:3a-5", "allrefs", ["MAT 5:3a", "MAT 5:4", "MAT 5:5"]),
+])
+def test_reflist_all(s, fn, res):
+    if fn == "end":
+        out = [str(Ref(s).end())]
+    else:
+        out = [str(r) for r in getattr(RefList(s), fn)()]
+    if out != res:
+        fail(f"{fn} of {s} gave {out} instead of {res}")

@@ -179,6 +179,7 @@ _regexes = {
     "booklax": r"""^(?P<transid>(?:[a-z0-9_-]*[+])*)
                     (?P<book>(?!end)\d?{id})
                     (?:\s+{chap})?""",
+    "afterbook": r"(?:\s+{chap})",       # after a book name matched by the environment
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
@@ -243,6 +244,11 @@ class Environment:
             raise SyntaxError(f"Illegal book name: {bk}")
         return bk
 
+    def matchbook(self, s: str, start: int = 0) -> Optional[Tuple[str, int]]:
+        """ Matches a local book name, which may contain spaces, at start in s.
+            Returns (book id, end of the name) or None """
+        return None
+
     def copy(self, **kw):
         res = self.__class__()
         for a in self.__allfields__:
@@ -273,6 +279,17 @@ class BookNamesEnvironment(Environment):
         if res is None:
             return super().parsebook(bk)
         return res
+
+    def matchbook(self, s, start=0):
+        """ The longest book name or prefix at start, ending at a word boundary """
+        longest = max((len(k) for k in self.bookstrings), default=0)
+        for i in range(min(len(s), start + longest), start, -1):
+            if i < len(s) and s[i].isalnum():
+                continue
+            res = self.bookstrings.get(s[start:i].lower(), None)
+            if res is not None:
+                return res, i
+        return None
 
     def copy(self, **kw):
         res = super().copy(**kw)
@@ -316,6 +333,8 @@ class Ref:
     versification: Optional[List[List[int]]] = None
     _rebook = re.compile(regexes["book"], flags=re.X|re.I)
     _rebooklax = re.compile(regexes["booklax"], flags=re.X|re.I)
+    _reafterbook = re.compile(regexes["afterbook"], flags=re.X|re.I)
+    _reafterbooklax = re.compile(regexes["afterbook"] + "?", flags=re.X|re.I)
     _recontext = re.compile(regexes["context"], flags=re.X)
     _parmlist = ('product', 'book', 'chapter', 'verse', 'subverse', 'word', 'char', 'mrkrs')
 
@@ -402,8 +421,14 @@ class Ref:
         p = {}
         s = s.strip()
         bookre = self._rebook if strict else self._rebooklax
-        if m := bookre.match(s[start:]):
-            p['product'] = m.group('transid') or None
+        # an environment can match local book names, which may hold spaces
+        envbook = self.env.matchbook(s, start) if self.env is not None else None
+        if envbook is not None and (m := (self._reafterbook if strict else self._reafterbooklax).match(s[envbook[1]:])):
+            p['product'] = None
+            p['book'] = envbook[0]
+            start = envbook[1]      # the rest is matched from the end of the name
+        elif m := bookre.match(s[start:]):
+            p['product'] = m.group('transid')[:-1] or None      # without the final +
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
             raise SyntaxError("Cannot parse reference '{}' ({})".format(s[start:], s))
@@ -549,8 +574,8 @@ class Ref:
         sep = ''
         if (env is None or not env.nobook) and neqa(context, self, 'product'):
             res.append(self.product)
-            res.append('.')
-            force = max(1, iniforce)
+            res.append('+')
+            force = max(2, iniforce)        # a product is followed by a full reference
         if (env is None or not env.nobook) and (force > 1 or neqa(context, self, 'book')):
             res.append(env.localbook(getattr(self, 'book', ""), level=level) if env else getattr(self, 'book', ""))
             sep = env.bookspace if env else ' '
@@ -642,7 +667,7 @@ class Ref:
             vrs = self.versification or Ref.loadversification()
             vbk = vrs[self.book]
             if vbk is not None:
-                res.chapter = len(vrs[self.book])
+                res.chapter = len(vbk) - 1      # vbk[0] precedes chapter 1
         if res.verse == -1:
             res.verse = self._getmaxvrs(self.book, res.chapter)
         return res
@@ -694,6 +719,7 @@ class Ref:
             otherwise return the first ref in reference (GEN 1:1). thisbook
             being set means not to return a reference outside this book. """
         r = self.first.copy()
+        r.subverse = None
         maxvrs = self._getmaxvrs(r.book, r.chapter)
         if r.verse is None:
             r.verse = maxvrs + 1 if after else 1
@@ -720,7 +746,15 @@ class Ref:
         return r
 
     def allchaps(self):
-        return self
+        """ Yields each chapter in the reference """
+        if self.chapter is not None:
+            yield self
+            return
+        for c in range(1, self.end().chapter + 1):
+            yield Ref(product=self.product, book=self.book, chapter=c)
+
+    def allbooks(self):
+        yield self
 
     def getword(self, default=0):
         if self.mrkrs is not None and len(self.mrkrs):
@@ -844,14 +878,36 @@ class RefRange:
             r = r.nextverse()
 
     def allchaps(self):
-        if self.first.chapter == self.last.chapter:
-            yield self
+        """ Yields each chapter in the range: whole chapters as chapter refs,
+            partial ones as ranges or verses """
+        if self.first.book != self.last.book:
+            for r in self.expandBooks():
+                yield from r.allchaps()
+            return
+        first, last = self.first.start(), self.last.end()
+        bk = first.book
+        for c in range(first.chapter, last.chapter + 1):
+            maxvrs = first._getmaxvrs(bk, c)
+            s = first if c == first.chapter else Ref(product=first.product, book=bk, chapter=c, verse=1)
+            e = last if c == last.chapter else Ref(product=first.product, book=bk, chapter=c, verse=maxvrs)
+            if s.verse == 1 and e.verse == maxvrs and s.subverse is None and e.subverse is None:
+                yield Ref(product=first.product, book=bk, chapter=c)
+            else:
+                yield RefRange(s, e)
+
+    def allbooks(self):
+        """ Yields each book in the range: whole books as book refs """
+        if self.first.book != self.last.book:
+            for r in self.expandBooks():
+                yield from r.allbooks()
+            return
+        first, last = self.first.start(), self.last.end()
+        end = Ref(book=first.book).end()
+        if (first.chapter, first.verse, first.subverse) == (1, 1, None) \
+                and (last.chapter, last.verse, last.subverse) == (end.chapter, end.verse, None):
+            yield Ref(product=first.product, book=first.book)
         else:
-            yield RefRange(self.first, Ref(book=self.first.book, chapter=self.first.chapter,
-                                           verse=self.first._getmaxvrs(self.first.book, self.first.chapter)))
-            for i in range(self.first.chapter + 1, self.last.chapter):
-                yield Ref(book=self.first.book, chapter=i)
-            yield RefRange(Ref(book=self.last.book, chapter=self.last.chapter, verse=1), self.last)
+            yield RefRange(first, last)
 
     def copy(self, cls=None):
         if cls is None or not issubclass(cls, RefRange):
@@ -870,20 +926,21 @@ class RefRange:
         book = self.first.book
         if book is None:
             return [self]
-        res = [self.__class__(self.first, self.first.__class__(book=book, chapter=chaps[book], verse=-1))]
+        product = self.first.product        # each book's part is in the same product
+        res = [self.__class__(self.first, self.first.__class__(product=product, book=book, chapter=chaps[book], verse=-1))]
         book = nextbook(book)
         while book is not None and book != self.last.book:
-            res.append(self.first.__class__(book=book))
+            res.append(self.first.__class__(product=product, book=book))
             book = nextbook(book)
-        res.append(self.__class__(self.first.__class__(book=book, chapter=1, verse=1), self.last))
+        res.append(self.__class__(self.first.__class__(product=product, book=book, chapter=1, verse=1), self.last))
         return res
 
 
 class RefRangeIter:
 
     def __init__(self, base):
-        self.r = base.first.copy()
-        self.last = base.last
+        self.r = base.first.start()
+        self.last = base.last.end()
 
     def __next__(self):
         if self.r is None:
@@ -976,9 +1033,9 @@ class RefList(UserList):
             t, u = (r.first, r.last)
             if r.first == r.last and all(getattr(r.first, a, None) is None for a in Ref._parmlist[3:]):
                 if isinstance(r, RefRange):
-                    r.last = Ref(book=r.first.book, chapter=r.first.chapter)
+                    r.last = Ref(product=r.first.product, book=r.first.book, chapter=r.first.chapter)
                 else:
-                    r = self[i] = RefRange(r.first, Ref(book=r.first.book, chapter=r.first.chapter))
+                    r = self[i] = RefRange(r.first, Ref(product=r.first.product, book=r.first.book, chapter=r.first.chapter))
             n = lastref.last.nextverse(after=True, thisbook = not bookranges)
             if t in lastref:
                 t = n
@@ -1018,6 +1075,10 @@ class RefList(UserList):
     def allchaps(self):
         for r in self:
             yield from r.allchaps()
+
+    def allbooks(self):
+        for r in self:
+            yield from r.allbooks()
 
     def bookrange(self, r):
         res = []

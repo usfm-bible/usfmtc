@@ -856,26 +856,86 @@ class Module:
         frame.setdefault(name, {})[lang] = value
 
     def _env(self, lang: Optional[str]) -> Environment:
-        lang = lang or self.lang
+        """ The reference environment for lang, else $LANG, else the module's
+            language, falling back to the "*" environment """
+        lang = (lang or "").strip() or self.getvar("LANG", "*", "").strip() or self.lang
         env = self.envs.get(lang, self.envs.get("*", None))
         if env is None:
             raise ModuleError(f"No reference environment for language {lang}")
         return env
 
-    def _localref(self, ref: str, level: int, lang: Optional[str]) -> str:
-        env = self._env(lang)
+    def _refs(self, ref: str, env: Environment) -> RefList:
+        """ Parses a reference list, which may use the local book names of env """
         try:
             refs = RefList(ref, env=env)
-        except SyntaxError as err:
+        except (SyntaxError, ValueError) as err:
             raise ModuleError(f"Bad reference {ref!r}: {err}")
         if not len(refs):
             raise ModuleError("Empty reference")
-        return refs.str(env=env, level=level)
+        return refs
+
+    def _localref(self, ref: str, level: int, lang: Optional[str]) -> str:
+        env = self._env(lang)
+        return self._refs(ref, env).str(env=env, level=level)
+
+    @modulefn("a")
+    def fn_a(self, ref, lang=None):
+        """ $a(ref, [lang]): abbreviated localised form of a reference """
+        return self._localref(ref, 0, lang)
 
     @modulefn("s")
     def fn_s(self, ref, lang=None):
         """ $s(ref, [lang]): short localised form of a reference """
         return self._localref(ref, 1, lang)
+
+    @modulefn("l")
+    def fn_l(self, ref, lang=None):
+        """ $l(ref, [lang]): long localised form of a reference """
+        return self._localref(ref, 2, lang)
+
+    @modulefn("r")
+    def fn_r(self, ref, path=None, lang=None):
+        """ $r(ref, [path], [lang]): the canonical form of a reference list, which
+            may use local book names, or the part of it that path selects """
+        refs = self._refs(ref, self._env(lang))
+        return self._refpath(refs, path or "")
+
+    _refparts = ("book", "chapter", "verse")
+
+    def _refpath(self, refs: RefList, path: str) -> str:
+        """ Follows a $r path of dot separated parts. On the list, a number (from
+            0, negative from the end), first or last chooses a range; on a range,
+            first or last chooses its start or end reference; book, chapter or
+            verse gives that part of a reference, of the end of a range or list. """
+        cur, depth = refs, 0        # depth: 0 list, 1 range, 2 reference, 3 part
+        for p in (x.strip() for x in path.split(".")):
+            if not p:
+                continue
+            if depth == 3:
+                raise ModuleError(f"Nothing can follow a part in $r path {path!r}")
+            if p in self._refparts:
+                if depth == 0:
+                    cur = cur[-1]
+                if depth <= 1:
+                    cur = cur.last.end()
+                v = getattr(cur, p, None)
+                if p == "verse" and v is not None and cur.subverse:
+                    v = f"{v}{cur.subverse}"
+                cur, depth = ("" if v is None else str(v)), 3
+            elif p in ("first", "last"):
+                if depth == 0:
+                    cur = cur[0 if p == "first" else -1]
+                elif depth == 1:
+                    cur = cur.first.start() if p == "first" else cur.last.end()
+                depth = min(depth + 1, 2)
+            elif depth == 0 and re.fullmatch(r"[+-]?\d+", p):
+                i = int(p)
+                if not -len(cur) <= i < len(cur):
+                    raise ModuleError(f"No range {i} in {cur.str()}")
+                cur, depth = cur[i], 1
+            else:
+                raise ModuleError(f"Bad part {p!r} in $r path {path!r}")
+        return cur if depth == 3 else cur.str()
 
     @modulefn("sub")
     def fn_sub(self, s, regex, repl):
@@ -885,6 +945,23 @@ class Module:
             return re.sub(regex, repl, s)
         except re.error as err:
             raise ModuleError(f"Bad regex or replacement in $sub: {err}")
+
+    @modulefn("match")
+    def fn_match(self, s, regex):
+        """ $match(string, regex): searches string, as Python's re.search. Without
+            groups in regex, gives 1 or 0. With groups, gives the list of the whole
+            match then each group, so item n is group n, or the empty list if there
+            is no match. """
+        try:
+            r = re.compile(regex)
+        except re.error as err:
+            raise ModuleError(f"Bad regex in $match: {err}")
+        m = r.search(s)
+        if not r.groups:
+            return "1" if m else "0"
+        if m is None:
+            return ""
+        return self._list(g or "" for g in (m.group(0),) + m.groups())
 
     @modulefn("e")
     def fn_e(self, s):
@@ -1086,6 +1163,21 @@ class Module:
         if self._truth(cond()):
             return then()
         return otherwise() if otherwise is not None else ""
+
+    @modulefn("rall")
+    def fn_rall(self, ref, level=None):
+        """ $rall(ref, [level]): a list of the books (b), chapters (c) or verses (v)
+            in a canonical ref list, or with no level its ranges. Partial books
+            and chapters stay as ranges. """
+        try:
+            refs = RefList(ref)
+        except SyntaxError as err:
+            raise ModuleError(f"Bad reference {ref!r}: {err}")
+        items = {None: lambda: refs, "": lambda: refs, "b": refs.allbooks,
+                 "c": refs.allchaps, "v": refs.allrefs}.get(level, None)
+        if items is None:
+            raise ModuleError(f"Bad level {level!r} to $rall")
+        return self.listsep.join(r.str() for r in items())
 
     @modulems("mlet")
     def ms_mlet(self, e):

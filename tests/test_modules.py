@@ -919,3 +919,89 @@ def test_quoted_markers():
 """))
     if "\\v 1 \\bd bold\\bd* 2\n\\p next" not in res:
         fail(f"Bad output {res}")
+
+@pytest.mark.parametrize("s, res", [
+    ("$a(JHN 3:16)", "Jn 3:16"),
+    ("$s(JHN 3:16)", "John 3:16"),
+    ("$l(JHN 3:16)", "The Gospel According to John 3:16"),
+    ("$s(Jn 3:16-18; Rom 1)", "John 3:16-18; Romans 1"),
+    ("$r(John 3:16)", "JHN 3:16"),
+    ("$r(Jn 3:16-18; Rom 1)", "JHN 3:16-18; ROM 1"),
+    ("$r('Jn 3:16-18; Rom 1', last)", "ROM 1"),
+    ("$r('Jn 3:16-18; Rom 1', 0)", "JHN 3:16-18"),
+    ("$r('Jn 3:16-18; Rom 1', -2.first)", "JHN 3:16"),
+    ("$r('Jn 3:16-18; Rom 1', 0.last.verse)", "18"),
+    ("$r('Jn 3:16-18; Rom 1', last.last)", "ROM 1:32"),
+    ("$r('Jn 3:16-18; Rom 1', book)", "ROM"),
+    ("$r('Jn 3:16-18; Rom 1', first.chapter)", "3"),
+    ("$r('JHN 3:16-4:2', last.chapter)", "4"),
+    ("$r('MAT 5:3a', verse)", "3a"),
+    ("$s($r(Judges 3:4))", "Judges 3:4"),
+])
+def test_reffns(s, res):
+    _e(s, res)
+
+@pytest.mark.parametrize("s, res", [
+    ("$r('JHN 3:16', 1)", "[ERROR: No range 1 in JHN 3:16]"),
+    ("$r('JHN 3:16', chapter.verse)", "[ERROR: Nothing can follow a part in $r path 'chapter.verse']"),
+    ("$r('JHN 3:16', page)", "[ERROR: Bad part 'page' in $r path 'page']"),
+    ("$r('JHN 3:16', last.1)", "[ERROR: Bad part '1' in $r path 'last.1']"),
+    ("$r(Nowhere 3)", "[ERROR: Bad reference 'Nowhere 3': Illegal book name: Nowhere]"),
+])
+def test_reffn_errors(s, res):
+    _e(s, res, errors=1)
+
+def test_ref_spacedbook():
+    """ Local book names can contain spaces, so $s output parses back """
+    _e("$r(1 John 1:1) $r($s(1JN 1:1)) $r($l(SNG 2:1))", "1JN 1:1 1JN 1:1 SNG 2:1")
+
+def test_ref_lang():
+    """ The lang argument, else $LANG, chooses the environment """
+    fr = BookNamesEnvironment()
+    fr.addBookName("JHN", "Jn", "Jean", "Évangile selon Jean")
+    mod = Module(parseModule(_mdoc(r"""\c 1
+\p
+\v 1 $s(JHN 3:16, fr) $r(Jean 3:16, '', fr) $s(JHN 3:16) \mlet|var="LANG" val="fr"\*$s(JHN 3:16) $a(JHN 3:16, en)
+""")), envs={"*": bkenv, "fr": fr})
+    res = mod.flatten().outUsfm(None)
+    if "\\v 1 Jean 3:16 JHN 3:16 John 3:16 Jean 3:16 Jn 3:16" not in res or mod.errors:
+        fail(f"Bad output {res} with {mod.errors}")
+
+@pytest.mark.parametrize("s, res", [
+    ("$match(abc, b)", "1"),
+    ("$match(abc, '^b')", "0"),
+    ("$join(;, $match(a12b, '(\\d)(\\d)'))", "12;1;2"),
+    ("$iget($match('key=val', '(\\w+)=(\\w*)'), 2)", "val"),
+    ("$len($match(abc, '(x)'))", "0"),
+    ("$join(;, $match(ab, '(a)(x)?'))", "a;a;"),
+    ("$if($match(abc, '(b)'), yes, no)", "yes"),
+])
+def test_match(s, res):
+    _e(s, res)
+
+def test_match_error():
+    _e("$match(a, '(')", "[ERROR: Bad regex in $match: missing ), unterminated subpattern at position 0]", errors=1)
+
+@pytest.mark.parametrize("s, res", [
+    ("JHN 3:16; ROM 1", ["JHN 3:16", "ROM 1"]),
+    ("JHN 1:1-3, v", ["JHN 1:1", "JHN 1:2", "JHN 1:3"]),
+    ("GEN-LEV, b", ["GEN", "EXO", "LEV"]),
+    ("GEN 50:3-EXO 1:3, b", ["GEN 50:3-26", "EXO 1:1-3"]),
+    ("JHN 1:50-3:1, c", ["JHN 1:50-51", "JHN 2", "JHN 3:1"]),
+    ("JUD 24-25, v", ["JUD 24", "JUD 25"]),
+    ("'', v", [""]),
+])
+def test_rall(s, res):
+    _e(f"$join(;, $rall({s}))", ";".join(res))
+
+def test_rall_errors():
+    _e("$rall(JHN 1, x)", "[ERROR: Bad level 'x' to $rall]", errors=1)
+
+def test_mfor_rall():
+    res, v = _vars(r"""\id GEN module test
+\c 1
+\p
+\v 1 \mfor-s|var="r" list="$rall(JHN 3:16-17, v)"\*$s($r); \mfor-e\*
+""")
+    if "\\v 1 John 3:16; John 3:17;" not in res:
+        fail(f"Bad output {res}")
