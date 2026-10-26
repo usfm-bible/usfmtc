@@ -2,7 +2,8 @@
 
 A module is a USFM document containing \\m... milestones and $ expressions.
 The Module class walks a parsed module document and expands its contents
-into plain USFM/USX.
+into plain USFM/USX. Read modules with readModule or parseModule, which keep
+the backslashes in quoted arguments and $# comments from the USFM parser.
 """
 
 import re, inspect, io
@@ -42,6 +43,7 @@ class Result:
         self.kind = kind
         self.src = src          # source text, where it differs from s
         self.at = at            # offset of the source in the expanded string
+        self.namenodes = None   # for ${...}, the nodes giving the name
 
     def __repr__(self):
         return f"Result({self.s!r}, {self.kind})"
@@ -89,23 +91,90 @@ class _Call(Result):
         return f"Call({self.name}, {self.args!r})"
 
 
-def modulefn(name: str):
-    """ Registers a method as the implementation of the module function $name """
+def modulefn(name: str, lazy: bool = False):
+    """ Registers a method as the implementation of the module function $name.
+        A lazy function is passed its arguments as functions that evaluate them. """
     def deco(fn):
         fn._modulefn = name
+        fn._modulelazy = lazy
         return fn
     return deco
 
 
-def modulems(name: str, end: Optional[str] = None):
+def modulems(name: str, end: Optional[str] = None, middle: Optional[str] = None):
     """ Registers a method as the handler of the module milestone \\name. It is
         passed the milestone element, whose attributes are not yet expanded. If
-        end is given, \\name..\\end is a block and the element holds its contents. """
+        end is given, \\name..\\end is a block and the element holds its contents.
+        A middle milestone in the block is gathered as a block to the end. """
     def deco(fn):
         fn._modulems = name
         fn._modulemsend = end
+        fn._modulemsmiddle = middle
         return fn
     return deco
+
+
+_callre = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}\n]*\})\(")
+
+def protect(src: str) -> str:
+    """ Doubles the backslashes in quoted arguments of $ calls and in $# comments
+        of module source, so that the USFM parser, which reads \\\\ as \\, gives
+        them back as written rather than as markers. A quote starts a literal
+        only at the start of an argument, as in Module._parse. Any $name( is
+        taken as a call, since macros are not known yet. """
+    res = []
+    i = 0
+    depth = 0           # open parentheses in calls
+    argstart = False    # at the start of an argument
+    while i < len(src):
+        c = src[i]
+        if depth and argstart and c in "\"'":
+            j = src.find(c, i + 1)
+            if j < 0:                       # unterminated: _parse reports it
+                res.append(src[i:])
+                break
+            res.append(c + src[i+1:j].replace("\\", "\\\\") + c)
+            i = j + 1
+            argstart = False
+        elif src.startswith("$$", i):
+            res.append("$$")
+            i += 2
+        elif src.startswith("$#", i):
+            j = src.find("\n", i)
+            j = len(src) if j < 0 else j
+            res.append(src[i:j].replace("\\", "\\\\"))
+            i = j
+        elif c == "$" and (m := _callre.match(src, i)):
+            res.append(m.group(0))
+            i = m.end()
+            depth += 1
+            argstart = True
+        else:
+            res.append(c)
+            i += 1
+            if depth:
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                argstart = (c == ",") or (argstart and c.isspace())
+    return "".join(res)
+
+
+def parseModule(text: str, extfiles: Optional[List[str]] = None, **kw):
+    """ Parses module source text, returning a USX document """
+    from usfmtc import readFile
+    return readFile(protect(text), informat="usfm", extfiles=extfiles, **kw)
+
+
+def readModule(fname: str, extfiles: Optional[List[str]] = None, **kw):
+    """ Reads a module file, returning a USX document. As for readFile, a
+        markers.ext beside the file is included. """
+    import os
+    with open(fname, encoding="utf-8-sig") as inf:
+        text = inf.read()
+    extfiles = list(extfiles or []) + [os.path.join(os.path.dirname(fname), "markers.ext")]
+    return parseModule(text, extfiles=extfiles, **kw)
 
 
 class Module:
@@ -141,6 +210,7 @@ class Module:
         self.functions = {}
         self.milestones = {}
         self.blocks = {}            # start milestone -> end milestone
+        self.middles = {}           # start milestone -> middle milestone
         self.macros = {}            # name -> (params, rest param or None, body)
         self.topdefs = set()        # top level \\mdef-s elements, removed by the walk
         self.depth = 0
@@ -156,6 +226,8 @@ class Module:
                 self.milestones[v._modulems] = getattr(self, k)
                 if v._modulemsend is not None:
                     self.blocks[v._modulems] = v._modulemsend
+                if v._modulemsmiddle is not None:
+                    self.middles[v._modulems] = v._modulemsmiddle
 
     def flatten(self):
         """ Returns a copy of the document with its contents expanded """
@@ -169,21 +241,31 @@ class Module:
         """ Turns each block milestone pair into a single start milestone element
             holding the block's contents. Inner blocks are gathered first. """
         ends = set(self.blocks.values())
-        stack = []
+        middles = set(self.middles.values())
+        stack = []          # [start, middle or None]
         pairs = []
         for e in root.iter("ms"):
             s = e.get("style", None)
             if s in self.blocks:
-                stack.append(e)
+                stack.append([e, None])
             elif s in ends:
-                if stack and self.blocks[stack[-1].get("style")] == s:
-                    pairs.append((stack.pop(), e))
+                if stack and self.blocks[stack[-1][0].get("style")] == s:
+                    pairs.append((*stack.pop(), e))
                 else:
                     self._report(ModuleError(f"Unexpected \\{s}"), self._lineof(e))
-        for e in stack:
+            elif s in middles:
+                if stack and stack[-1][1] is None and self.middles.get(stack[-1][0].get("style")) == s:
+                    stack[-1][1] = e
+                else:
+                    self._report(ModuleError(f"Unexpected \\{s}"), self._lineof(e))
+        for e, m in stack:
             self._report(ModuleError(f"Missing \\{self.blocks[e.get('style')]}"), self._lineof(e))
-        for s, e in pairs:
+        for s, m, e in pairs:
             self._gatherblock(root, s, e)
+            if m is not None:       # the middle holds the rest of the block
+                last = e.__class__("ms", {}, parent=s)
+                s.append(last)
+                self._gatherblock(s, m, last)
 
     def _macros(self, root):
         """ Enters each top level \\mdef-s block of the gathered document into the
@@ -572,23 +654,43 @@ class Module:
         if n.isliteral():
             return n.s
         if n.isvar():
+            if n.namenodes is not None:
+                try:
+                    return self.getvar(self._name(n.namenodes))
+                except ModuleError as err:
+                    raise err.where(f"in {self._brief(n.src)}", self._line(n.at))
             if self._findvar(n.s) is None:
                 return n.src                # not a variable, so literal
             return self.getvar(n.s)
+        name = n.name
         try:
-            args = ["".join(self._eval(x) for x in a) for a in n.args]
-            if n.name in self.macros:
-                return self._callmacro(n.name, args, self._line(n.at))
-            fn = self.functions[n.name]
+            if n.namenodes is not None:
+                name = self._name(n.namenodes)
+                if name not in self.functions and name not in self.macros:
+                    raise ModuleError(f"No function or macro ${name}")
+            fn = self.functions.get(name, None)
+            if getattr(fn, "_modulelazy", False):
+                args = [lambda a=a: "".join(self._eval(x) for x in a) for a in n.args]
+            else:
+                args = ["".join(self._eval(x) for x in a) for a in n.args]
+            if name in self.macros:
+                return self._callmacro(name, args, self._line(n.at))
             try:
                 inspect.signature(fn).bind(*args)
             except TypeError:
-                raise ModuleError(f"Wrong number of arguments ({len(args)}) to ${n.name}")
+                raise ModuleError(f"Wrong number of arguments ({len(args)}) to ${name}")
             return fn(*args)
         except ModuleError as err:
             # the innermost call is shown in full, the calls around it by name
-            raise err.where(f"in ${n.name}" if err.context else f"in {self._brief(n.src)}",
+            raise err.where(f"in ${name}" if err.context else f"in {self._brief(n.src)}",
                             self._line(n.at))
+
+    def _name(self, nodes) -> str:
+        """ Evaluates the contents of ${...} as a name """
+        name = "".join(self._eval(x) for x in nodes).strip()
+        if not self._namere.fullmatch(name):
+            raise ModuleError(f"Bad name {name!r}")
+        return name
 
     def _parse(self, s: str, i: int, stops: str):
         """ Parses s from i until an unquoted character in stops (or the end).
@@ -626,6 +728,26 @@ class Module:
                 flush()
                 nodes.append(Result(m.group(0), Result.VAR, s[i:m.end()+1], i))
                 i = m.end() + 1
+            elif nxt == "{":                    # ${...} computes a name
+                try:
+                    inner, j = self._parse(s, i+2, "}")
+                    if j >= len(s):             # no }, so literal
+                        text.append("$")
+                        i += 1
+                        continue
+                    flush()
+                    if s[j+1:j+2] == "(":
+                        node, j = self._parsecall(s, s[i+1:j+1], i, j+2)
+                    else:
+                        node, j = Result(s[i:j+1], Result.VAR, s[i:j+1], i), j+1
+                    node.namenodes = inner
+                except ModuleError as err:
+                    if stops:
+                        raise
+                    flush()
+                    node, j = Result(str(err), Result.ERROR, at=i), len(s)
+                nodes.append(node)
+                i = j
             elif nxt == "#":
                 j = s.find("\n", i)
                 i = len(s) if j < 0 else j
@@ -755,6 +877,20 @@ class Module:
         """ $s(ref, [lang]): short localised form of a reference """
         return self._localref(ref, 1, lang)
 
+    @modulefn("sub")
+    def fn_sub(self, s, regex, repl):
+        """ $sub(string, regex, replacement): as Python's re.sub. A backslash is
+            written \\\\ in USFM. """
+        try:
+            return re.sub(regex, repl, s)
+        except re.error as err:
+            raise ModuleError(f"Bad regex or replacement in $sub: {err}")
+
+    @modulefn("e")
+    def fn_e(self, s):
+        """ $e(string): expands string, such as the contents of a quoted literal """
+        return self.evaluate(s)
+
     @modulefn("get")
     def fn_get(self, name, lang=None, default=None):
         """ $get(name, [lang], [default]): reads a variable """
@@ -850,6 +986,107 @@ class Module:
             raise ModuleError(f"No item {index!r}")
         return default
 
+    _numre = re.compile(r"\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*")
+    _falses = ("", "0", "f", "false", "n", "no")
+
+    def _num(self, s: str):
+        """ The number s holds, or None """
+        if not self._numre.fullmatch(s):
+            return None
+        return float(s) if "." in s else int(s)
+
+    @staticmethod
+    def _numstr(v) -> str:
+        """ The shortest form of a number: 4/2 is 2 """
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        return str(v)
+
+    @classmethod
+    def _truth(cls, s: str) -> bool:
+        """ Whether a condition is true: anything but empty, 0, f, false, n, no """
+        return s.strip().lower() not in cls._falses
+
+    def _natkey(self, s: str):
+        """ Natural ordering: runs of digits compare as numbers """
+        return [(0, int(r), "") if r.isdigit() else (1, 0, r) for r in re.split(r"(\d+)", s) if r]
+
+    def _compare(self, a: str, b: str) -> int:
+        na, nb = self._num(a), self._num(b)
+        ka, kb = (na, nb) if na is not None and nb is not None else (self._natkey(a), self._natkey(b))
+        return (ka > kb) - (ka < kb)
+
+    @modulefn("op")
+    def fn_op(self, op, *vals):
+        """ $op(op, val, ...): applies op to the values. Arithmetic (+ - * / // %)
+            reduces across them, comparisons (< > = !=) take two. """
+        op = op.strip()
+        comparisons = {"<": lambda c: c < 0, ">": lambda c: c > 0, "=": lambda c: c == 0,
+                       "!=": lambda c: c != 0}
+        if op in comparisons:
+            if len(vals) != 2:
+                raise ModuleError(f"$op({op}) compares 2 values, not {len(vals)}")
+            return "1" if comparisons[op](self._compare(*vals)) else "0"
+        arith = {"+", "-", "*", "/", "//", "%"}
+        if op not in arith:
+            raise ModuleError(f"Unknown operator {op!r}")
+        if not vals:
+            raise ModuleError(f"$op({op}) has no values")
+        nums = [self._num(v) for v in vals]
+        if op == "+" and any(self.listsep in v for v in vals):
+            return self._list(i for v in vals for i in self._items(v))
+        if op == "+" and None in nums:
+            return "".join(vals)
+        if op == "*" and nums[0] is None:
+            if None in nums[1:] or any(isinstance(n, float) or n < 0 for n in nums[1:]):
+                raise ModuleError(f"$op(*) repeats a string a whole number of times")
+            count = 1
+            for n in nums[1:]:
+                count *= n
+            if self.listsep in vals[0]:
+                return self._list(self._items(vals[0]) * count)
+            return vals[0] * count
+        if None in nums:
+            bad = vals[nums.index(None)]
+            raise ModuleError(f"$op({op}) needs numbers, not {bad!r}")
+        fns = {"+": lambda a, b: a + b, "-": lambda a, b: a - b, "*": lambda a, b: a * b,
+               "/": lambda a, b: a / b, "//": lambda a, b: a // b, "%": lambda a, b: a % b}
+        res = nums[0]
+        for n in nums[1:]:
+            try:
+                res = fns[op](res, n)
+            except ZeroDivisionError:
+                raise ModuleError(f"$op({op}) divides by 0")
+        return self._numstr(res)
+
+    @modulefn("bool")
+    def fn_bool(self, val):
+        """ $bool(val): 1 if val is 1, true, t, yes or y, else 0 """
+        return "1" if val.strip().lower() in ("1", "true", "t", "yes", "y") else "0"
+
+    @modulefn("not")
+    def fn_not(self, cond):
+        """ $not(cond): 1 if cond is false, else 0 """
+        return "0" if self._truth(cond) else "1"
+
+    @modulefn("and", lazy=True)
+    def fn_and(self, *conds):
+        """ $and(cond, ...): 1 if all the conditions are true. Stops at the first false one. """
+        return "1" if all(self._truth(c()) for c in conds) else "0"
+
+    @modulefn("or", lazy=True)
+    def fn_or(self, *conds):
+        """ $or(cond, ...): 1 if any condition is true. Stops at the first true one. """
+        return "1" if any(self._truth(c()) for c in conds) else "0"
+
+    @modulefn("if", lazy=True)
+    def fn_if(self, cond, then, otherwise=None):
+        """ $if(cond, then, [else]): then if cond is true, else the else value. Only
+            the value chosen is evaluated. """
+        if self._truth(cond()):
+            return then()
+        return otherwise() if otherwise is not None else ""
+
     @modulems("mlet")
     def ms_mlet(self, e):
         """ \\mlet|var="name" val="value" [lang="tag"]\\*: assignment """
@@ -869,12 +1106,82 @@ class Module:
         lang = self._attr(e, "lang").strip() or "*"
         self.setvar(name, self._usfm(self._runblock(e)).strip(), lang)
 
+    @modulems("miset")
+    def ms_miset(self, e):
+        """ \\miset|var="name" index="i" val="value" [lang="tag"]\\*: sets item i of
+            a list, or key i of a dict, adding it if it is missing """
+        self._iset(e, self._attr(e, "val"))
+
+    @modulems("miset-s", end="miset-e")
+    def ms_miset_s(self, e):
+        """ \\miset-s|var="name" index="i" [lang="tag"]\\*..\\miset-e\\*: sets the item
+            to the expanded contents of the block, as USFM text """
+        self._iset(e, self._usfm(self._runblock(e)).strip())
+
+    def _iset(self, e, value: str):
+        style = e.get("style")
+        name = self._attr(e, "var").strip()
+        if not name:
+            raise ModuleError(f"\\{style} has no var")
+        index = self._attr(e, "index").strip()
+        lang = self._attr(e, "lang").strip() or "*"
+        if self.listsep in value or self.pairsep in value:
+            raise ModuleError(f"\\{style} can't set an item to a list")
+        items = self._items(self.getvar(name, lang, ""))
+        isnum = re.fullmatch(r"[+-]?\d+", index) is not None
+        if self._isdict(items) and (items or not isnum):
+            if self.listsep in index or self.pairsep in index:
+                raise ModuleError(f"\\{style} can't use a list as a key")
+            pair = index + self.pairsep + value
+            for j, item in enumerate(items):
+                if item.split(self.pairsep, 1)[0] == index:
+                    items[j] = pair
+                    break
+            else:
+                items.append(pair)
+        else:
+            if not isnum:
+                raise ModuleError(f"A list index must be a number, not {index!r}")
+            i = int(index)
+            if i < 0:
+                if i < -len(items):
+                    raise ModuleError(f"No item {i} in a list of {len(items)}")
+                i += len(items)
+            items.extend([""] * (i + 1 - len(items)))     # a later index extends the list
+            items[i] = value
+        self.setvar(name, self._list(items), lang)
+
     @modulems("mdef-s", end="mdef-e")
     def ms_mdef_s(self, e):
         """ \\mdef-s|name="name" args="a, b, rest…"\\*..\\mdef-e\\*: defines the macro
             $name. Top level ones are entered before the walk and removed here. """
         if e not in self.topdefs:
             raise ModuleError("\\mdef-s must be at the top level")
+
+    @modulems("mif-s", end="mif-e", middle="melse")
+    def ms_mif_s(self, e):
+        """ \\mif-s|cond="cond"\\*..[\\melse\\*..]\\mif-e\\*: expands the block if
+            cond is true, else what follows \\melse """
+        cond = self._truth(self._attr(e, "cond"))
+        if cond:
+            return [self._runblock(e)]      # which removes the \\melse part
+        for m in self._blockiter(e):
+            if m.tag == "ms" and m.get("style", None) == "melse":
+                return [self._runblock(m)]
+        return []
+
+    @modulems("melse")
+    def ms_melse(self, e):
+        """ \\melse\\*: the else part of a true \\mif-s, which is dropped, or a
+            stray one, already reported """
+        return ""
+
+    def _blockiter(self, e):
+        """ Iterates the contents of block e, without going into the blocks in it """
+        for c in e:
+            yield c
+            if not (c.tag == "ms" and c.get("style", None) in self.blocks):
+                yield from self._blockiter(c)
 
     @modulems("mfor-s", end="mfor-e")
     def ms_mfor_s(self, e):
@@ -925,7 +1232,6 @@ class Module:
 
 def main(argv=None):
     import argparse, sys, os
-    from usfmtc import readFile
     from usfmtc.reference import BookNamesEnvironment
 
     parser = argparse.ArgumentParser(description="Flatten a Paratext module into plain USFM/USX")
@@ -939,7 +1245,7 @@ def main(argv=None):
                         help="Set a global variable name[:lang]=value (repeatable)")
     args = parser.parse_args(argv)
 
-    doc = readFile(args.infile, extfiles=args.extfiles)
+    doc = readModule(args.infile, extfiles=args.extfiles)
     if doc is None:
         parser.error(f"Can't read {args.infile}")
     env = BookNamesEnvironment(args.booknames) if args.booknames else Environment()

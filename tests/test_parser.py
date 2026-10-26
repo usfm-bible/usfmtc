@@ -275,6 +275,19 @@ def test_specialchars():
     if '\\\\\\' in f or '~' not in f:
         fail(f"Bad character escaping in {f}")
 
+def test_attribescapes():
+    """ Escaped characters in attribute values read and write back unchanged """
+    usfm = r"""\id JHN attribute escapes
+\c 1
+\p
+\v 1 \w word|lemma="a\"b\\c\|d"\w*
+"""
+    doc, f = _dousfm(usfm)
+    for d in (doc, usfmtc.readFile(f, informat="usfm")):
+        lemma = [e.get("lemma") for e in d.getroot().iter() if e.tag == "char"]
+        if lemma != ['a"b\\c|d']:
+            fail(f"lemma is {lemma} in {f}")
+
 def test_emptyattrib():
     usfm = r"""\id JHN empty attributes
 \p

@@ -251,7 +251,7 @@ def _stripws(s, atend=False):
         return None
     return _wsere.sub("", s) if atend else _wssre.sub("", s)
 
-backre = re.compile(r"\\([\\~|])")
+backre = re.compile(r"\\([\\~|\"])")     # attribute escapes, as the generator writes them
 def cleanup(node, parent=None):
     if node.tag == 'para':
         # cleanup spaces at start and end of para
