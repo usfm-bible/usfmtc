@@ -31,9 +31,30 @@ class ModuleError(Exception):
         return self
 
 
+class Line(int):
+    """ A line number in a module file. file names the included file it is in,
+        relative to the module, or is None for the module itself """
+    def __new__(cls, n: int, file: Optional[str] = None):
+        res = super().__new__(cls, n)
+        res.file = file
+        return res
+
+    def __str__(self):
+        return f"{self.file}:{int(self)}" if self.file else str(int(self))
+
+    def __format__(self, spec):
+        return format(str(self), spec) if not spec else super().__format__(spec)
+
+    @classmethod
+    def at(cls, pos, offset: int = 0):
+        """ The line of a parser position, or None """
+        if pos is None or pos.l < 0:
+            return None
+        return cls(pos.l + 1 + offset, pos.kw.get("file", None))
+
+
 class ModuleFatalError(Exception):
     """ A failure that ends the run, such as macro calls nested too deeply """
-    pass
 
 
 class Result:
@@ -52,9 +73,6 @@ class Result:
 
     def istext(self):
         return self.kind == self.TEXT
-
-    def isquoted(self):
-        return self.kind == self.QUOTED
 
     def isliteral(self):
         """ Text that is output as is, quoted or not """
@@ -82,12 +100,10 @@ class Result:
 
 class _Call(Result):
     """ A $name(...) function call. Each argument is a list of nodes. """
-    def __init__(self, name: str, args: List[List[Result]], start: int, end: int, src: str):
+    def __init__(self, name: str, args: List[List[Result]], start: int, src: str):
         super().__init__(name, self.CALL, src, start)
         self.name = name
         self.args = args
-        self.start = start
-        self.end = end
 
     def __repr__(self):
         return f"Call({self.name}, {self.args!r})"
@@ -165,14 +181,19 @@ def protect(src: str) -> str:
 
 moduleext = os.path.join(os.path.dirname(__file__), "modules.ext")      # the module markers
 
+def _parseerrors(doc):
+    """ The errors the USFM parser found in doc, as (message, line) """
+    return [(err[0], Line.at(err[1] if len(err) > 1 else None)) for err in (doc.errors or [])]
+
 
 def flattenModuleFile(fname: str, project=None, projects=None, booknames: Optional[str] = None,
                       moderrors: Optional[list] = None, **kw):
     """ Reads a module file (any format readFile knows) and flattens it, returning
         the flattened USX document. USFM is protected (see protect) before it is
-        parsed, and the module markers (moduleext) are added to the grammar. The keyword arguments go to both readFile
-        (e.g. informat, grammar, extfiles, strict) and Module() (e.g. lang,
-        variables, envs), and each takes what it knows. In addition:
+        parsed, and the module markers (moduleext) are added to the grammar.
+        The keyword arguments go to both readFile (e.g. informat, grammar,
+        extfiles, strict) and Module() (e.g. lang, variables, envs), and each
+        takes what it knows. In addition:
         project:    the Project to flatten the module in, or its name in projects.
         projects:   a Projects, or a directory (or list of them) of projects, to find
                     project and the projects of reference products. Defaults to the
@@ -208,10 +229,7 @@ def flattenModuleFile(fname: str, project=None, projects=None, booknames: Option
     mod = Module(doc, envs=envs, project=project, projects=projects, path=fname, **kw)
     res = mod.flatten()
     if moderrors is not None:
-        for err in (doc.errors or []):      # (message, pos, ref) from the USFM parser
-            pos = err[1] if len(err) > 1 else None
-            moderrors.append((err[0], pos.l + 1 if pos is not None and pos.l >= 0 else None))
-        moderrors.extend(mod.errors)
+        moderrors.extend(_parseerrors(doc) + mod.errors)
     return res
 
 
@@ -234,6 +252,7 @@ class Module:
     _blocktags = ("book", "para", "chapter", "table", "row", "sidebar")
     _holdertags = ("usx", "ms", "sidebar")     # elements whose children are blocks
     _namere = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+    _nonamere = re.compile(r"(?=\()")       # the empty name of $(...)
     maxdepth = 50               # macro call nesting limit
 
     def __init__(self, doc, envs: Optional[Dict[str, Environment]] = None, lang: Optional[str] = None,
@@ -328,10 +347,17 @@ class Module:
         doc = readFile(fpath, preprocess=protect, grammar=self.doc.grammar)
         if doc is None:
             raise ModuleError(f"Can't read {name}")
-        for err in (doc.errors or []):
-            pos = err[1] if len(err) > 1 else None
-            self.errors.append((f"{err[0]}; in {name}", pos.l + 1 if pos is not None and pos.l >= 0 else None))
+        rel = os.path.relpath(fpath, os.path.dirname(stack[0])) if len(stack) else name
         root = doc.getroot()
+        for c in root.iter():           # so errors in it say where they are
+            for a in ("pos", "textpos", "tailpos"):
+                p = getattr(c, a, None)
+                if p is not None:
+                    p.kw["file"] = rel
+        for err in (doc.errors or []):
+            if len(err) > 1 and err[1] is not None:
+                err[1].kw["file"] = rel
+        self.errors.extend(_parseerrors(doc))
         for c in list(root):
             if c.tag == "book":
                 root.remove(c)
@@ -345,8 +371,8 @@ class Module:
         middles = set(self.middles.values())
         stack = []          # [start, middle or None]
         pairs = []
-        alive = list(root.iter())       # so that their ids stay unique
-        given = {id(e): self._isempty(e) for e in alive}
+        given = set(root.iter())
+        empties = {e for e in given if self._isempty(e)}
         for e in root.iter("ms"):
             s = e.get("style", None)
             if s in self.blocks:
@@ -369,22 +395,22 @@ class Module:
                 last = e.__class__("ms", {}, parent=s)
                 s.append(last)
                 self._gatherblock(s, m, last)
-        self._prune(root, given)
+        self._prune(root, given, empties)
 
     @staticmethod
     def _isempty(e) -> bool:
         return not len(e) and not (e.text and e.text.strip())
 
-    def _prune(self, root, given):
+    def _prune(self, root, given, empties):
         """ Removes the elements that gathering left empty, and then any of their
-            parents left empty, but not milestones. given says whether each element
-            we were given was empty, and those that were are kept, as are those
-            with attributes (other than style). Elements that gathering made, by
-            splitting, have only copied attributes and go. """
+            parents left empty, but not milestones. Of the elements given, those
+            that were empty are kept, as are those with attributes (other than
+            style). Elements that gathering made, by splitting, have only copied
+            attributes and go. """
         def isgone(e):
-            if e.tag == "ms" or not self._isempty(e) or given.get(id(e), False):
+            if e.tag == "ms" or not self._isempty(e) or e in empties:
                 return False
-            return id(e) not in given or not (set(e.keys()) - {"style"})
+            return e not in given or not (set(e.keys()) - {"style"})
         while True:
             parents = {c: p for p in root.iter() for c in p}
             gone = [e for e in parents if isgone(e)]
@@ -763,12 +789,11 @@ class Module:
         if not self.locs or self.locs[-1][0] is None:
             return None
         pos, s = self.locs[-1]
-        return pos.l + 1 + (s.count("\n", 0, at) if at else 0)
+        return Line.at(pos, s.count("\n", 0, at) if at else 0)
 
     @staticmethod
     def _lineof(e) -> Optional[int]:
-        pos = getattr(e, "pos", None)
-        return pos.l + 1 if pos is not None else None
+        return Line.at(getattr(e, "pos", None))
 
     @staticmethod
     def _brief(s: str, n: int = 40) -> str:
@@ -857,36 +882,32 @@ class Module:
             elif nxt == "{":                    # ${...} computes a name
                 try:
                     inner, j = self._parse(s, i+2, "}")
-                    if j >= len(s):             # no }, so literal
-                        text.append("$")
-                        i += 1
-                        continue
-                    flush()
-                    if s[j+1:j+2] == "(":
-                        node, j = self._parsecall(s, s[i+1:j+1], i, j+2)
-                    else:
-                        node, j = Result(s[i:j+1], Result.VAR, s[i:j+1], i), j+1
-                    node.namenodes = inner
                 except ModuleError as err:
                     if stops:
                         raise
                     flush()
-                    node, j = Result(str(err), Result.ERROR, at=i), len(s)
+                    nodes.append(Result(str(err), Result.ERROR, at=i))
+                    i = len(s)
+                    continue
+                if j >= len(s):                 # no }, so literal
+                    text.append("$")
+                    i += 1
+                    continue
+                flush()
+                if s[j+1:j+2] == "(":
+                    node, i = self._call(s, s[i+1:j+1], i, j+2, stops)
+                else:
+                    node, i = Result(s[i:j+1], Result.VAR, s[i:j+1], i), j+1
+                node.namenodes = inner
                 nodes.append(node)
-                i = j
             elif nxt == "#":
                 j = s.find("\n", i)
                 i = len(s) if j < 0 else j
-            elif (m := self._namere.match(s, i+1)):
-                flush()
+            elif (m := self._namere.match(s, i+1) or self._nonamere.match(s, i+1)):
+                flush()                         # $(...) is a call with no name
                 if (m.group(0) in self.functions or m.group(0) in self.macros) \
                         and s[m.end():m.end()+1] == "(":
-                    try:
-                        call, i = self._parsecall(s, m.group(0), i, m.end() + 1)
-                    except ModuleError as err:
-                        if stops:
-                            raise
-                        call, i = Result(str(err), Result.ERROR, at=i), len(s)   # a top level syntax error consumes the rest
+                    call, i = self._call(s, m.group(0), i, m.end() + 1, stops)
                     nodes.append(call)
                 else:
                     nodes.append(Result(m.group(0), Result.VAR, s[i:m.end()], i))
@@ -897,11 +918,21 @@ class Module:
         flush()
         return nodes, i
 
+    def _call(self, s: str, name: str, start: int, i: int, stops: str):
+        """ Parses a call as _parsecall. In an argument a syntax error is raised,
+            but at the top level it becomes an error node, which consumes the rest. """
+        try:
+            return self._parsecall(s, name, start, i)
+        except ModuleError as err:
+            if stops:
+                raise
+            return Result(str(err), Result.ERROR, at=start), len(s)
+
     def _parsecall(self, s: str, name: str, start: int, i: int):
         """ Parses the argument list of a call; i is just after the '('. """
         args = []
         if (m := re.compile(r"\s*\)").match(s, i)):
-            return _Call(name, args, start, m.end(), s[start:m.end()]), m.end()
+            return _Call(name, args, start, s[start:m.end()]), m.end()
         while True:
             arg, i = self._parse(s, i, ",)")
             args.append(self._stripws(arg))
@@ -909,7 +940,7 @@ class Module:
                 raise ModuleError(f"Missing ) in call to ${name}")
             i += 1
             if s[i-1] == ")":
-                return _Call(name, args, start, i, s[start:i]), i
+                return _Call(name, args, start, s[start:i]), i
 
     @staticmethod
     def _stripws(arg):
@@ -981,10 +1012,14 @@ class Module:
             frame = self.frames[0]
         frame.setdefault(name, {})[lang] = value
 
+    def _lang(self, lang: Optional[str]) -> str:
+        """ The language lang, else $LANG, else the module's language """
+        return (lang or "").strip() or self.getvar("LANG", "*", "").strip() or self.lang
+
     def _env(self, lang: Optional[str]) -> Environment:
-        """ The reference environment for lang, else $LANG, else the module's
-            language, falling back to the "*" environment """
-        lang = (lang or "").strip() or self.getvar("LANG", "*", "").strip() or self.lang
+        """ The reference environment for the language (see _lang), falling back
+            to the "*" environment """
+        lang = self._lang(lang)
         env = self.envs.get(lang, self.envs.get("*", None))
         if env is None:
             raise ModuleError(f"No reference environment for language {lang}")
@@ -1034,6 +1069,13 @@ class Module:
             return doc, vrs.remap(r, pvrs), pvrs
         return doc, vrs.remap(RefRange(r.first.start(), r.last.end()), pvrs), pvrs
 
+    @staticmethod
+    def _cat(doc, e) -> str:
+        """ The marker category of paragraph e in doc, else "" """
+        if e.tag != "para" or doc.grammar is None:
+            return ""
+        return doc.grammar.marker_categories.get(e.get("style", ""), "")
+
     def _reversify(self, doc, r, pvrs):
         """ Changes the fragment doc, for ref r in versification pvrs, into the
             module's versification. reversify needs the chapter the fragment
@@ -1041,9 +1083,7 @@ class Module:
             then a chapter that holds no verse, or a first chapter that doesn't
             start at verse 1, goes. """
         root = doc.getroot()
-        cats = doc.grammar.marker_categories if doc.grammar is not None else {}
-        body = [c for c in root if c.tag != "book"
-                    and not (c.tag == "para" and cats.get(c.get("style", ""), "") == "header")]
+        body = [c for c in root if c.tag != "book" and self._cat(doc, c) != "header"]
         added = not len(body) or body[0].tag != "chapter"
         if added:
             root.insert(list(root).index(body[0]) if len(body) else len(root),
@@ -1082,6 +1122,16 @@ class Module:
     def fn_s(self, ref, lang=None):
         """ $s(ref, [lang]): short localised form of a reference """
         return self._localref(ref, 1, lang)
+
+    @modulefn("")
+    def fn_refform(self, ref, lang=None):
+        """ $(ref, [lang]): the reference in the form $refform gives: a, s or l
+            (default s) """
+        form = self.getvar("refform", self._lang(lang), "").strip() or "s"
+        level = {"a": 0, "s": 1, "l": 2}.get(form, None)
+        if level is None:
+            raise ModuleError(f"Bad $refform {form!r}: a, s or l")
+        return self._localref(ref, level, lang)
 
     @modulefn("l")
     def fn_l(self, ref, lang=None):
@@ -1178,6 +1228,10 @@ class Module:
     def _isdict(self, items: List[str]) -> bool:
         return all(self.pairsep in i for i in items)
 
+    def _keyindex(self, items: List[str], key: str) -> Optional[int]:
+        """ The index of the item of a dict with key, or None """
+        return next((j for j, i in enumerate(items) if i.split(self.pairsep, 1)[0] == key), None)
+
     @staticmethod
     def _int(s: str, fn: str) -> int:
         try:
@@ -1246,10 +1300,9 @@ class Module:
             with a key in a dict """
         items = self._items(value)
         if items and self._isdict(items):
-            for i in items:
-                k, v = i.split(self.pairsep, 1)
-                if k == index:
-                    return v
+            j = self._keyindex(items, index)
+            if j is not None:
+                return items[j].split(self.pairsep, 1)[1]
         else:
             i = self._int(index, "iget")
             if -len(items) <= i < len(items):
@@ -1288,19 +1341,21 @@ class Module:
         ka, kb = (na, nb) if na is not None and nb is not None else (self._natkey(a), self._natkey(b))
         return (ka > kb) - (ka < kb)
 
+    _comparisons = {"<": lambda c: c < 0, ">": lambda c: c > 0, "=": lambda c: c == 0,
+                    "!=": lambda c: c != 0}
+    _arith = {"+": lambda a, b: a + b, "-": lambda a, b: a - b, "*": lambda a, b: a * b,
+              "/": lambda a, b: a / b, "//": lambda a, b: a // b, "%": lambda a, b: a % b}
+
     @modulefn("op")
     def fn_op(self, op, *vals):
         """ $op(op, val, ...): applies op to the values. Arithmetic (+ - * / // %)
             reduces across them, comparisons (< > = !=) take two. """
         op = op.strip()
-        comparisons = {"<": lambda c: c < 0, ">": lambda c: c > 0, "=": lambda c: c == 0,
-                       "!=": lambda c: c != 0}
-        if op in comparisons:
+        if op in self._comparisons:
             if len(vals) != 2:
                 raise ModuleError(f"$op({op}) compares 2 values, not {len(vals)}")
-            return "1" if comparisons[op](self._compare(*vals)) else "0"
-        arith = {"+", "-", "*", "/", "//", "%"}
-        if op not in arith:
+            return "1" if self._comparisons[op](self._compare(*vals)) else "0"
+        if op not in self._arith:
             raise ModuleError(f"Unknown operator {op!r}")
         if not vals:
             raise ModuleError(f"$op({op}) has no values")
@@ -1321,12 +1376,10 @@ class Module:
         if None in nums:
             bad = vals[nums.index(None)]
             raise ModuleError(f"$op({op}) needs numbers, not {bad!r}")
-        fns = {"+": lambda a, b: a + b, "-": lambda a, b: a - b, "*": lambda a, b: a * b,
-               "/": lambda a, b: a / b, "//": lambda a, b: a // b, "%": lambda a, b: a % b}
         res = nums[0]
         for n in nums[1:]:
             try:
-                res = fns[op](res, n)
+                res = self._arith[op](res, n)
             except ZeroDivisionError:
                 raise ModuleError(f"$op({op}) divides by 0")
         return self._numstr(res)
@@ -1364,37 +1417,28 @@ class Module:
         """ $rall(ref, [level]): a list of the books (b), chapters (c) or verses (v)
             in a canonical ref list, or with no level its ranges. Partial books
             and chapters stay as ranges. """
-        try:
-            refs = RefList(ref, versification=self._vrs())
-        except SyntaxError as err:
-            raise ModuleError(f"Bad reference {ref!r}: {err}")
+        if not ref.strip():
+            return ""                   # no references, so the empty list
+        refs = self._refs(ref, None)
         items = {None: lambda: refs, "": lambda: refs, "b": refs.allbooks,
                  "c": refs.allchaps, "v": refs.allrefs}.get(level, None)
         if items is None:
             raise ModuleError(f"Bad level {level!r} to $rall")
         return self.listsep.join(r.str() for r in items())
 
-    @staticmethod
-    def _nospace(s: str) -> str:
+    _quotedre = re.compile(r"""("[^"]*"|'[^']*')|\s+""")
+
+    @classmethod
+    def _nospace(cls, s: str) -> str:
         """ s without whitespace, except in quotes """
-        res = []
-        quote = None
-        for c in s:
-            if quote is not None:
-                quote = None if c == quote else quote
-            elif c in "\"'":
-                quote = c
-            elif c.isspace():
-                continue
-            res.append(c)
-        return "".join(res)
+        return cls._quotedre.sub(lambda m: m.group(1) or "", s)
 
     @modulefn("ldml")
     def fn_ldml(self, path, lang=None):
         """ $ldml(path, [lang]): the text of the element at path (with no whitespace
             outside quotes) in the flattened LDML for lang (default $LANG) """
         from usfmtc.ldml import getFlatLdml
-        lang = (lang or "").strip() or self.getvar("LANG", "*", "").strip() or self.lang
+        lang = self._lang(lang)
         if lang == "*":
             raise ModuleError("No language for $ldml")
         path = self._nospace(path)
@@ -1468,7 +1512,7 @@ class Module:
         conf = self.refconfigs.get(cname, None)
         if conf is None:
             raise ModuleError(f"No \\mrefconfig {cname}")
-        res = None
+        res = []
         last = None         # the project and book of the previous ref
         for r in self._refs(ref, self._env(self._attr(e, "lang").strip() or None)):
             project = self._project(r.first.product)
@@ -1482,28 +1526,20 @@ class Module:
                 raise ModuleError(str(err))
             if pvrs is not None:        # into the module's versification
                 self._reversify(sub, pr, pvrs)
-            root = self._filterrefs(sub, conf)
-            if res is None:
-                res = root
-            else:
-                for c in list(root):
-                    root.remove(c)
-                    res.append(c)
-                    c.parent = res
-        return [res]
+            res.append(self._filterrefs(sub, conf))
+        return res
 
     def _filterrefs(self, doc, conf):
         """ The root of a document from getrefs, without what conf leaves out """
         root = doc.getroot()
-        cats = doc.grammar.marker_categories if doc.grammar is not None else {}
         for c in list(root):        # the book and its headers
-            if c.tag == "book" or (c.tag == "para" and cats.get(c.get("style", ""), "") == "header"):
+            if c.tag == "book" or self._cat(doc, c) == "header":
                 root.remove(c)
             elif "vid" in c.attrib:     # where getrefs started copying a paragraph
                 del c.attrib["vid"]
         if not conf["headings"]:    # headings at the start, before the scripture text
             for c in list(root):
-                cat = cats.get(c.get("style", ""), "") if c.tag == "para" else ""
+                cat = self._cat(doc, c)
                 if cat == "sectionpara" and c.find(".//verse") is None:
                     root.remove(c)
                 elif c.tag != "chapter" and cat not in ("title", "introduction"):
@@ -1520,23 +1556,24 @@ class Module:
                 self._replace(el.parent, el, "")
         return root
 
+    def _target(self, e):
+        """ The var and lang (default "*") of an assigning milestone """
+        name = self._attr(e, "var").strip()
+        if not name:
+            raise ModuleError(f"\\{e.get('style')} has no var")
+        return name, self._attr(e, "lang").strip() or "*"
+
     @modulems("mlet")
     def ms_mlet(self, e):
         """ \\mlet|var="name" val="value" [lang="tag"]\\*: assignment """
-        name = self._attr(e, "var").strip()
-        if not name:
-            raise ModuleError("\\mlet has no var")
-        lang = self._attr(e, "lang").strip() or "*"
+        name, lang = self._target(e)
         self.setvar(name, self._attr(e, "val"), lang)
 
     @modulems("mlet-s", end="mlet-e")
     def ms_mlet_s(self, e):
         """ \\mlet-s|var="name" [lang="tag"]\\*..\\mlet-e\\*: assigns the expanded
             contents of the block, as USFM text """
-        name = self._attr(e, "var").strip()
-        if not name:
-            raise ModuleError("\\mlet-s has no var")
-        lang = self._attr(e, "lang").strip() or "*"
+        name, lang = self._target(e)
         self.setvar(name, self._usfm(self._runblock(e)).strip(), lang)
 
     @modulems("miset")
@@ -1553,11 +1590,8 @@ class Module:
 
     def _iset(self, e, value: str):
         style = e.get("style")
-        name = self._attr(e, "var").strip()
-        if not name:
-            raise ModuleError(f"\\{style} has no var")
+        name, lang = self._target(e)
         index = self._attr(e, "index").strip()
-        lang = self._attr(e, "lang").strip() or "*"
         if self.listsep in value or self.pairsep in value:
             raise ModuleError(f"\\{style} can't set an item to a list")
         items = self._items(self.getvar(name, lang, ""))
@@ -1566,12 +1600,11 @@ class Module:
             if self.listsep in index or self.pairsep in index:
                 raise ModuleError(f"\\{style} can't use a list as a key")
             pair = index + self.pairsep + value
-            for j, item in enumerate(items):
-                if item.split(self.pairsep, 1)[0] == index:
-                    items[j] = pair
-                    break
-            else:
+            j = self._keyindex(items, index)
+            if j is None:
                 items.append(pair)
+            else:
+                items[j] = pair
         else:
             if not isnum:
                 raise ModuleError(f"A list index must be a number, not {index!r}")

@@ -1433,3 +1433,30 @@ def test_vrs_project(tmp_path):
     assert mod.expand("$len($rall(JON 1, v)) $r(JON 1, last.last)") == "16 JON 1:16"
     assert mod._vrs() is projects.find("ORG").settings.getVersification()
     assert Module(None, envs={"*": bkenv}).expand("$len($rall(JON 1, v))") == "17"     # no project: eng
+
+@pytest.mark.parametrize("s, res", [
+    ("$(JHN 3:16)", "John 3:16"),                       # $refform defaults to s
+    ('\\mlet|var="refform" val="a"\\*$(JHN 3:16)', "Jn 3:16"),
+    ('\\mlet|var="refform" val="l"\\*$(JHN 3:16)', "The Gospel According to John 3:16"),
+    ('\\mlet|var="refform" val="l" lang="en"\\*\\mlet|var="LANG" val="en"\\*$(JHN 3:16)', "The Gospel According to John 3:16"),
+    ('\\mlet|var="refform" val="l" lang="fr"\\*\\mlet|var="LANG" val="en"\\*$(JHN 3:16)', "John 3:16"),
+    ('\\mlet|var="refform" val="x"\\*$(JHN 3:16)', "[ERROR: Bad $refform 'x': a, s or l]"),
+    ("$( JHN 3:16 , en )", "John 3:16"),
+    ("Costs $$(5)", "Costs $(5)"),
+])
+def test_refform(s, res):
+    mod = _mod(parseModule("\\id GEN\n\\p " + s + "\n"))
+    out = mod.flatten().outUsfm().split("\\p ", 1)[1].strip()
+    if out != res:
+        fail(f"{s!r} gave {out!r}")
+
+def test_minclude_lines(tmp_path):
+    """ Errors in an included file give its name and its line """
+    _write(tmp_path / "main.usfm", "\\id FRT\n\\p $hi(Fred)\n\\minclude|lib/fns.txt\\*\n\\p $s(JON 1:1, a, b)\n")
+    _write(tmp_path / "lib" / "fns.txt", "\\id FRT fns\n\\mdef-s|name=\"hi\" args=\"x\"\\*\n"
+                                          "Hello $x $s(JON 1:1, 2, 3)\n\\mdef-e\\*\n")
+    res, errors = _flatfile(tmp_path / "main.usfm")
+    lines = sorted((getattr(l, "file", None) or "", int(l)) for m, l in errors)
+    assert lines == [("", 4), ("lib/fns.txt", 3)], errors
+    assert any("called at line 2" in m for m, l in errors)
+    assert [str(l) for m, l in errors if getattr(l, "file", None)] == ["lib/fns.txt:3"]

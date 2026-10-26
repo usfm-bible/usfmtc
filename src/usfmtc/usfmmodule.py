@@ -42,7 +42,10 @@ def main(argv=None):
         return 2
     res.saveAs(args.outfile)
     for msg, line in errors:
-        print(f"{args.infile}:{line}: {msg}" if line is not None else f"{args.infile}: {msg}", file=sys.stderr)
+        fname = args.infile
+        if getattr(line, "file", None):     # in an included file
+            fname, line = os.path.join(os.path.dirname(args.infile), line.file), int(line)
+        print(f"{fname}:{line}: {msg}" if line is not None else f"{fname}: {msg}", file=sys.stderr)
     return 1 if errors else 0
 
 
