@@ -1,0 +1,64 @@
+\id MOD Calendar Module functions
+$# ---------- Constants ----------
+\mlet|var="mlen" val="$list(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)"\*
+\mlet|var="sakamoto" val="$list(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)"\*
+
+$# ---------- Localised names, looked up once ----------
+\mlet-s|var="dn"\*
+    \mfor-s|var="k" list="$list(sun, mon, tue, wed, thu, fri, sat)"\*
+        $ldml(dates/calendars/calendar[@type="gregorian"]/days/dayContext
+[@type="stand-alone"]/dayWidth[@type="$width"]/day[@type="$k"]);
+    \mfor-e\*
+\mlet-e\*
+\mlet|var="daynames" val="$split($sub($dn, ';$', ''), ;)"\*
+\mlet-s|var="mn"\*
+    \mfor-s|var="m" list="$range(1, 13)"\*
+       $ldml(dates/calendars/calendar[@type="gregorian"]/months/monthContext
+[@type="stand-alone"]/monthWidth[@type="wide"]/month[@type="$m"]);
+    \mfor-e\*
+\mlet-e\*
+\mlet|var="monthnames" val="$split($sub($mn, ';$', ''), ;)"\*
+
+$# ---------- Cells ----------
+$# Day number in bold, a line break, the verse text, then the reference
+\mdef-s|name="entry" args="dd, ref"\*
+    \bd $dd\bd* // $reftext($ref) \rq $s($ref)\rq*
+\mdef-e\*
+
+$# A day beyond the end of the month gives an empty cell; a short reading list cycles
+\mdef-s|name="show" args="dd"\*
+    \mif-s|cond="$not($op(>, $dd, $cal_ndays))"\*
+        $entry($dd, $iget($cal_refs, $op(%, $op(-, $dd, 1), $len($cal_refs))))
+    \mif-e\*
+\mdef-e\*
+
+$# Positions below 1 hold the overflow days from the end of the month
+\mdef-s|name="cell" args="d"\*
+    $show($if($op(<, $d, 1), $op(+, $d, 35), $d))
+\mdef-e\*
+
+$# ---------- One month: refs is a reference list, expanded to one verse per day ----------
+\mdef-s|name="monthtable" args="m, y, refs"\*
+    \mlet|var="cal_refs" val="$rall($refs, v)"\*
+    \mlet|var="cal_leap" val="$or($and($op(=, $op(%, $y, 4), 0), $op(!=, $op(%, $y, 100), 0)), $op(=, $op(%, $y, 400), 0))"\*
+    \mlet|var="cal_ndays" val="$op(+, $iget($mlen, $op(-, $m, 1)), $if($and($op(=, $m, 2), $cal_leap), 1, 0))"\*
+    \mlet|var="cal_yy" val="$op(-, $y, $if($op(<, $m, 3), 1, 0))"\*
+    $# Weekday of the 1st (0 = Sunday), Sakamoto's method
+    \mlet|var="cal_dow" val="$op(%, $op(-, $op(+, $cal_yy, $op(//, $cal_yy, 4), $op(//, $cal_yy, 400), $iget($sakamoto, $op(-, $m, 1)), 1), $op(//, $cal_yy, 100)), 7)"\*
+    $# Column of the 1st
+    \mlet|var="cal_k" val="$op(%, $op(-, $cal_dow, $weekstart), 7)"\*
+
+    \s $iget($monthnames, $op(-, $m, 1)) $y
+    \table-s\*
+    \tr
+    \mfor-s|var="c" list="$range(1, 8)"\*
+        $e('\th$c ')$iget($daynames, $op(%, $op(+, $weekstart, $c, -1), 7))
+    \mfor-e\*
+    \mfor-s|var="r" list="$range(5)"\*
+        \tr
+        \mfor-s|var="c" list="$range(1, 8)"\*
+            $e('\tc$c ')$cell($op(-, $op(+, $op(*, $r, 7), $c), $cal_k))
+        \mfor-e\*
+    \mfor-e\*
+    \table-e\*
+\mdef-e\*

@@ -1,0 +1,14 @@
+\id MOD Scripture calendar module
+$# ---------- Settings ----------
+\mlet|var="year" val="2027"\*
+\mlet|var="weekstart" val="0"\*          $# 0 = Sunday
+\mlet|var="width" val="abbreviated"\*    $# or wide, narrow
+\mlet|var="title" val="Scripture Calendar"\*
+\mlet|var="title" val="Calendrier biblique" lang="fr"\*
+
+\minclude|calendar_module_fns.txt\*
+
+$# ---------- Main ----------
+\mlet|var="jan" val="JON 1:1-10; JON 3; JON 4"\*
+\mt1 $get(title, $LANG)
+$monthtable(1, $year, $jan)
