@@ -1,6 +1,7 @@
 import pytest
 from pytest import fail
-from usfmtc import readFile, usx2usfm
+from usfmtc import readFile
+from usfmtc.usfmgenerate import usx2usfm
 from usfmtc.usxcursor import USXCursor
 from usfmtc.reference import Ref, RefList, RefRange, BookNamesEnvironment
 import os, io
@@ -715,3 +716,32 @@ def test_reflist_all(s, fn, res):
         out = [str(r) for r in getattr(RefList(s), fn)()]
     if out != res:
         fail(f"{fn} of {s} gave {out} instead of {res}")
+
+@pytest.mark.parametrize("s, res", [
+    # a note mid verse is left out, but not the text after it
+    ("JON 1:13", "Nevertheless, the men rowed hard to get back to dry land, but they could not, "
+                 "for the sea was raging against them more and more."),
+    # paragraphs are separated by a space
+    ("JON 1:16-17", "Then the men feared the LORD greatly, and they offered a sacrifice to the LORD "
+                    "and made vows to Him. Now the LORD had appointed a great fish to swallow Jonah, "
+                    "and Jonah spent three days and three nights in the belly of the fish."),
+    # a heading inside the range is left out
+    ("JON 1:17-2:1", "Now the LORD had appointed a great fish to swallow Jonah, and Jonah spent three "
+                     "days and three nights in the belly of the fish. From inside the fish, Jonah "
+                     "prayed to the LORD his God,"),
+    # poetry, ending where the next verse starts a line
+    ("JON 2:7", "As my life was fading away, I remembered the LORD. My prayer went up to You, "
+                "to Your holy temple."),
+    ("JON 2:8", "Those who cling to worthless idols forsake His loving devotion."),
+    ("JON 1:3; 1:5!1-2", "Jonah, however, got up to flee to Tarshish, away from the presence of the LORD. "
+                         "He went down to Joppa and found a ship bound for Tarshish. So he paid the fare "
+                         "and went aboard to sail for Tarshish, away from the presence of the LORD.\nThe sailors"),
+])
+def test_gettext(s, res):
+    t = jon_usfm.gettext(*RefList(s))
+    if t != res:
+        fail(f"{s}: got {t!r}")
+
+def test_gettext_badverse():
+    with pytest.raises(ValueError, match="out of range"):
+        jon_usfm.gettext(Ref("JON 1:99"))

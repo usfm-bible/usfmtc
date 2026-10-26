@@ -174,6 +174,8 @@ def _findcvel(ref, usx, atend=False, parindex=0):
         while parindex < len(root):
             n = root[parindex]
             if n.tag == "chapter":
+                if not atend:
+                    raise ValueError("Reference verse {} out of range".format(ref))
                 el = n
                 break
             el = _findel(n, "verse", {"number": lambda n:testverse(str(v), n, after=testafter)}, limits=("chapter",))
@@ -426,35 +428,60 @@ class USXCursor(ETCursor):
                 break
         return res
 
-    def copy_text(self, root, b, grammar=None, notes=False):
-        ''' Returns a text string of all the main text between self and b (exclusive)'''
-        a = self
-        res = []
-        if a.el not in root:
-            p = a.el.parent
-            while p not in root:
-                p = p.parent
-        else:
-            p = a.el
-        i = list(root).index(p)
-        lastnote = None
-        for eloc, isin in iterusx(root, parindex=i, start=a.el, until=b.el, untilafter=bool(b.attrib), grammar=grammar):
-            grabme = True
-            if lastnote is not None:
-                if lastnote == eloc:
-                    lastnote = None
-                grabme = False
-            if isin and lastnote is None:
-                s = eloc.get('style', '')
-                catt = grammar.marker_categories.get(s, "")
-                if not notes and catt in ('footnote', 'crossrefeence'):
-                    lastnote = eloc
-                    grabme = False
-            if grabme:
-                t, finished = a.textin(b, eloc, isin)
-                if t:
-                    res.append(t)
-                if finished:
-                    break
-        return "".join(res)
+    _skipcats = ("sectionpara", "title", "introduction", "header", "otherpara")
+    _blocktags = ("para", "chapter", "table", "row", "cell", "sidebar")
 
+    def copy_text(self, root, b, grammar=None, notes=False):
+        ''' Returns the main text between self and b (exclusive). Notes are left
+            out (unless notes is set) as are figures, \\rq and headings and other
+            paragraphs without verses, unless the text starts or ends in them.
+            Blocks (paragraphs, etc.) are separated by a space, and the
+            text is stripped of surrounding whitespace. '''
+        a = self
+        if a.el is None:
+            return ""
+        if not a.attrib.startswith(" "):        # text within an attribute
+            return a.textin(b, a.el, True)[0]
+        if grammar is None:
+            from usfmtc.usfmparser import Grammar
+            grammar = Grammar()
+        holders = set()                         # elements holding either end
+        for c in (a, b):
+            p = c.el
+            while p is not None:
+                holders.add(id(p))
+                p = getattr(p, 'parent', None)
+        res = []
+        started = False
+
+        def skip(e):
+            if id(e) in holders:
+                return False
+            if e.tag == "note":
+                return not notes
+            if e.tag == "figure" or (e.tag == "char" and e.get("style", "") == "rq"):
+                return True
+            if e.tag == "para" and grammar.marker_categories.get(e.get("style", ""), "") in self._skipcats:
+                return e.find(".//verse") is None
+            return False
+
+        top = a.el
+        while getattr(top, 'parent', None) is not None and top.parent is not root:
+            top = top.parent
+        for e, isin in iterusx(root, parindex=list(root).index(top), start=a.el, prune=skip):
+            t = (e.text if isin else e.tail) or ""
+            start = 0
+            if not started:
+                if e is not a.el or a.istext() != isin:
+                    continue
+                started = True
+                start = max(a.char, 0)
+            elif isin and e.tag in self._blocktags and len(res) and not res[-1].endswith(" "):
+                res.append(" ")
+            atend = e is b.el and b.istext() == isin
+            t = t[start:len(t) if b.char == -1 else b.char] if atend else t[start:]
+            if t:
+                res.append(t)
+            if atend:
+                break
+        return "".join(res).strip()

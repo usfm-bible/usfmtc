@@ -2,6 +2,7 @@ import pytest
 from pytest import fail
 import usfmtc
 from usfmtc.usxmodel import etCmp
+from usfmtc.usfmparser import Grammar
 import xml.etree.ElementTree as et
 import re, json
 
@@ -102,7 +103,7 @@ def test_charattrib():
         fail(f"{len(doc.getroot()[2])} {f}")
 
 def test_closext():
-    grammar = usfmtc.Grammar()
+    grammar = Grammar()
     grammar.marker_categories['wl']="char"
     usfm = r"""\id XXS A test
 \li \bd 5601\bd* \wg Ὠβήδ\wg* \wl Ōbḗd\wl* \k వోబెద-\k*; a person in the genealogy of Jesus; \xt $a(MAT 1:5)\xt*"""

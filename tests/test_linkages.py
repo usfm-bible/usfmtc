@@ -1,7 +1,8 @@
 import pytest
 from pytest import fail
 import io
-from usfmtc import readFile, usx2usfm
+from usfmtc import readFile
+from usfmtc.usfmgenerate import usx2usfm
 from usfmtc.usxmodel import getlinkages, insertlinkages
 from usfmtc.usfmparser import Grammar
 from usfmtc.reference import Ref, RefList

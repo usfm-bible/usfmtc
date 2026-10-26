@@ -576,11 +576,14 @@ def etCmp(a, b, at=None, bt=None, verbose=False, endofpara=False, print=print):
     return True
 
 
-def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[], unblocks=False, filt=[], grammar=None):
+def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[], unblocks=False, filt=[], grammar=None,
+            prune=None):
     """ Iterates over root yielding a node and whether we are in or after (isin) the node. Once until is hit,
         iteration stops. The node matching until is entered if untilafter is True
         otherwise it is not yielded.  blocks prunes any node whose
         style has a category listed in blocks. The test is inverted if unblocks is True.
+        prune is a function that tests whether to prune a node. A pruned node is not
+        entered, but what follows it (isin False) is still yielded.
         filt is a list of functions that all must pass for the value to be yielded.
         until may be a function that tests a node for it being the last node. """
     def makefn(b):
@@ -605,6 +608,7 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
 
     untilfn = makefn(until)
     startfn = makefn(start)
+    prunefn = prune or (lambda e: False)
 
     def category(s):
         s = grammar.parsetag(s)
@@ -624,7 +628,8 @@ def iterusx(root, parindex=0, start=None, until=None, untilafter=False, blocks=[
         roots = root[:] if parindex is None else root[parindex:]
         finished = False
         for c in roots:
-            if not len(blocks) or ((category(c.get('style', '')) in blocks) ^ (not unblocks)):
+            if (not len(blocks) or ((category(c.get('style', '')) in blocks) ^ (not unblocks))) \
+                    and not prunefn(c):
                 started, finished = yield from runiter(c, started=started)
             if finished:
                 return (started, True)
