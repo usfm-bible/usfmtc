@@ -1,0 +1,62 @@
+# Markers of the Paratext module language, read with every module (see module.py)
+
+\marker mlet-s
+\attributes var lang?
+\category milestone
+\closedby mlet-e
+\defattrib var
+
+\marker mlet
+\attributes var val lang?
+\category milestone
+
+\marker miset-s
+\attributes var index
+\category milestone
+\closedby miset-e
+\defattrib var
+
+\marker miset
+\attributes var index val?
+\category milestone
+
+\marker mdef-s
+\attributes name args?
+\category milestone
+\closedby mdef-e
+\defattrib name
+
+\marker mfor-s
+\attributes var list slice?
+\category milestone
+\closedby mfor-e
+\defattrib var
+
+\marker mif-s
+\attributes cond
+\category milestone
+\closedby mif-e
+\defattrib cond
+
+\marker melse
+\category milestone
+
+\marker mref
+\attributes ref config? lang?
+\category milestone
+\defattrib ref
+
+\marker mrefconfig
+\attributes name? intro? headings? chapters? verses? notes? milestones?
+\category milestone
+\defattrib name
+
+\marker minclude
+\attributes name
+\category milestone
+\defattrib name
+
+# Table grouping milestones used around generated rows
+\marker table-s
+\category milestone
+\closedby table-e
