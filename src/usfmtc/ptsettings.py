@@ -101,6 +101,12 @@ class ParatextSettings:
             files.append(path)
         if not len(files):
             return None
+        if len(files) == 1 and files[0] != path:    # only the standard one, which can be shared
+            from usfmtc.versification import cached_versification
+            bundled = os.path.dirname(files[0]) == os.path.dirname(__file__)
+            # a bundled one by name, as others ask for it, so they get the same object
+            self._vrs = cached_versification(self.vrsname if bundled else files[0])
+            return self._vrs
         self._vrs = Versification()
         for f in files:
             self._vrs.readFile(f)

@@ -1385,3 +1385,51 @@ def test_calendar(tmp_path):
     assert "Jonah 1:10" in "".join(cells["10"].itertext())
     assert "Jonah 3:1" in "".join(cells["11"].itertext())
     assert "Jonah 4:11" in "".join(cells["31"].itertext())
+
+_jon117 = ("Now the LORD had appointed a great fish to swallow Jonah, and Jonah spent three days "
+           "and three nights in the belly of the fish.")
+
+@pytest.mark.parametrize("s, res", [
+    ("$len($rall(JON 1, v)) $r(JON 1, last.last)", "17 JON 1:17"),        # $VRS defaults to eng
+    ("\\mlet|var=\"VRS\" val=\"org\"\\*$len($rall(JON 1, v)) $r(JON 1, last.last)", "16 JON 1:16"),
+    ("\\mlet|var=\"VRS\" val=\"eng\"\\*$reftext(JON 1:17)", _jon117),
+    ("\\mlet|var=\"VRS\" val=\"org\"\\*$reftext(JON 2:1)", _jon117),           # eng 1:17 is org 2:1
+    ("\\mlet|var=\"VRS\" val=\"nothing\"\\*$reftext(JON 2:1)", "[ERROR: Unknown versification nothing]"),
+])
+def test_vrs(tmp_path, s, res):
+    out, root, errors = _mref(tmp_path, "\\id FRT\n\\p " + s + "\n")
+    assert out.split("\\p ", 1)[1].strip() == res
+
+@pytest.mark.parametrize("ref, verses", [
+    ("JON 2:1", [("c", "2"), ("v", "1")]),                  # eng 1:17, which starts org 2
+    ("JON 1:16-2:2", [("v", "16"), ("c", "2"), ("v", "1"), ("v", "2")]),
+    ("JON 2:10-11", [("v", "10"), ("v", "11")]),           # eng 2:9-10
+    ("JON 3:1-2", [("c", "3"), ("v", "1"), ("v", "2")]),    # the same in both
+])
+def test_vrs_mref(tmp_path, ref, verses):
+    """ \\mref finds the scripture in the project's versification (eng) and gives
+        it in the module's (org) """
+    out, root, errors = _mref(tmp_path, f'\\id FRT\n\\mlet|var="VRS" val="org"\\*\n\\p\n\\mref|{ref}\\*\n')
+    assert not errors
+    got = [(e.tag[0], e.get("number")) for e in root.iter() if e.tag in ("chapter", "verse")]
+    assert got == verses, out
+    if ref == "JON 2:1":
+        assert _jon117 in out
+
+def test_vrs_file(tmp_path):
+    """ $VRS can name a .vrs file beside the module """
+    import shutil, usfmtc.versification
+    shutil.copy(os.path.join(os.path.dirname(usfmtc.versification.__file__), "org.vrs"), tmp_path / "my.vrs")
+    _write(tmp_path / "main.usfm", '\\id FRT\n\\mlet|var="VRS" val="my.vrs"\\*\n\\p $len($rall(JON 1, v))\n')
+    res, errors = _flatfile(tmp_path / "main.usfm")
+    assert "\\p 16" in res and not errors
+
+def test_vrs_project(tmp_path):
+    """ Without $VRS, the module's versification is its project's """
+    from usfmtc.projects import Projects
+    _project(str(tmp_path), "ORG", Versification="1")
+    projects = Projects(str(tmp_path))
+    mod = Module(None, project=projects.find("ORG"), projects=projects)
+    assert mod.expand("$len($rall(JON 1, v)) $r(JON 1, last.last)") == "16 JON 1:16"
+    assert mod._vrs() is projects.find("ORG").settings.getVersification()
+    assert Module(None, envs={"*": bkenv}).expand("$len($rall(JON 1, v))") == "17"     # no project: eng

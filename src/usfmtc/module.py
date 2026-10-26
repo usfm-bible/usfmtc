@@ -10,7 +10,7 @@ parser.
 
 import re, inspect, io, os
 from typing import Optional, Dict, List, Union
-from usfmtc.reference import RefList, Environment
+from usfmtc.reference import RefList, Ref, RefRange, Environment
 from usfmtc.usfmgenerate import usx2usfm
 
 
@@ -1002,10 +1002,67 @@ class Module:
             raise ModuleError(f"No project for {product}")
         return res
 
+    def _vrs(self):
+        """ The module's versification, named by $VRS: a bundled name or a .vrs
+            file, relative to the module's file. Without it, the versification
+            of the module's project, else eng. """
+        from usfmtc.versification import cached_versification
+        name = self.getvar("VRS", "*", "").strip()
+        if not name and self.project is not None:
+            res = self.project.settings.getVersification()
+            if res is not None:
+                return res
+        name = name or "eng"
+        if self.path is not None and os.path.exists(os.path.join(os.path.dirname(self.path), name)):
+            name = os.path.join(os.path.dirname(self.path), name)
+        res = cached_versification(name)
+        if res is None:
+            raise ModuleError(f"Unknown versification {name}")
+        return res
+
+    def _torefs(self, r, project):
+        """ The scripture for ref r, in $VRS, in project: its doc and r in the
+            project's versification, and that versification if it differs """
+        doc = project.books.getusx(r.first.book)
+        if doc is None:
+            raise ModuleError(f"No {r.first.book} in project {project.prjid}")
+        vrs = self._vrs()
+        pvrs = project.settings.getVersification()
+        if pvrs is None or pvrs is vrs or vrs.issame_map(pvrs):
+            return doc, r, None
+        if isinstance(r, Ref) and r.verse is not None:
+            return doc, vrs.remap(r, pvrs), pvrs
+        return doc, vrs.remap(RefRange(r.first.start(), r.last.end()), pvrs), pvrs
+
+    def _reversify(self, doc, r, pvrs):
+        """ Changes the fragment doc, for ref r in versification pvrs, into the
+            module's versification. reversify needs the chapter the fragment
+            starts in, so it gets one for the while if it doesn't start with one;
+            then a chapter that holds no verse, or a first chapter that doesn't
+            start at verse 1, goes. """
+        root = doc.getroot()
+        cats = doc.grammar.marker_categories if doc.grammar is not None else {}
+        body = [c for c in root if c.tag != "book"
+                    and not (c.tag == "para" and cats.get(c.get("style", ""), "") == "header")]
+        added = not len(body) or body[0].tag != "chapter"
+        if added:
+            root.insert(list(root).index(body[0]) if len(body) else len(root),
+                        root.makeelement("chapter", {"style": "c", "number": str(r.first.chapter)}))
+        doc.reversify(pvrs, self._vrs())
+        if added:
+            kids = list(root)
+            chaps = [i for i, c in enumerate(kids) if c.tag == "chapter"]
+            for n, i in enumerate(chaps):
+                end = chaps[n+1] if n+1 < len(chaps) else len(kids)
+                verses = [v for c in kids[i+1:end] for v in c.iter("verse")]
+                if not verses or (n == 0 and not re.match(r"1\b", verses[0].get("number", ""))):
+                    root.remove(kids[i])
+
     def _refs(self, ref: str, env: Environment) -> RefList:
-        """ Parses a reference list, which may use the local book names of env """
+        """ Parses a reference list, which may use the local book names of env,
+            in the module's versification """
         try:
-            refs = RefList(ref, env=env)
+            refs = RefList(ref, env=env, versification=self._vrs())
         except (SyntaxError, ValueError) as err:
             raise ModuleError(f"Bad reference {ref!r}: {err}")
         if not len(refs):
@@ -1308,7 +1365,7 @@ class Module:
             in a canonical ref list, or with no level its ranges. Partial books
             and chapters stay as ranges. """
         try:
-            refs = RefList(ref)
+            refs = RefList(ref, versification=self._vrs())
         except SyntaxError as err:
             raise ModuleError(f"Bad reference {ref!r}: {err}")
         items = {None: lambda: refs, "": lambda: refs, "b": refs.allbooks,
@@ -1361,12 +1418,9 @@ class Module:
             reference's product. """
         res = []
         for r in self._refs(ref, self._env(None)):
-            project = self._project(r.first.product)
-            doc = project.books.getusx(r.first.book)
-            if doc is None:
-                raise ModuleError(f"No {r.first.book} in project {project.prjid}")
+            doc, pr, pvrs = self._torefs(r, self._project(r.first.product))
             try:
-                res.append(doc.gettext(r))
+                res.append(doc.gettext(pr))
             except ValueError as err:
                 raise ModuleError(str(err))
         return " ".join(t for t in res if t)
@@ -1418,16 +1472,16 @@ class Module:
         last = None         # the project and book of the previous ref
         for r in self._refs(ref, self._env(self._attr(e, "lang").strip() or None)):
             project = self._project(r.first.product)
-            doc = project.books.getusx(r.first.book)
-            if doc is None:
-                raise ModuleError(f"No {r.first.book} in project {project.prjid}")
+            doc, pr, pvrs = self._torefs(r, project)
             first = last != (project, r.first.book)     # the intro comes once per book
             last = (project, r.first.book)
             try:
-                sub = doc.getrefs(r, addintro=conf["intro"] and first, titles=conf["intro"] and first,
+                sub = doc.getrefs(pr, addintro=conf["intro"] and first, titles=conf["intro"] and first,
                                   headers=True, chapters=conf["chapters"])
             except ValueError as err:
                 raise ModuleError(str(err))
+            if pvrs is not None:        # into the module's versification
+                self._reversify(sub, pr, pvrs)
             root = self._filterrefs(sub, conf)
             if res is None:
                 res = root
