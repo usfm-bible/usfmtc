@@ -143,7 +143,7 @@ def parseverse(s: str) -> Tuple[int, Optional[str]]:
         return (int(m.group(1)), m.group(2))
     raise SyntaxError(f"Badly structured verse: {s}")
 
-_reindex = re.compile(r"([0-9a-z_-]+)(?:\[([0-9]+\]))?")
+_reindex = re.compile(r"([0-9a-z_-]+)(?:\[([0-9]+)\])?")
 def asmarkers(s: str, t: str) -> List[_MarkerRef]:
     res = []
     b = []

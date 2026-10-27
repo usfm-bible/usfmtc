@@ -772,3 +772,17 @@ def test_gettext(s, res):
 def test_gettext_badverse():
     with pytest.raises(ValueError, match="out of range"):
         jon_usfm.gettext(Ref("JON 1:99"))
+
+@pytest.mark.parametrize("s, mrkrs", [
+    ("MRK 1:14!p[2]", [("p", 2, None)]),
+    ("MRK 1:14!p[2]!3", [("p", 2, 3)]),
+    ("MRK 1:14!s[2]!f", [("s", 2, None), ("f", None, None)]),
+])
+def test_mrkr_index(s, mrkrs):
+    """ The ] is not part of a marker's index """
+    r = Ref(s)
+    res = [(m.mrkr, m.index, m.word) for m in r.mrkrs]
+    if res != mrkrs:
+        fail(f"{s} has markers {res}")
+    if r.str(force=2) != s:
+        fail(f"{s} writes as {r.str(force=2)}")
