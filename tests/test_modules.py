@@ -1136,8 +1136,8 @@ _jon16 = ("Then the men feared the LORD greatly, and they offered a sacrifice to
     ("$reftext(JON 1:13)", _jon13),
     ("$reftext(Jonah 1:13)", _jon13),                     # the module's book names
     ("$reftext('JON 1:13; 16')", _jon13 + " " + _jon16),
-    ("$reftext(en+TST+JON 1:13)", _jon13),                # another project
-    ("$reftext(en+XYZ+JON 1:13)", "[ERROR: No project for en+XYZ]"),
+    ("$reftext(en+TST:JON 1:13)", _jon13),                # another project
+    ("$reftext(en+XYZ:JON 1:13)", "[ERROR: No project for en+XYZ]"),
     ("$reftext(MAT 1:1)", "[ERROR: No MAT in project FRA]"),
     ("$reftext(JON 1:99)", "[ERROR: Reference verse JON 1:99 out of range]"),
 ])
@@ -1213,13 +1213,13 @@ def test_mref_default(tmp_path):
 
 def test_mref_nodollar(tmp_path):
     """ $ in the inserted scripture is not expanded, unlike in the module """
-    res, root, errors = _mref(tmp_path, "\\id FRT\n\\p $name\n\\mref|en+DOL+JON 1:1\\*\n")
+    res, root, errors = _mref(tmp_path, "\\id FRT\n\\p $name\n\\mref|en+DOL:JON 1:1\\*\n")
     assert "\\p Fred" in res and "It cost $5 and $name." in res and not errors
 
 def test_mref_projects(tmp_path):
     """ The refs of a list can come from different projects. A product carries
         on to the following refs, and a bare + goes back to the module's project. """
-    res, root, errors = _mref(tmp_path, '\\id FRT\n\\p\n\\mref|ref="JON 1:1; en+DOL+JON 1:1; +JON 1:2"\\*\n')
+    res, root, errors = _mref(tmp_path, '\\id FRT\n\\p\n\\mref|ref="JON 1:1; en+DOL:JON 1:1; +:JON 1:2"\\*\n')
     assert not errors
     assert [v.get("number") for v in root.iter("verse")] == ["1", "1", "2"]
     assert "It cost" in res and "Get up!" in res
@@ -1230,7 +1230,7 @@ def test_mref_projects(tmp_path):
     (r'\mrefconfig|name="x" colour="red"\*', r'Unknown \mrefconfig setting colour'),
     (r'\mref|JON 1:99\*', 'Reference verse JON 1:99 out of range'),
     (r'\mref|MAT 1:1\*', 'No MAT in project FRA'),
-    (r'\mref|en+XYZ+JON 1:1\*', 'No project for en+XYZ'),
+    (r'\mref|en+XYZ:JON 1:1\*', 'No project for en+XYZ'),
 ])
 def test_mref_errors(tmp_path, src, err):
     res, root, errors = _mref(tmp_path, "\\id FRT\n\\p " + src + "\n")

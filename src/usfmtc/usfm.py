@@ -49,14 +49,14 @@ def usfmGrammar(gsrc, extensions=[], altparser=False, backend=None, start=None, 
                 res.readmrkrs(e)
         return res
 
-_filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj", ".usj": "usj", ".txt": "usfm3.0"}
+filetypes = {".xml": "usx", ".usx": "usx", ".usfm": "usfm", ".sfm": "usfm3.0", ".json": "usj", ".usj": "usj", ".txt": "usfm3.0"}
 
 def readFile(infpath, informat=None, gramfile=None, grammar=None, extfiles=None, altparser=False, strict=False, keepparser=False, **kw):
     """ Reads a USFM file of a given type or inferred from the filename
         extension. extfiles allows for extra markers.ext files to extend the grammar"""
     if informat is None:
         inroot, ext = os.path.splitext(infpath)
-        intype = _filetypes.get(ext.lower(), informat)
+        intype = filetypes.get(ext.lower(), informat)
     else:
         intype = informat
     if intype is None:
@@ -288,7 +288,7 @@ class USX:
             or inferred from the filename extension. """
         if outformat is None:
             outroot, ext = os.path.splitext(outfpath)
-            outtype = _filetypes.get(ext.lower(), outformat)
+            outtype = filetypes.get(ext.lower(), outformat)
         else:
             outtype = outformat
         if outtype is None:

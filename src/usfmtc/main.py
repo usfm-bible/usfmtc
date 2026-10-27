@@ -11,7 +11,7 @@
 """ usfmconv: converts between USFM, USX and USJ """
 
 import os
-from usfmtc.usfm import readFile, usfmGrammar, _grammarDoc, _filetypes
+from usfmtc.usfm import readFile, usfmGrammar, _grammarDoc, filetypes
 from usfmtc.validating.rngparser import NoParseError
 from usfmtc.reference import RefList
 from usfmtc.versification import cached_versification
@@ -96,11 +96,11 @@ def main(hookcli=None, hookusx=None, argv=None):
         doerror(f"No files found in {args.infile}")
 
     root, ext = os.path.splitext(infiles[0])
-    args.informat = args.informat or _filetypes.get(ext.lower(), args.informat)
+    args.informat = args.informat or filetypes.get(ext.lower(), args.informat)
     if args.outformat is None:
         if args.outfile is not None and not os.path.isdir(args.outfile):
             root, ext = os.path.splitext(args.outfile)
-            args.outformat = _filetypes.get(ext.lower(), None)
+            args.outformat = filetypes.get(ext.lower(), None)
     ingrammar = None
     outgrammar = None
     if (args.informat and args.informat.startswith("usfm")) or (args.outformat and args.outformat.startswith("usfm")):

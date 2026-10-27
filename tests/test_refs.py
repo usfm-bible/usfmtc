@@ -549,7 +549,7 @@ def test_parse_localbook(s, res):
     if (r := RefList(s, env=bkenv).str()) != res:
         fail(f"{s} parsed as {r} instead of {res}")
 
-@pytest.mark.parametrize("s, product", [("BSB+JHN 3:16", "BSB"), ("a+b+JHN 3:16-18", "a+b"), ("JHN 3:16", None)])
+@pytest.mark.parametrize("s, product", [("BSB:JHN 3:16", "BSB"), ("a+b:JHN 3:16-18", "a+b"), ("JHN 3:16", None)])
 def test_product(s, product):
     """ A product (translation) id prefix parses and writes back as it was """
     r = RefList(s)
@@ -557,10 +557,11 @@ def test_product(s, product):
         fail(f"{s} has product {r[0].first.product!r} and writes as {r.str()}")
 
 @pytest.mark.parametrize("s, res, products", [
-    ("BSB+JHN 3:16-18; ROM 1", "BSB+JHN 3:16-18; ROM 1", ["BSB", "BSB"]),
-    ("BSB+JHN 3:16; WEB+ROM 1; ACT 2", "BSB+JHN 3:16; WEB+ROM 1; ACT 2", ["BSB", "WEB", "WEB"]),
-    ("BSB+JHN 21:24-ACT 1:2", "BSB+JHN 21:24-end; ACT 1:1-2", ["BSB", "BSB"]),
-    ("BSB+3JN 1:14-JUD 1:2", "BSB+3JN 14-end; JUD 1-2", ["BSB", "BSB"]),
+    ("BSB:JHN 3:16-18; ROM 1", "BSB:JHN 3:16-18; ROM 1", ["BSB", "BSB"]),
+    ("en+BSB.JHN 3:16; +.ROM 1", "en+BSB:JHN 3:16; +:ROM 1", ["en+BSB", ""]),
+    ("BSB:JHN 3:16; WEB:ROM 1; ACT 2", "BSB:JHN 3:16; WEB:ROM 1; ACT 2", ["BSB", "WEB", "WEB"]),
+    ("BSB:JHN 21:24-ACT 1:2", "BSB:JHN 21:24-end; ACT 1:1-2", ["BSB", "BSB"]),
+    ("BSB:3JN 1:14-JUD 1:2", "BSB:3JN 14-end; JUD 1-2", ["BSB", "BSB"]),
 ])
 def test_product_context(s, res, products):
     """ A product carries over to later references, as context, including when
@@ -570,12 +571,12 @@ def test_product_context(s, res, products):
         fail(f"{s} gave {r.str()} with products {[x.first.product for x in r]}")
 
 @pytest.mark.parametrize("s, res, products", [
-    ("JON 1:1; en+BSB+JON 1:2; +JON 1:3; 1:4", "JON 1:1,en+BSB+JON 1:2,+JON 1:3,4", [None, "en+BSB", "", None]),
-    ("+JON 1:3", "JON 1:3", [""]),
-    ("BSB+JHN 3:16; +ROM 1; GEN 1", "BSB+JHN 3:16; +ROM 1; GEN 1", ["BSB", "", None]),
+    ("JON 1:1; en+BSB:JON 1:2; +:JON 1:3; 1:4", "JON 1:1,en+BSB:JON 1:2,+:JON 1:3,4", [None, "en+BSB", "", None]),
+    ("+:JON 1:3", "JON 1:3", [""]),
+    ("BSB:JHN 3:16; +:ROM 1; GEN 1", "BSB:JHN 3:16; +:ROM 1; GEN 1", ["BSB", "", None]),
 ])
 def test_product_reset(s, res, products):
-    """ A bare + goes back to no product """
+    """ A +: goes back to no product """
     r = RefList(s)
     if r.str() != res or [x.first.product for x in r] != products:
         fail(f"{s} gave {r.str()} with products {[x.first.product for x in r]}")
@@ -596,7 +597,7 @@ def test_allrefs_end(s, res):
         fail(f"{s} gave {r}")
 
 def test_product_all():
-    r = RefList("BSB+JHN 21:24-ACT 1:2")
+    r = RefList("BSB:JHN 21:24-ACT 1:2")
     for fn in ("allbooks", "allchaps", "allrefs"):
         if any(x.first.product != "BSB" for x in getattr(r, fn)()):
             fail(f"{fn} lost the product: {[str(x) for x in getattr(r, fn)()]}")

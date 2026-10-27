@@ -173,13 +173,14 @@ def asmarkers(s: str, t: str) -> List[_MarkerRef]:
 _bookre = re.compile(r"\A(?:[A-Z][A-Z0-9][A-Z0-9]|[0-9](?:[A-Z][A-Z]|[0-9][A-Z]|[A-Z][0-9]))$")
 
 _regexes = {
-    "book": r"""(?P<transid>(?:[a-z0-9_-]*[+])*)
+    "book": r"""(?P<transid>(?:[a-z][a-z0-9_-]*(?:[+][a-z0-9_-]+)*|[+]){booksep})?
                     (?P<book>\d?{id})
                     (?:\s+{chap})""",
-    "booklax": r"""^(?P<transid>(?:[a-z0-9_-]*[+])*)
+    "booklax": r"""^(?P<transid>(?:[a-z][a-z0-9_-]*(?:[+][a-z0-9_-]+)*|[+]){booksep})?
                     (?P<book>(?!end)\d?{id})
                     (?:\s+{chap})?""",
     "afterbook": r"(?:\s+{chap})",       # after a book name matched by the environment
+    "booksep": r"[:.]",                 # between a TransId (langtag+product) and the book
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
     "charref": r"(?:(?:[0-9]|end)[+]?)",
@@ -394,7 +395,7 @@ class Ref:
                     hitlimit = True
                 elif not hitlimit:
                     v = getattr(context.last, a, None)
-                    if a == 'product' and v == "":      # what follows a bare + has no product
+                    if a == 'product' and v == "":      # what follows a +: has no product
                         v = None
                 setattr(self, a, v)
             if not hasattr(self, 'strend'):
@@ -430,8 +431,8 @@ class Ref:
             p['book'] = envbook[0]
             start = envbook[1]      # the rest is matched from the end of the name
         elif m := bookre.match(s[start:]):
-            # without the final +. A bare + is no product, rather than the context's
-            p['product'] = m.group('transid')[:-1] if m.group('transid') else None
+            # without the final booksep. A +: is no product, rather than the context's
+            p['product'] = m.group('transid')[:-1].lstrip('+') if m.group('transid') else None
             p['book'] = self.parsebook(m.group('book'), strict=strict)
         elif not (m:= self._recontext.match(s[start:])):
             raise SyntaxError("Cannot parse reference '{}' ({})".format(s[start:], s))
@@ -577,8 +578,8 @@ class Ref:
         sep = ''
         if (env is None or not env.nobook) and getattr(self, 'product', None) is not None \
                 and (self.product != (getattr(context, 'product', None) or "") or start == 'product'):
-            res.append(self.product)        # a bare + if going back to no product
-            res.append('+')
+            res.append(self.product or '+')  # +: if going back to no product
+            res.append(':')
             force = max(2, iniforce)        # a product is followed by a full reference
         if (env is None or not env.nobook) and (force > 1 or neqa(context, self, 'book')):
             res.append(env.localbook(getattr(self, 'book', ""), level=level) if env else getattr(self, 'book', ""))
