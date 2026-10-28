@@ -786,3 +786,15 @@ def test_mrkr_index(s, mrkrs):
         fail(f"{s} has markers {res}")
     if r.str(force=2) != s:
         fail(f"{s} writes as {r.str(force=2)}")
+
+@pytest.mark.parametrize("s, word", [
+    ("GEN 1:1!3", 3),
+    ("GEN 1:1!12", 12),
+])
+def test_word_multidigit(s, word):
+    """ A word number may have more than one digit """
+    r = Ref(s)
+    if r.word != word:
+        fail(f"{s} has word {r.word}")
+    if r.str(force=2) != s:
+        fail(f"{s} writes as {r.str(force=2)}")
