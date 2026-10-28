@@ -183,14 +183,14 @@ _regexes = {
     "booksep": r"[:.]",                 # between a TransId (langtag+product) and the book
 #    "id": r"(?:[\p{L}\p{Nl}\p{OIDS}-\p{Pat_Syn}-\p{Pat_WS}][\p{L}\p{Nl}\p{OIDS}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{OIDC}-\p{Pat_Syn}-\p{Pat_WS}]*)",
     "id": r"(?:[a-z][a-z0-9_]*[a-z0-9]?)",
-    "charref": r"(?:(?:[0-9]|end)[+]?)",
+    "charref": r"(?:(?:[0-9]+|end)[+]?)",
     "wordrefanon": r"",
-    "mrkref": r"(?:\!{id}(?:\[[0-9]\])?(?:\!(?:[0-9]|end)(?:[+]{charref})?)?)",
-    "wordrefonly": r"(?P<word>[0-9]|end)(?P<char>[+]{charref})?",
+    "mrkref": r"(?:\!{id}(?:\[[0-9]+\])?(?:\!(?:[0-9]+|end)(?:[+]{charref})?)?)",
+    "wordrefonly": r"(?P<word>[0-9]+|end)(?P<char>[+]{charref})?",
     "wordref1": r"""(?:(?: \!(?P<word1>[0-9]|end)(?:[+](?P<char1>{charref}))?
                           |(?P<mrk1>{mrkref}))
                        (?P<mrkn1>{mrkref}*))""",
-    "wordref2": r"""(?:(?: \!(?P<word2>[0-9]|end)(?:[+](?P<char2>{charref}))?
+    "wordref2": r"""(?:(?: \!(?P<word2>[0-9]+|end)(?:[+](?P<char2>{charref}))?
                           |(?P<mrk2>{mrkref}))
                        (?P<mrkn2>{mrkref}*))""",
     "verse1": r"(?P<verse1>[0-9]+|end)(?P<subv1>[a-z]?)",

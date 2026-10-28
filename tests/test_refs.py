@@ -775,7 +775,7 @@ def test_gettext_badverse():
 
 @pytest.mark.parametrize("s, mrkrs", [
     ("MRK 1:14!p[2]", [("p", 2, None)]),
-    ("MRK 1:14!p[2]!3", [("p", 2, 3)]),
+    ("MRK 1:14!p[12]!32", [("p", 12, 32)]),
     ("MRK 1:14!s[2]!f", [("s", 2, None), ("f", None, None)]),
 ])
 def test_mrkr_index(s, mrkrs):
