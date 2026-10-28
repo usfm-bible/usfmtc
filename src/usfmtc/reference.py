@@ -187,7 +187,7 @@ _regexes = {
     "wordrefanon": r"",
     "mrkref": r"(?:\!{id}(?:\[[0-9]+\])?(?:\!(?:[0-9]+|end)(?:[+]{charref})?)?)",
     "wordrefonly": r"(?P<word>[0-9]+|end)(?P<char>[+]{charref})?",
-    "wordref1": r"""(?:(?: \!(?P<word1>[0-9]|end)(?:[+](?P<char1>{charref}))?
+    "wordref1": r"""(?:(?: \!(?P<word1>[0-9]+|end)(?:[+](?P<char1>{charref}))?
                           |(?P<mrk1>{mrkref}))
                        (?P<mrkn1>{mrkref}*))""",
     "wordref2": r"""(?:(?: \!(?P<word2>[0-9]+|end)(?:[+](?P<char2>{charref}))?
