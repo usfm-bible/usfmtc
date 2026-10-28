@@ -129,10 +129,10 @@ def test_cellrange():
 \tr
 \tc1 \v 1 This\tc2 explains everything
 \tr
-\tc1-2 along with\tc3 this information."""
+\tc2-3 along with\tc4 this information."""
     doc, f = _dousfm(usfm)
     if doc.getroot()[3][1][0].get("colspan", "") != "2":
-        fail(f"{f}: no tc1-2")
+        fail(f"{f}: no tc2-3")
 
 def test_msqt():
     usfm = r"""\id JUD paired ms
@@ -235,6 +235,17 @@ def test_periph():
     doc, f = _dousfm(usfm)
     if not doc.getroot()[1].get("id", None):
         fail(f"Bad periph {f}")
+
+def test_periph2():
+    source = r"""\id FRT
+\usfm 3.1
+\periph Introduction|id="introduction"
+\p Text.
+"""
+    doc, f = _dousfm(source)
+    if not doc.getroot()[1].get("id", None):
+        fail(f"Bad periph {f}")
+
 
 def test_ver31():
     usfm = r"""\id MAT or somewhere

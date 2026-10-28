@@ -519,6 +519,8 @@ class USXNode(Node):
     def __init__(self, parser, usxtag, tag, **kw):
         self.parser = parser
         self.parent = parser.stack[-1] if len(parser.stack) else None
+        self.tag = tag
+        self.pos = kw.get('pos', None)
 
     def appendText(self, t):
         s = str(t).strip(WS)

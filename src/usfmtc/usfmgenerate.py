@@ -83,7 +83,14 @@ class Emitter:
         s = e.get('style', '')
         if s is not None and len(s):
             if "colspan" in e.attrib:
-                s = "{}-{}".format(s, e.get('colspan'))
+                try:
+                    b = int(re.sub(r"^\D+", "", s))
+                    end = b + int(e.get('colspan')) - 1
+                except ValueError:
+                    b = 0
+                    end = 0
+                if end > 0:
+                    s = "{}-{}".format(s, end)
             self("\\{0}{1}".format(prefix+s, sep))
 
 def iterels(el, events):
