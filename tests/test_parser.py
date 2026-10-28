@@ -362,3 +362,18 @@ def test_attrib_newline():
     assert any("Newlines not allowed" in e[0] for e in doc.errors)
     with pytest.raises(SyntaxError, match="Newlines not allowed"):
         usfmtc.readFile(s, informat="usfm", strict=True)
+
+def test_jsonround():
+    usfm = r'''\id GEN
+\c 1
+\p
+\v 1 See \ref Ps. 33:9|loc="PSA 33:9"\ref* and \jmp Glossary|href="#glossary"\jmp* here.
+'''
+    doc, f = _dousfm(usfm)
+    usj = doc.saveAs(None, outformat="usj")
+    usjt = json.dumps(usj)
+    print(usjt)
+    doc2 = usfmtc.readFile(usjt, informat="usj")
+    res = doc2.saveAs(None, outformat="usfm")
+    if "|Ps." in res:
+        fail(f"Fronted attributes, since used {doc2.version}")

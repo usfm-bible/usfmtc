@@ -211,6 +211,9 @@ class USX:
     def outUsj(self, file=None, ensure_ascii=False, **kw):
         """ Output USJ from USX object. If file is None returns dict """
         res = usxtousj(self.xml)
+        v = ".".join([str(x) for x in self.version]) if self.version is not None else None
+        if res.get('version', None) != v:
+            res['version'] = v
         if file is None:
             return res
         else:
@@ -297,15 +300,15 @@ class USX:
         if outtype == "usx":
             if addesids:
                 self.addesids()
-            self.outUsx(outfpath, **kw)
+            return self.outUsx(outfpath, **kw)
         elif outtype == "usj":
-            self.outUsj(outfpath, **kw)
+            return self.outUsj(outfpath, **kw)
         elif outtype == "usfm":
             if outtype == "usfm3.0":
                 outtype = "usfm"
                 if version is None:
                     version = "3.0"
-            self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
+            return self.outUsfm(grammar=grammar, file=outfpath, outversion=version, altparser=altparser, **kw)
 
     def canonicalise(self, version=None):
         """ Canonicalises the text especially with regard to whitespace """

@@ -11,7 +11,7 @@ def usxtousj(input_usx):
     output_json, _ = convert_usx(input_usx)
     output_json['type'] = SPEC_NAME
     if 'version' not in output_json:
-        output_json['version'] = VERSION_NUM
+        output_json['version'] = input_usx.get('version', VERSION_NUM)
     return output_json
 
 def convert_usx(input_usx_elmt):
@@ -64,7 +64,7 @@ def usjtousx(adict, elfactory=None):
     if elfactory is None:
         elfactory = ParentElement       # Needed for adding esid_s. Or use lxml
     root = elfactory('usx')
-    # root.set('version', '3.1')
+    root.set('version', adict.get('version', None))
     last_node = None
     for item in adict['content']:
         if isinstance(item, str):
