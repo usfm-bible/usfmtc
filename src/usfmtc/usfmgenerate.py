@@ -147,7 +147,9 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 book = el.get("code", None)
             if el.tag == "chapter":
                 proc_start_ms(el, "chapter", "c", emit, "", escapes, version)
-                n = int(el.get("number", 0))
+                # \c x or a typo: keep counting from the last good chapter rather than fail
+                m = re.match(r"\s*(\d+)", el.get("number", "") or "")
+                n = int(m.group(1)) if m else (cref.chapter if cref is not None and cref.chapter else 0)
                 if cref is None:
                     cref = Ref(book=book, chapter=n, verse=0)
                 else:
@@ -159,7 +161,7 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 if cref is not None:
                     try:
                         cref = Ref(f"{cref.book or ''} {cref.chapter or 0}:{v}")
-                    except SyntaxError:
+                    except (SyntaxError, ValueError):    # e.g. a backwards bridge \v 3-2
                         cref = None
                 if cref is None:
                     m = re.match(r"^(\d+)(.*?)$", v)
