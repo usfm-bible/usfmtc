@@ -31,7 +31,7 @@ class ParentElement(et.Element):
         res = tf(self.tag, attrib=self.attrib, parent=parent, pos=self.pos)
         res.text = self.text
         res.tail = self.tail
-        for a in ("textpos", "tailpos"):        # where the parser found text and tail
+        for a in ("textpos", "tailpos", "unknown"):   # where the parser found text and tail, unknown marker
             if hasattr(self, a):
                 setattr(res, a, getattr(self, a))
         if children:

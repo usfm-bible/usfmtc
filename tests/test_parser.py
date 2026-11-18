@@ -388,3 +388,17 @@ def test_jsonround():
     res = doc2.saveAs(None, outformat="usfm")
     if "|Ps." in res:
         fail(f"Fronted attributes, since used {doc2.version}")
+
+def test_unknown_marked():
+    usfm = r"""\id GEN
+\c 1
+\p
+\v 1 Hello \foo world\foo* and \bar there
+"""
+    doc, f = _dousfm(usfm, errors=True)
+    unknowns = [e.get("style") for e in doc.getroot().iter() if getattr(e, "unknown", False)]
+    assert unknowns == ["foo", "bar"]
+    copied = [e.get("style") for e in doc.getroot().copy(deep=True).iter() if getattr(e, "unknown", False)]
+    assert copied == ["foo", "bar"]
+    assert "unknown" not in json.dumps(doc.outUsj(None)) and "unknown" not in doc.outUsx(None)
+    assert r"\foo world\foo*" in f and r"\bar there" in f

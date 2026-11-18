@@ -1013,6 +1013,10 @@ class USFMParser:
         self.error(SyntaxError, msg, tag.pos)
         res = self.addNode(Node(self, 'ms', tag, pos=tag.pos))
         res.element.set("x-bare", "true")
+        try:
+            res.element.unknown = True      # so users of the doc can find unknown markers
+        except AttributeError:              # plain et.Element factory
+            pass
         return res
 
     def _usfm(self, tag):
