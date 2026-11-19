@@ -23,6 +23,15 @@ class Pos:
     def copy(self) -> 'Pos':
         return self.__class__(self.l, self.c, **self.kw)
 
+def _escapedchar(hexval):
+    """ The character a \\u or \\U escape stands for. \\u0000, a malformed escape (hexval None), or a
+        value that isn't a character gives a space """
+    try:
+        v = int(hexval, 16) if hexval else 0
+        return chr(v) if v else " "
+    except ValueError:
+        return " "
+
 class Tag(str):
     pos: Pos
     isplus: bool
@@ -156,6 +165,8 @@ class Lexer:
     endattribs = regex.compile(r'\s*\|\s*')
     afterattribs = regex.compile(r'\s*\\')
     usvre = regex.compile(r'(?:\\u([0-9a-fA-F]{4})|\\U([0-9a-fA-F]{8}))')
+    # a character escape in the text, after its \: \uXXXX, \UXXXXXXXX, or a malformed \u and digits
+    escre = regex.compile(r'u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8})|u[0-9][0-9A-Za-z]{0,3}')
 
     def __init__(self, txt: str, parser: "USFMParser", expanded: bool=False,
                         strict: bool=False, tagger: Type[Tag]=Tag):
@@ -197,17 +208,16 @@ class Lexer:
                 continue
             elif n == "\\":
                 if self.parser.version >= [3, 2]:
-                    u = self.usvre.match(self.txt[m.end():])
+                    u = self.escre.match(self.txt, pos=m.end())
                     if u:
-                        c = chr(int((m.group(1) or m.group(2)), 16))
-                        res += c
-                        curri += u.end()
+                        res += _escapedchar(u.group(1) or u.group(2))
+                        curri = u.end()
                         continue
                 t = self.tagre.match(self.txt[m.end():])
                 if not t or not t.end():
                     if m.end() < len(self.txt) - 1:
                         s = self.txt[m.end()]
-                    if s == "\r" and m.end() < len(self.text) - 2:
+                    if s == "\r" and m.end() < len(self.txt) - 2:
                         s += self.txt[m.end()+1]
                     if s in ("\r\n", "\n"):
                         self.lengths.append(m.end() - self.lpos)
@@ -546,7 +556,9 @@ class USXNode(Node):
             version = [int(x) for x in vs]
         except ValueError:
             version = [3, 0]
-        self.parser.version = version
+        self.parser.declared = version
+        if self.parser.parseas is None:     # (otherwise it keeps parsing as asked)
+            self.parser.version = version
 
     def addNodeElement(self, e):
         return self.parent.addNodeElement(e)
@@ -710,9 +722,12 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
-    def __init__(self, txt, *, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, remline=False, **kw):
+    def __init__(self, txt, *, factory=None, grammar=None, expanded=False, strict=False, 
+                                version=[99], index=True, remline=False, parseas=None, **kw):
         """ remline: \\rem is plain text to the end of its line whatever the USFM version (as in 3.2), so
-                markup commented out in it isn't parsed """
+                markup commented out in it isn't parsed
+            parseas: parse as this USFM version (e.g. "3.2"), whatever a \\usfm line says. The \\usfm
+                line is still recorded as the document's version, so output keeps to it """
         if factory is None:
             def makeel(tag, attrib, **extras):
                 attrib.update({" "+k:v for k, v in extras.items()})
@@ -725,7 +740,11 @@ class USFMParser:
         self._setup(expanded=expanded)
         self.lexer = Lexer(txt, self, expanded=expanded, strict=strict, tagger=kw.get("tagger", Tag))
         self.strict = strict
-        self.version = version
+        if isinstance(parseas, str):
+            parseas = [int(x) for x in parseas.split(".")]
+        self.parseas = parseas
+        self.declared = version         # the document's version: as given, then as its \\usfm line says
+        self.version = parseas or version
         self.remline = remline
         self.doindexing = index
         self.chapters = []

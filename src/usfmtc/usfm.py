@@ -140,7 +140,7 @@ class USX:
         if p and readerr is not None:
             p.errors.insert(0, (readerr,))
         cleanup(xml)            # normalize space, de-escape chars, cell aligns, etc.
-        res = cls(xml, grammar, errors=p.errors if p else None, version=getattr(p, 'version', None))
+        res = cls(xml, grammar, errors=p.errors if p else None, version=getattr(p, 'declared', getattr(p, 'version', None)))
         if keepparser:
             res.parser = p
         return res

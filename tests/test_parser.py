@@ -523,3 +523,32 @@ def test_rem_written_literally():
     doc = usfmtc.readFile(usfm, informat="usfm")
     assert not doc.errors
     assert "\\rem old: \\zfoo|x\\* and \\fig* here | x\n" in doc.outUsfm(None)
+
+def test_char_escapes():
+    """ USFM 3.2 character escapes in the text; \\u0000 and malformed ones give a space """
+    usfm = ("\\id GEN test\n\\usfm 3.2\n\\c 1\n\\p \\v 1 a\\u0020b caf\\u00e9 nul\\u0000x bad\\u00zzy "
+            "big\\U0001F600z short\\u12 end\n")
+    doc = usfmtc.readFile(usfm, informat="usfm")
+    assert not doc.errors, doc.errors
+    para = [e for e in doc.getroot() if e.tag == "para"][0]
+    assert "".join(para.itertext()) == "a b café nul x bad y big\U0001F600z short  end"
+
+def test_char_escapes_not_31():
+    """ Before 3.2, \\u... is a marker as always """
+    doc = usfmtc.readFile("\\id GEN test\n\\usfm 3.1\n\\c 1\n\\p \\v 1 caf\\u00e9\n", informat="usfm")
+    assert any("u00e9" in e[0] for e in doc.errors)
+
+def test_usfm_marker_not_an_escape():
+    """ \\usfm and other markers starting with u aren't taken as escapes """
+    doc = usfmtc.readFile("\\id GEN test\n\\usfm 3.2\n\\c 1\n\\p \\v 1 text\n", informat="usfm")
+    assert not doc.errors and doc.getroot().get("version") == "3.2"
+
+def test_parseas():
+    """ parseas parses as that version whatever the \\usfm line says, and output keeps the declared version """
+    usfm = "\\id GEN test\n\\usfm 3.1\n\\c 1\n\\p \\v 1 caf\\u00e9 a\\u005Cm b\n\\rem x \\zz|a\\* y\n"
+    doc = usfmtc.readFile(usfm, informat="usfm", parseas="3.2")
+    assert not doc.errors, doc.errors
+    para = [e for e in doc.getroot() if e.tag == "para" and e.get("style") == "p"][0]
+    assert "".join(para.itertext()).strip() == "café a\\m b"         # \m is a backslash and m, not \m
+    out = doc.outUsfm(None)
+    assert "\\usfm 3.1" in out and "café a\\\\m b" in out
