@@ -552,3 +552,14 @@ def test_parseas():
     assert "".join(para.itertext()).strip() == "café a\\m b"         # \m is a backslash and m, not \m
     out = doc.outUsfm(None)
     assert "\\usfm 3.1" in out and "café a\\\\m b" in out
+
+def test_missing_fig_end():
+    """ A \\fig whose attributes aren't followed by \\fig* says so """
+    doc = usfmtc.readFile('\\id GEN t\n\\c 1\n\\p \\v 1 text \\fig A caption|src="x.jpg" size="col" ref="1.1" more\n',
+                          informat="usfm")
+    assert any("\\fig*" in e[0] for e in doc.errors), doc.errors
+
+def test_bar_in_para_text():
+    """ A | in paragraph text isn't blamed on a missing paragraph end marker """
+    doc = usfmtc.readFile('\\id GEN t\n\\c 1\n\\m old | new\n', informat="usfm")
+    assert not any("\\m*" in e[0] for e in doc.errors), doc.errors

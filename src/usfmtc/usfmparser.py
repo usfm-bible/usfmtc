@@ -273,7 +273,12 @@ class Lexer:
             curri += m.end()
             frontattrib = True
         if not frontattrib and not self.afterattribs.match(self.txt[curri:]):
-            self.parser.error(SyntaxError, f"Bad end of attributes", self.currpos())
+            n = self.parser.stack[-1] if len(self.parser.stack) else None
+            e = getattr(n, "element", None)
+            st = e.get("style") if e is not None and e.tag in ("char", "note", "figure", "ms") else None
+            # attributes end the marker they belong to, e.g. \fig ...|src="x"\fig*
+            self.parser.error(SyntaxError, f"Missing end marker{' \\' + st + '*' if st else ''} after attributes",
+                              self.currpos())
         return res, curri
 
     def readLine(self):
