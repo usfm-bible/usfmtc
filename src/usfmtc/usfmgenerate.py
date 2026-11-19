@@ -55,7 +55,7 @@ def append_attribs(el, emit, attribmap={}, tag=None, nows=False, escapes="", ini
     if not len(l):
         return
     final = "|" if init else ""
-    if len(l) == 1 and l[0][0] == attribmap.get(s, ''):
+    if len(l) == 1 and l[0][0] in (attribmap.get(s, ''), "_unknown_"):     # _unknown_: the default attribute of an unknown marker
         emit("|"+attribescaped(l[0][1], escapes)+final)
     else:
         attribs = ['{0}="{1}"'.format(k, attribescaped(v, escapes)) for k,v in l]
@@ -70,6 +70,7 @@ class Emitter:
         self.outf = outf
         self.escapes = escapes
         self.notilde = notilde
+        self.last = None        # the last character written
 
     def __call__(self, s, text=False):
         if s is None:
@@ -78,6 +79,8 @@ class Emitter:
         if text:
             s = escaped(s, self.escapes, notilde=self.notilde)
         self.outf.write(s)
+        if len(s):
+            self.last = s[-1]
 
     def tag(self, e, sep=" ", prefix=""):
         s = e.get('style', '')
@@ -174,6 +177,8 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
                 emit(el.get("code"))
                 prespace = True
             elif el.tag in ("row", "para"):
+                if emit.last not in (None, "\n"):     # e.g. after a milestone between paragraphs
+                    emit("\n")
                 if 'vid' in el.attrib:
                     r = Ref(el.get("vid", ""))
                     if version < [3, 2] and (cref is None or forcevid or not _isnextref(cref, r, el)):

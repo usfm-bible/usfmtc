@@ -402,3 +402,105 @@ def test_unknown_marked():
     assert copied == ["foo", "bar"]
     assert "unknown" not in json.dumps(doc.outUsj(None)) and "unknown" not in doc.outUsx(None)
     assert r"\foo world\foo*" in f and r"\bar there" in f
+
+def _unknowntree(usfm):
+    doc, f = _dousfm(usfm, nofail=True)
+    para = [e for e in doc.getroot() if e.tag == "para"][0]
+    return para, f
+
+def test_unknown_bare_stands_alone():
+    """ A bare unknown marker doesn't take in the text and markers after it """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zfoo b \\zbar c\n"
+    para, f = _unknowntree(usfm)
+    assert [(e.tag, e.get("style"), len(e), e.text) for e in para] == \
+        [("ms", "zfoo", 0, None), ("ms", "zbar", 0, None)]
+    assert f == usfm
+
+def test_unknown_bare_keeps_space():
+    """ The space between a bare unknown marker and its following text is kept """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\pc \\zcopyright\n\\pc \\polyglotcolumn L\n"
+    para, f = _unknowntree(usfm)
+    assert [l.rstrip() for l in f.splitlines()] == usfm.splitlines()     # (a protective space may end a line)
+
+def test_unknown_milestone_default_attrib():
+    """ The bare attribute of an unknown milestone is written back bare """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zglot|R\\* b\n"
+    para, f = _unknowntree(usfm)
+    assert para[0].tag == "ms" and para[0].get("style") == "zglot"
+    assert f == usfm
+
+def test_unknown_char_with_nested_char():
+    """ An unknown char style still holds its content when a marker comes inside it """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zfoo x \\bd y\\bd* z\\zfoo* b\n"
+    para, f = _unknowntree(usfm)
+    assert len(para) == 1 and para[0].tag == "char" and para[0].get("style") == "zfoo"
+    assert para[0][0].get("style") == "bd"
+    assert f == usfm
+
+def test_unknown_char_attribs_after_text():
+    """ Attributes after the text of an unknown char style stay with it, not the paragraph """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zfoo text|x=\"1\"\\zfoo* b\n"
+    para, f = _unknowntree(usfm)
+    assert para.get("x") is None
+    assert para[0].tag == "char" and para[0].get("x") == "1" and para[0].text == "text"
+    assert f == usfm
+
+def test_unknown_char_default_attrib_after_text():
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zfoo text|R\\zfoo* b\n"
+    para, f = _unknowntree(usfm)
+    assert para[0].tag == "char" and para[0].get("_unknown_") == "R"
+    assert f == usfm
+
+def test_standalone_given_attribs():
+    """ A standalone marker given attributes and \\* becomes a milestone holding them """
+    g = Grammar()
+    g.marker_categories["zst"] = "standalone"
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p a \\zst|R\\* b\n"
+    doc, f = _dousfm(usfm, grammar=g)        # no parser errors
+    para = [e for e in doc.getroot() if e.tag == "para"][0]
+    assert para.get("_unknown_") is None
+    assert para[0].tag == "ms" and para[0].get("_unknown_") == "R" and para[0].get("x-bare") is None
+    assert f == usfm
+
+def test_unknown_after_bare_names_real_parent():
+    """ A bare unknown marker contains nothing, so the next unknown is reported in the paragraph """
+    doc = usfmtc.readFile("\\id GEN test\n\\p a \\zfoo \\zbar b\n", informat="usfm")
+    msgs = [e[0] for e in doc.errors]
+    assert msgs == ["Unknown tag 'zfoo' in 'p'", "Unknown tag 'zbar' in 'p'"]
+
+def test_para_after_milestone_starts_line():
+    """ A paragraph after a milestone between paragraphs starts on its own line """
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\periph Title|title\n\\zfoo\\*\n\\mt1 Title\n"
+    doc, f = _dousfm(usfm, nofail=True)
+    assert "\\zfoo\\*\n\\mt1 Title" in f
+
+def test_space_after_milestone_at_para_start():
+    """ The space after a milestone at the start of a paragraph is part of the text """
+    g = Grammar()
+    g.marker_categories["zvar"] = "milestone"
+    usfm = "\\id GEN test\n\n\\usfm 3.1\n\\p \\zvar|lang\\* (\\zvar|iso\\*)\n"
+    doc, f = _dousfm(usfm, grammar=g)
+    assert f == usfm
+
+def test_periph_title_kept():
+    """ Text after a marker in a periph doesn't replace the periph's title """
+    usfm = "\\id FRT test\n\n\\usfm 3.1\n\\periph First Page|firstpage\n\\zreset 1\n\\ip Text\n"
+    doc, f = _dousfm(usfm, nofail=True)
+    periph = [e for e in doc.getroot() if e.tag == "periph"][0]
+    assert periph.get("alt") == "First Page"
+    assert "\\zreset 1" in f
+
+def test_standalone_attribs_between_paras():
+    """ A standalone marker given attributes between paragraphs keeps them, even empty ones """
+    g = Grammar()
+    g.marker_categories["zst"] = "standalone"
+    usfm = "\\id FRT test\n\n\\usfm 3.1\n\\periph Title|title\n\\p a\n\\zst|R\\*\n\\p b\n\\zst|\\*\n\\p c\n"
+    doc, f = _dousfm(usfm, grammar=g)        # no parser errors
+    assert "\\zst|R\\*" in f and "\\zst|\\*" in f
+
+def test_attribs_with_nothing_to_belong_to():
+    """ Attributes no element takes, and no unknown char style claims, are reported and kept """
+    doc = usfmtc.readFile("\\id GEN test\n\\p a|x=\"1\" b\n\\p c\n", informat="usfm")
+    assert any("nothing to belong to" in e[0] for e in doc.errors)
+    paras = [e for e in doc.getroot() if e.tag == "para"]
+    assert paras[0].get("x") == "1" and paras[1].get("x") is None

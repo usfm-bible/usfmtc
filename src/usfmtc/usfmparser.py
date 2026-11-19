@@ -410,7 +410,7 @@ def isfirstText(e):
     if e.text is not None and len(e.text):
         return False
     for c in e:
-        if not isfirstText(c):
+        if c.tag == "ms" or not isfirstText(c):     # the space after a milestone's \\* is text
             return False
         if c.tail is not None and len(c.tail):
             return False
@@ -464,11 +464,24 @@ class Node:
             txt.addToNode(self.element, 'text')
         self.clearAttribNodes()
 
+    def takesAttribs(self):
+        """ Whether attributes in the text can be for this node: not a paragraph, the top
+            level, or a periph once its title and attributes are past """
+        e = self.element
+        return e is None or not (e.tag in ("para", "usx") or (e.tag == "periph" and len(e)))
+
     def addAttributes(self, d):
+        """ Returns whether this node took them """
+        if not self.takesAttribs():
+            return False
         self.element.attrib.update({k:v for k, v in d.items()})
         self.clearAttribNodes()
+        return True
 
     def addDefaultAttrib(self, t):
+        """ Returns whether this node took it """
+        if not self.takesAttribs():
+            return False
         defattrib = self.parser.grammar.attribmap.get(self.tag, None)
         if defattrib is None and self.tag is not None and self.tag.endswith("-e"):
             defattrib = 'eid'
@@ -476,6 +489,7 @@ class Node:
             defattrib = "_unknown_"
         self.element.set(defattrib, str(t))
         self.clearAttribNodes()
+        return True
 
     def addAttribNode(self, node):
         self.attribnodes.append(node)
@@ -587,9 +601,11 @@ class FwdAttribNode(Node):
         if defattrib is None:
             defattrib = "_unknown_"
         self.attribs[defattrib] = str(t)
+        return True
 
     def addAttributes(self, d):
         self.attribs.update(d)
+        return True
 
 
 class NumberNode(Node):
@@ -648,11 +664,23 @@ class NoteNode(Node):
 
 class PeriphNode(Node):
     def appendText(self, t):
+        if len(self.element):       # after something in the periph: not its title
+            return super().appendText(t)
         t = t.strip(WS)
         if t:
             self.element.set('alt', str(t).strip(WS))
 
 class MsNode(Node):
+    """ A milestone: closed by \\* or by the first text or marker after it """
+
+    def addAttributes(self, d):
+        self.element.attrib.pop("x-bare", None)     # with attributes it's no longer bare
+        return super().addAttributes(d)
+
+    def addDefaultAttrib(self, t):
+        self.element.attrib.pop("x-bare", None)
+        return super().addDefaultAttrib(t)
+
     def appendText(self, t):
         if not len(t.strip()):
             return
@@ -664,6 +692,11 @@ class MsNode(Node):
         self.parser.removeTag(self.tag)
         self.parser.parent = self.parser.stack[-1]
         self.parser.parent.appendElement(e)
+
+    def addNodeElement(self, e):
+        self.parser.removeTag(self.tag)
+        self.parser.parent = self.parser.stack[-1]
+        self.parser.parent.addNodeElement(e)
 
 class UnknownNode(Node):
     pass
@@ -732,6 +765,7 @@ class USFMParser:
         self.parent = self.rootnode
         self.stack.append(self.rootnode)
 
+        self.floatattribs = None
         for t in self.lexer:
             if isinstance(t, Tag):
                 tag = self.grammar.parsetag(t.basestr())
@@ -755,15 +789,64 @@ class USFMParser:
             if self.parent is None:
                 continue
             if isinstance(t, Attribs):
-                self.parent.addAttributes(t)
+                if not self.parent.addAttributes(t):
+                    self.floatattribs = (t, self.parent.element, self.lexer.currpos())    # for an unknown char style still to be closed?
             elif isinstance(t, AttribText):
-                self.parent.addDefaultAttrib(t)
+                if not self.parent.addDefaultAttrib(t):
+                    self.floatattribs = (t, self.parent.element, self.lexer.currpos())
             elif isinstance(t, OptBreak):
                 self.parent.appendElement(t)
             elif isinstance(t, String):
                 self.parent.appendText(t)
+        self.flushFloatAttribs()
         return self.stack[0].element
 
+
+    def flushFloatAttribs(self):
+        """ Attributes no element took, and no unknown char style closed after them, are an
+            error. They are kept on the element they came in, as they always were """
+        f, self.floatattribs = getattr(self, "floatattribs", None), None
+        if f is None:
+            return
+        a, e, pos = f
+        self.error(SyntaxError, f"Attributes '{a}' have nothing to belong to", pos)
+        if isinstance(a, Attribs):
+            e.attrib.update(a)
+        else:
+            e.set("_unknown_", str(a))
+
+    def _closeUnknownChar(self, tag):
+        """ Makes the latest bare unknown marker before an unknown end marker, in the
+            same parent, into a char style holding everything between them.
+            Returns whether there was one. """
+        name = tag.basestr()
+        parent = self.stack[-1].element if len(self.stack) else None
+        if parent is None:
+            return False
+        kids = list(parent)
+        for i in range(len(kids) - 1, -1, -1):
+            e = kids[i]
+            if e.tag == "ms" and e.get("style") == name and e.get("x-bare", "false") == "true":
+                break
+        else:
+            return False
+        del e.attrib["x-bare"]
+        e.tag = "char"
+        if self.floatattribs is not None:       # \\zfoo text|x="1"\\zfoo*
+            a = self.floatattribs[0]
+            if isinstance(a, Attribs):
+                e.attrib.update(a)
+            else:
+                e.set(self.grammar.attribmap.get(name, "_unknown_"), str(a))
+            self.floatattribs = None
+        e.text = e.tail[1:] if e.tail and e.tail[0] == " " else e.tail     # the space ending the marker
+        e.tail = None
+        for c in kids[i+1:]:
+            parent.remove(c)
+            e.append(c)
+            if hasattr(c, "parent"):
+                c.parent = e
+        return True
 
     def error(self, e, msg, pos):
         if pos is None:
@@ -779,6 +862,7 @@ class USFMParser:
             self.parent = self.stack[-1] if len(self.stack) else None
 
     def addNode(self, node):
+        self.flushFloatAttribs()
         if len(self.stack):
             if isinstance(self.stack[-1], FwdAttribNode):
                 anode = self.stack.pop()
@@ -994,24 +1078,28 @@ class USFMParser:
         return self.addNode(MsNode(self, 'ms', tag, pos=tag.pos))
 
     def standalone(self, tag):
-        res = Node(self, 'ms', tag, pos=tag.pos)
+        res = self.addNode(MsNode(self, 'ms', tag, pos=tag.pos))     # open only for attributes and \\*
         res.element.set("x-bare", "true")
-        return self.stack[-1]
+        return res
 
     def unknown(self, tag):
         if tag.isend:
             if str(tag) != "":      # treat as char
                 n = self.stack[-1]
-                if n.element is not None and n.element.get("x-bare", "false") == "true":
+                if n.element is not None and n.element.get("x-bare", "false") == "true" \
+                        and n.tag == tag.basestr():      # \\zfoo\\zfoo*: still open, nothing in it
                     del n.element.attrib["x-bare"]
-                    n.tag = str(tag).rstrip("*")
                     n.element.tag = "char"
+                elif self._closeUnknownChar(tag):
+                    return self.stack[-1]
                 return self.removeTag(str(tag))
         msg = f"Unknown tag '{tag}'"
-        if len(self.stack):
-            msg += f" in '{self.stack[-1].tag}'"
+        inside = [n for n in self.stack if getattr(n, "element", None) is None
+                    or n.element.get("x-bare", "false") != "true"]     # a bare marker before it contains nothing
+        if len(inside):
+            msg += f" in '{inside[-1].tag}'"
         self.error(SyntaxError, msg, tag.pos)
-        res = self.addNode(Node(self, 'ms', tag, pos=tag.pos))
+        res = self.addNode(MsNode(self, 'ms', tag, pos=tag.pos))   # closed by the first text or marker
         res.element.set("x-bare", "true")
         try:
             res.element.unknown = True      # so users of the doc can find unknown markers
