@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+""" Checks usfmtc against the USFM specification's own examples (a tcdocs checkout).
+
+    Each example in the marker pages (markers/*/*.adoc) gives USFM and the USX it should
+    become. This reports which examples usfmtc parses to that USX, and which survive being
+    written back to USFM and parsed again. With --tests it does the same for the test data
+    in tcdocs/tests, where metadata.xml says whether the USFM is meant to be valid.
+
+    It isn't part of the test suite: the spec and usfmtc can each be wrong, so the
+    differences are for someone to look at, not a pass or fail.
+"""
+
+import argparse, contextlib, glob, io, os, re, sys
+import xml.etree.ElementTree as et
+import usfmtc
+from usfmtc.usxmodel import etCmp
+
+def spec_examples(tcdir):
+    """ Returns {example id: {"file": adoc path, "usfm": text, "usx": text, ...}} """
+    res = {}
+    for f in sorted(glob.glob(os.path.join(tcdir, "markers", "**", "*.adoc"), recursive=True)):
+        lines = open(f, encoding="utf-8-sig").read().splitlines()
+        i = 0
+        while i < len(lines):
+            m = re.match(r"\[source#src-(usfm|usx|usj)-([^,\]]+)", lines[i])
+            if m and i + 1 < len(lines) and lines[i+1].strip() == "----":
+                j = i + 2
+                while j < len(lines) and lines[j].strip() != "----":
+                    j += 1
+                res.setdefault(m.group(2), {"file": f})[m.group(1)] = "\n".join(lines[i+2:j]) + "\n"
+                i = j
+            i += 1
+    return res
+
+def test_dirs(tcdir):
+    """ Returns {test name: {"file": dir, "usfm": text, "usx": text, "valid": True/False/None}} """
+    res = {}
+    base = os.path.join(tcdir, "tests")
+    for d, _, files in sorted(os.walk(base)):
+        if "origin.usfm" not in files:
+            continue
+        t = {"file": d, "usfm": open(os.path.join(d, "origin.usfm"), encoding="utf-8-sig").read(), "valid": None}
+        if "origin.xml" in files:
+            t["usx"] = open(os.path.join(d, "origin.xml"), encoding="utf-8-sig").read()
+        if "metadata.xml" in files:
+            v = et.parse(os.path.join(d, "metadata.xml")).getroot().findtext("validated")
+            t["valid"] = {"pass": True, "fail": False}.get((v or "").strip())
+        res[os.path.relpath(d, base).replace(os.sep, "_")] = t
+    return res
+
+DERIVED = ("sid", "eid", "vid", "version")     # worked out from the text, not part of it
+
+def normalise(e, dropbook=False):
+    """ Removes what the comparison shouldn't depend on: derived attributes and, for an
+        example that has no \\id, the book element """
+    for c in list(e):
+        if (dropbook and c.tag == "book") or (c.tag in ("verse", "chapter") and "eid" in c.attrib
+                                               and "number" not in c.attrib):     # end milestones
+            if c.tail:          # keep the text after it
+                prev = e[list(e).index(c) - 1] if list(e).index(c) else None
+                if prev is not None:
+                    prev.tail = (prev.tail or "") + c.tail
+                else:
+                    e.text = (e.text or "") + c.tail
+            e.remove(c)
+        else:
+            normalise(c)
+    for k in DERIVED:
+        e.attrib.pop(k, None)
+    return e
+
+def spec_usx(text):
+    """ The example's USX as a tree. Many examples are fragments, so they're put in a <usx> """
+    text = re.sub(r"^\s*<\?xml[^>]*\?>", "", text.lstrip("\ufeff")).strip()
+    if not text.startswith("<usx"):
+        text = "<usx>" + text + "</usx>"
+    return et.fromstring(text.encode("utf-8"))
+
+def compare(a, b):
+    """ Returns None if the trees match, otherwise etCmp's account of the first difference """
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):       # (etCmp's inner calls print directly)
+        same = etCmp(a, b, verbose=True, print=lambda *x: print(*x, file=out))
+    if same:
+        return None
+    return out.getvalue().strip() or "differ"
+
+def check(name, ex):
+    """ Returns {check: None (passed) or a description of the problem}, for the checks that apply """
+    res = {}
+    try:
+        doc = usfmtc.readFile(ex["usfm"], informat="usfm")
+        ours = et.fromstring(doc.outUsx(None).encode("utf-8"))     # USX as usfmtc writes it
+    except Exception as e:
+        return {"parse": f"exception: {e!r}"}
+    errors = [e[0] for e in (doc.errors or [])]
+    if ex.get("valid") is False:
+        res["invalid is reported"] = None if errors else "parsed without errors"
+    else:
+        res["parse"] = "; ".join(errors[:3]) if errors else None
+    if "usx" in ex:
+        try:
+            ref = spec_usx(ex["usx"])
+        except et.ParseError as e:
+            res["matches USX"] = f"the example's USX isn't well formed: {e}"
+        else:
+            fragment = ref.find("book") is None
+            res["matches USX"] = compare(normalise(ours, dropbook=fragment), normalise(ref))
+    try:
+        again = usfmtc.readFile(doc.outUsfm(None), informat="usfm")
+        res["round trip"] = compare(normalise(et.fromstring(doc.outUsx(None).encode("utf-8"))),
+                                    normalise(et.fromstring(again.outUsx(None).encode("utf-8"))))
+    except Exception as e:
+        res["round trip"] = f"exception: {e!r}"
+    return res
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("tcdocs", nargs="?", default=os.environ.get("TCDOCS",
+                        os.path.join(os.path.dirname(__file__), "..", "..", "tcdocs")),
+                        help="tcdocs checkout (default $TCDOCS or ../tcdocs beside usfmtc)")
+    parser.add_argument("--tests", action="store_true", help="Also check the test data in tcdocs/tests")
+    parser.add_argument("-k", "--match", help="Only examples whose name matches this regular expression")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Say what each failure was")
+    args = parser.parse_args()
+
+    if not os.path.isdir(os.path.join(args.tcdocs, "markers")):
+        parser.error(f"no tcdocs checkout at {args.tcdocs}")
+    sets = [("spec examples", spec_examples(args.tcdocs))]
+    if args.tests:
+        sets.append(("tcdocs/tests", test_dirs(args.tcdocs)))
+
+    failed = 0
+    for title, exs in sets:
+        names = [n for n in exs if "usfm" in exs[n] and exs[n]["usfm"].strip() != "Missing"     # (placeholders)
+                    and (args.match is None or re.search(args.match, n))]
+        totals = {}
+        for n in names:
+            for c, problem in check(n, exs[n]).items():
+                totals.setdefault(c, [0, 0])[problem is not None] += 1
+                if problem is not None:
+                    failed += 1
+                    if args.verbose:
+                        print(f"{n} [{c}] {os.path.relpath(exs[n]['file'], args.tcdocs)}\n    "
+                              + problem.replace("\n", "\n    "))
+        print(f"{title}: {len(names)}")
+        for c, (ok, bad) in totals.items():
+            print(f"  {c:20} {ok:4d} pass {bad:4d} fail")
+    return 1 if failed else 0
+
+if __name__ == "__main__":
+    sys.exit(main())

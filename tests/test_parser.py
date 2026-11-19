@@ -504,3 +504,22 @@ def test_attribs_with_nothing_to_belong_to():
     assert any("nothing to belong to" in e[0] for e in doc.errors)
     paras = [e for e in doc.getroot() if e.tag == "para"]
     assert paras[0].get("x") == "1" and paras[1].get("x") is None
+
+def test_remline():
+    """ With remline, markup in a \\rem is just text, whatever the USFM version """
+    usfm = "\\id GEN test\n\\usfm 3.1\n\\rem old: \\zccimg by-nd|size=\"col\"\\* and \\fig* here | x\n\\p text\n"
+    doc = usfmtc.readFile(usfm, informat="usfm", remline=True)
+    assert not doc.errors
+    rem = [e for e in doc.getroot() if e.get("style") == "rem"][0]
+    assert rem.text.strip() == "old: \\zccimg by-nd|size=\"col\"\\* and \\fig* here | x" and not len(rem)
+    f = doc.outUsfm(None)
+    assert "\\rem old: \\zccimg by-nd|size=\"col\"\\* and \\fig* here | x\n" in f
+    doc = usfmtc.readFile(usfm, informat="usfm")        # without it, the markup is parsed
+    assert doc.errors
+
+def test_rem_written_literally():
+    """ A \\rem line is written back as it was, markup and all (USFM 3.2) """
+    usfm = "\\id GEN test\n\n\\usfm 3.2\n\\rem old: \\zfoo|x\\* and \\fig* here | x\n\\p text\n"
+    doc = usfmtc.readFile(usfm, informat="usfm")
+    assert not doc.errors
+    assert "\\rem old: \\zfoo|x\\* and \\fig* here | x\n" in doc.outUsfm(None)

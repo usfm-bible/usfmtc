@@ -243,7 +243,9 @@ def usx2usfm(outf, root, grammar=None, lastel=None, version=None, escapes="", fo
             if el.text is not None and len(el.text.lstrip(WS)):
                 if prespace:
                     emit(" ")
-                if not(len(el)) and prespace:
+                if el.tag == "para" and s == "rem" and not len(el):     # \\rem is literal to the end of its line
+                    emit(el.text.strip(WS))
+                elif not(len(el)) and prespace:
                     emit(el.text.strip(WS), text=True)
                 else:
                     emit(el.text.lstrip(WS), text=True)

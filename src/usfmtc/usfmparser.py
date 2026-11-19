@@ -710,7 +710,9 @@ paratags = ('rem', ' table', 'sidebar')
 
 class USFMParser:
 
-    def __init__(self, txt, *, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, **kw):
+    def __init__(self, txt, *, factory=None, grammar=None, expanded=False, strict=False, version=[99], index=True, remline=False, **kw):
+        """ remline: \\rem is plain text to the end of its line whatever the USFM version (as in 3.2), so
+                markup commented out in it isn't parsed """
         if factory is None:
             def makeel(tag, attrib, **extras):
                 attrib.update({" "+k:v for k, v in extras.items()})
@@ -724,6 +726,7 @@ class USFMParser:
         self.lexer = Lexer(txt, self, expanded=expanded, strict=strict, tagger=kw.get("tagger", Tag))
         self.strict = strict
         self.version = version
+        self.remline = remline
         self.doindexing = index
         self.chapters = []
         self.ids = {}
@@ -961,7 +964,7 @@ class USFMParser:
         return self.addNode(Node(self, 'ref', tag, notag=True, pos=tag.pos))
 
     def _rem(self, tag):
-        if self.version < [3, 2]:
+        if self.version < [3, 2] and not self.remline:
             return self.otherpara(tag)
         if tag.isend:
             return self.removeTag(str(tag))
