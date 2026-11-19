@@ -6,4 +6,4 @@ from usfmtc.module import flattenModuleFile
 
 _filetypes = filetypes
 
-version = "0.4.10"
+version = "0.4.11"
